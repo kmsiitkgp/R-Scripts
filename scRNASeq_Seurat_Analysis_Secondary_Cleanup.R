@@ -23,13 +23,15 @@ source("/hpc/home/kailasamms/projects/scRNASeq/scRNASeq_Seurat_Functions_Variabl
 # consider as contaminant. 
 
 if (proj=="scRNASeq_BBN_C57B6"){
+  reduc <- "Harmony"
   Mixed <- list("Epithelial" = c(), 
-                "Fibroblasts" = c(),              
+                "Fibroblasts" = c(27),              
                 "Myeloid" = c(),                     
                 "Lymphoid" = c())
 }
 
 if (proj=="scRNASeq_BBN_Rag"){
+  reduc <- "rpca"
   Mixed <- list("Epithelial" = c(), 
                 "Fibroblasts" = c(),            
                 "Myeloid" = c(),                    

@@ -29,7 +29,7 @@ library("SigCheck")
 
 ## NOTE: Some predefined columns name MUST be present in the meta/clinical data
 ## "Sample_ID" : this column MUST contain sample names
-## "Time:      : this column MUST contain survival duration in days
+## "Time:      : this column MUST contain survival duration in months
 ## "Status     : this column MUST contain Dead/Alive status (Alive = 0, Dead = 1)
 ## "Sex        : this column MUST contain sex/Sex "Male" or "Female"
 

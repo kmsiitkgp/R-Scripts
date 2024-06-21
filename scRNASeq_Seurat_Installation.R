@@ -21,7 +21,7 @@ chooseCRANmirror(ind=1)
 #******************************************************************************#
 
 # Non-CRAN repository managing packages
-install.packages(pkgs = c("BiocManager", "remotes", "scCustomize"),
+install.packages(pkgs = c("BiocManager", "remotes"),
                  repos ='http://cran.us.r-project.org',
                  force = FALSE,
                  INSTALL_opts = '--no-lock')
@@ -29,7 +29,7 @@ install.packages(pkgs = c("BiocManager", "remotes", "scCustomize"),
 # Data analysis packages
 BiocManager::install(pkgs = c("AnnotationHub", "ensembldb", "fgsea", 
                               "clusterProfiler", "org.Hs.eg.db", "org.Mm.eg.db",
-                              "DESeq2", "progeny", "dorothea", "viper"),
+                              "DESeq2", "progeny", "dorothea", "viper", "sva"),
                      force = FALSE,
                      INSTALL_opts = '--no-lock')
 
@@ -65,7 +65,8 @@ install.packages(pkgs = c("Seurat", "harmony"),
 
 # "BiocNeighbors" is key dependency for CellChat package
 # "RcisTarget" is key dependency for SCENIC package
-BiocManager::install(pkgs = c("BiocNeighbors", "RcisTarget", "UCell", "glmGamPoi"),
+BiocManager::install(pkgs = c("BiocNeighbors", "RcisTarget", "UCell", 
+                              "glmGamPoi", "scCustomize"),
                      force = FALSE,
                      INSTALL_opts = '--no-lock')
 

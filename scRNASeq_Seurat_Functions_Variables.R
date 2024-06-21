@@ -44,6 +44,7 @@ library("progeny")
 library("dorothea")
 library("viper")
 #library("infercnv")
+library("sva")
 
 # Data wrangling packages
 library("openxlsx")             # Needed for reading, writing xlsx files
@@ -79,7 +80,7 @@ library("SCopeLoomR")           # Needed for reading loom files
 library("harmony")              # Needed for single cell analysis
 #library("SCENIC")              # Needed for SCENIC analysis
 library("DoubletFinder")        # Needed for identifying doublets
-library("Augur")
+#library("Augur")
 #library("ktplots")             # Needed for plotting cellphonedb results
 #library("CellChat")
 library("patchwork")
@@ -236,6 +237,8 @@ get_annotations <- function(species){
   
   # AnnotationHub has SYMBOL-ENSEMBL_ID info ONLY.
   # AnnotationDbi has SYMBOL-ENSEMBL_ID as well as SYMBOL-ENTREZ_ID info.
+  # hubCache(AnnotationHub()) to find location where cache is stored and delete
+  # it and strart fresh if you get errors like "Error: failed to load resource"
   
   #**************************GET ENSEMBL ANNOTATIONS***************************#
   # Connect to AnnotationHub
@@ -1087,12 +1090,8 @@ plot_post_integration <- function(res, reduc, idents, celltype){
 #                            CLUSTER IDENTIFICATION                            #
 #******************************************************************************#
 
-# NOTE: Perform cluster identification using conserved markers. If you cannot
-# identify any cluster using conserved markers, then use the markers from
-# FindAllMarkers() to identify the unidentified clusters.
-# FindConservedMarkers() is more accurate as it gives genes conserved across
-# multiple samples.
-
+# Calculate UCell and Seurat scores for major cell types based on markers listed
+# in scRNASeq_Markers.xlsx
 add_module_scores <- function(res, celltype, sheetname){
   
   # Load the integrated seurat object
@@ -1141,6 +1140,11 @@ add_module_scores <- function(res, celltype, sheetname){
   return(integrated_seurat)
 }
 
+# NOTE: Perform cluster identification using conserved markers. If you cannot
+# identify any cluster using conserved markers, then use the markers from
+# FindAllMarkers() to identify the unidentified clusters.
+# FindConservedMarkers() is more accurate as it gives genes conserved across
+# multiple samples.
 plot_conserved_modules <- function(res, reduc, celltype, sheetname){
   
   # Load the integrated seurat object
@@ -1170,7 +1174,8 @@ plot_conserved_modules <- function(res, reduc, celltype, sheetname){
                         reduction=paste0("umap.", base::tolower(reduc)),
                         label=TRUE,
                         combine=TRUE,
-                        raster=FALSE) +
+                        raster=FALSE) +  
+      #BUG: if raster=TRUE, order=TRUE is ignored. So, set raster=FALSE
       scale_colour_gradientn(colours=rev(brewer.pal(n=11, name="RdBu"))[5:11])
   }
   
@@ -1186,7 +1191,8 @@ plot_conserved_modules <- function(res, reduc, celltype, sheetname){
                         reduction=paste0("umap.", base::tolower(reduc)),
                         label=TRUE,
                         combine=TRUE,
-                        raster=FALSE) +
+                        raster=FALSE) +  
+      #BUG: if raster=TRUE, order=TRUE is ignored. So, set raster=FALSE
       scale_colour_gradientn(colours=rev(brewer.pal(n=11, name="RdBu"))[5:11])
   }
   
@@ -1233,40 +1239,6 @@ plot_conserved_modules <- function(res, reduc, celltype, sheetname){
                     limitsize=FALSE,
                     bg="white")
   }
-}
-
-#******************************************************************************#
-#                   REMOVE CLUSTERS WITH MULTIPLE CELLTYPES                    #
-#******************************************************************************#
-
-# NOTE: Mixed is a list of cluster numbers of mixed clusters for each cell type.
-# Mixed <- list("Epithelial"=c(25,26), "Fibroblasts"=c(13,14)}
-
-remove_mixed_clusters <- function(res, reduc, celltype, Mixed){
-  
-  # Load the integrated seurat object
-  integrated_seurat <- base::readRDS(paste0(seurat_results, "integrated_seurat_snn", 
-                                            dplyr::if_else(is.null(celltype), ".rds", paste0("_", celltype, ".rds"))))
-  
-  # Make a copy of original seurat object before subsetting
-  saveRDS(integrated_seurat, paste0(seurat_results, "integrated_seurat_snn", 
-                                    dplyr::if_else(is.null(celltype), ".rds", paste0("_", celltype, "_original.rds"))))
-  
-  # Set identity to an existing column in meta data
-  idents <- paste0("cluster.", res, ".", base::tolower(reduc))
-  Idents(integrated_seurat) <- idents
-  
-  cat("\n", celltype, " present initially:", nrow(integrated_seurat@meta.data))
-  
-  # Subset out the Mixed clusters
-  integrated_seurat <- subset(x=integrated_seurat,
-                              !!rlang::sym(idents) %in% Mixed[[celltype]],
-                              invert=TRUE)
-  
-  cat("\n", celltype, " present finally:", nrow(integrated_seurat@meta.data))
-  
-  saveRDS(integrated_seurat, paste0(seurat_results, "integrated_seurat_snn", 
-                                    dplyr::if_else(is.null(celltype), ".rds", paste0("_", celltype, ".rds"))))
 }
 
 #******************************************************************************#
@@ -1342,7 +1314,12 @@ get_markers <- function(res, reduc, celltype){
 #                   ANNOTATE CLUSTERS AND SAVE SEURAT OBJECT                   #
 #******************************************************************************#
 
-annotate_data <- function(res, reduc, celltype, clusters){
+# Annotate cells based on UMAP of module scores from plot_conserved_modules()
+# Here we annotate all cells belonging to a cluster to a 'single' cell type.
+# while in reality there could be some contaminating cells (eg: Myeloid cells in
+# epithelial cluster etc). We next have to remove these contaminating cells
+# (before performing analysis on subtypes) resulting in loss of cells. 
+annotate_data_umap <- function(res, reduc, celltype, clusters){
   
   # Load the integrated seurat object
   integrated_seurat <- base::readRDS(paste0(seurat_results, "integrated_seurat_snn", 
@@ -1373,7 +1350,7 @@ annotate_data <- function(res, reduc, celltype, clusters){
     # seurat_clusters column and add cell_type, sub_type, cell_class columns
     data <- integrated_seurat@meta.data %>% 
       dplyr::mutate(seurat_clusters=get(idents),
-                    cell_type=NA, sub_type=NA, cell_class=NA)
+                    cell_type=NA, sub_type=NA)
     
     # Assign cell type based on cluster numbers within seurat_clusters column
     for (j in 1:nrow(data)){
@@ -1390,8 +1367,6 @@ annotate_data <- function(res, reduc, celltype, clusters){
     
     # Import the metadata into Seurat object
     integrated_seurat@meta.data <- data
-    saveRDS(integrated_seurat, paste0(seurat_results, "integrated_seurat_snn", 
-                                      dplyr::if_else(is.null(celltype), ".rds", paste0("_", celltype, ".rds"))))
   } else {
     cat("\nYou missed annotating these clusters:\t", setdiff(list_1, list_2))
     cat("\nThese clusters are not present in data:\t", setdiff(list_2, list_1))
@@ -1401,26 +1376,143 @@ annotate_data <- function(res, reduc, celltype, clusters){
   return(integrated_seurat)
 }
 
+# Annotate cells based on UCell scores calculated by add_module_scores().
+# Here we annotate each cell based on UCell scores. So, all cells in a cluster
+# may belong to 'multiple' cell types. We can retain these contaminating cells
+# while performing subtype analysis but remove them from the final UMAP plot of
+# all cell types. This way we retain most cells for subtype analysis but also 
+# identify these contaminants and remove them before visualization.
+
+# NOTE: DO NOT CHANGE column names in scRNASeq_Markers.xlsx as the varaibles
+# defined within the function are based on column names in scRNASeq_Markers.xlsx
+annotate_data_ucell <- function(integrated_seurat, celltype){
+  
+  integrated_seurat@meta.data <- integrated_seurat@meta.data %>%
+    # you can also use rowwise() instead of using group_by() and ungroup()
+    group_by(Cell) %>%  
+    dplyr::mutate(cell_class = max(B.Cells_UCell, Dendritic.Cells_UCell, 
+                                   Endothelial_UCell, Epithelial_UCell,
+                                   Fibroblasts_UCell, Granulocytes_UCell,
+                                   Lymphatic.Endothelial_UCell, Macrophages_UCell,
+                                   Mast_UCell, Myofibroblasts_UCell, NK.cells_UCell,
+                                   Plasma.cells_UCell, T.cells_UCell, 
+                                   Neurons_UCell, Erythrocytes_UCell)) %>%
+    ungroup() %>%
+    dplyr::mutate(cell_class = dplyr::case_when(Epithelial_UCell            == cell_class & cell_class > 0 ~ "Epithelial",
+                                                Fibroblasts_UCell           == cell_class & cell_class > 0 ~ "Fibroblasts",
+                                                Myofibroblasts_UCell        == cell_class & cell_class > 0 ~ "Myofibroblasts",
+                                                Dendritic.Cells_UCell       == cell_class & cell_class > 0 ~ "Myeloid - DCs",
+                                                Granulocytes_UCell          == cell_class & cell_class > 0 ~ "Myeloid - Granulocytes",
+                                                Macrophages_UCell           == cell_class & cell_class > 0 ~ "Myeloid - Macrophages", 
+                                                Mast_UCell                  == cell_class & cell_class > 0 ~ "Myeloid - Mast", 
+                                                B.Cells_UCell               == cell_class & cell_class > 0 ~ "Lymphoid - B", 
+                                                Plasma.cells_UCell          == cell_class & cell_class > 0 ~ "Lymphoid - Plasma",
+                                                T.cells_UCell               == cell_class & cell_class > 0 ~ "Lymphoid - T", 
+                                                NK.cells_UCell              == cell_class & cell_class > 0 ~ "Lymphoid - NK",
+                                                Endothelial_UCell           == cell_class & cell_class > 0 ~ "Endothelial",
+                                                Lymphatic.Endothelial_UCell == cell_class & cell_class > 0 ~ "Endothelial - Lymphatic",
+                                                Neurons_UCell               == cell_class & cell_class > 0 ~ "Neurons",
+                                                Erythrocytes_UCell          == cell_class & cell_class > 0 ~ "Erythrocytes",
+                                                TRUE ~ "Unclassified")) %>%
+    dplyr::mutate(rnames = Cell) %>%
+    tibble::column_to_rownames("rnames")
+  
+  integrated_seurat@meta.data <- integrated_seurat@meta.data %>%
+    # you can also use rowwise() instead of using group_by() and ungroup()
+    group_by(Cell) %>%  
+    dplyr::mutate(cell_class_seurat = max(B.Cells1, Dendritic.Cells1, 
+                                   Endothelial1, Epithelial1,
+                                   Fibroblasts1, Granulocytes1,
+                                   Lymphatic.Endothelial1, Macrophages1,
+                                   Mast1, Myofibroblasts1, NK.cells1,
+                                   Plasma.cells1, T.cells1, 
+                                   Neurons1, Erythrocytes1)) %>%
+    ungroup() %>%
+    dplyr::mutate(cell_class_seurat = dplyr::case_when(Epithelial1     == cell_class_seurat & cell_class_seurat > 0 ~ "Epithelial",
+                                                Fibroblasts1           == cell_class_seurat & cell_class_seurat > 0 ~ "Fibroblasts",
+                                                Myofibroblasts1        == cell_class_seurat & cell_class_seurat > 0 ~ "Myofibroblasts",
+                                                Dendritic.Cells1       == cell_class_seurat & cell_class_seurat > 0 ~ "Myeloid - DCs",
+                                                Granulocytes1          == cell_class_seurat & cell_class_seurat > 0 ~ "Myeloid - Granulocytes",
+                                                Macrophages1           == cell_class_seurat & cell_class_seurat > 0 ~ "Myeloid - Macrophages", 
+                                                Mast1                  == cell_class_seurat & cell_class_seurat > 0 ~ "Myeloid - Mast", 
+                                                B.Cells1               == cell_class_seurat & cell_class_seurat > 0 ~ "Lymphoid - B", 
+                                                Plasma.cells1          == cell_class_seurat & cell_class_seurat > 0 ~ "Lymphoid - Plasma",
+                                                T.cells1               == cell_class_seurat & cell_class_seurat > 0 ~ "Lymphoid - T", 
+                                                NK.cells1              == cell_class_seurat & cell_class_seurat > 0 ~ "Lymphoid - NK",
+                                                Endothelial1           == cell_class_seurat & cell_class_seurat > 0 ~ "Endothelial",
+                                                Lymphatic.Endothelial1 == cell_class_seurat & cell_class_seurat > 0 ~ "Endothelial - Lymphatic",
+                                                Neurons1               == cell_class_seurat & cell_class_seurat > 0 ~ "Neurons",
+                                                Erythrocytes1          == cell_class_seurat & cell_class_seurat > 0 ~ "Erythrocytes",
+                                                TRUE ~ "Unclassified")) %>%
+    dplyr::mutate(rnames = Cell) %>%
+    tibble::column_to_rownames("rnames")
+  
+  # Save the object with calculated module scores
+  saveRDS(integrated_seurat, paste0(seurat_results, "integrated_seurat_snn", 
+                                    dplyr::if_else(is.null(celltype), ".rds", paste0("_", celltype, ".rds"))))
+  
+  return(integrated_seurat)
+}
+
+#******************************************************************************#
+#                   REMOVE CLUSTERS WITH MULTIPLE CELLTYPES                    #
+#******************************************************************************#
+
+# NOTE: Mixed is a list of cluster numbers of mixed clusters for each cell type.
+# Mixed <- list("Epithelial"=c(25,26), "Fibroblasts"=c(13,14)}
+
+remove_mixed_clusters <- function(res, reduc, celltype, Mixed){
+  
+  # Load the integrated seurat object
+  integrated_seurat <- base::readRDS(paste0(seurat_results, "integrated_seurat_snn", 
+                                            dplyr::if_else(is.null(celltype), ".rds", paste0("_", celltype, ".rds"))))
+  
+  # Make a copy of original seurat object before subsetting
+  saveRDS(integrated_seurat, paste0(seurat_results, "integrated_seurat_snn", 
+                                    dplyr::if_else(is.null(celltype), ".rds", paste0("_", celltype, "_original.rds"))))
+  
+  # Set identity to an existing column in meta data
+  idents <- paste0("cluster.", res, ".", base::tolower(reduc))
+  Idents(integrated_seurat) <- idents
+  
+  cat("\n", celltype, " present initially:", nrow(integrated_seurat@meta.data))
+  
+  # Subset out the Mixed clusters
+  integrated_seurat <- subset(x=integrated_seurat,
+                              !!rlang::sym(idents) %in% Mixed[[celltype]],
+                              invert=TRUE)
+  
+  cat("\n", celltype, " present finally:", nrow(integrated_seurat@meta.data))
+  
+  saveRDS(integrated_seurat, paste0(seurat_results, "integrated_seurat_snn", 
+                                    dplyr::if_else(is.null(celltype), ".rds", paste0("_", celltype, ".rds"))))
+}
+
 #******************************************************************************#
 #                SUBSET SPECIFIC CELLTYPE FOR SUBTYPE ANALYSIS                 #
 #******************************************************************************#
 
+# prep_data() filters celltypes based on cell_class column of metadata which 
+# is based on UCell scoring. To filter celltypes based on cell_type column
+# of metadata which is based on UMAP classification, change the function code
+
 prep_data <- function(integrated_seurat, celltype){
   
   # Get major cell types present in seurat object
-  major_celltypes <- unique(integrated_seurat@meta.data$cell_type)
+  # major_celltypes <- unique(integrated_seurat@meta.data$cell_type)
+  major_celltypes <- unique(integrated_seurat@meta.data$cell_class)
   
-  # Identify all sub types fo relevance. For example, seurat object may have 
-  # cell_types "Myeloid-MDSC", "Myeloid-Macrophages". We want to subset both 
-  # these groups despite celltype == "Myeloid"
+  # Identify all sub types of relevance. 
+  # Since, we want to subset all Myeloid subtypes like "Myeloid-MDSC", 
+  # "Myeloid-Macrophages", set celltype == "Myeloid"
   celltypes_of_interest <- major_celltypes[grepl(pattern=celltype, x=major_celltypes, ignore.case=TRUE)]
   
   # Keep ONLY necessary celltype being analyzed
   filtered_seurat <- subset(x=integrated_seurat, 
-                            cell_type %in% celltypes_of_interest)
+                            cell_class %in% celltypes_of_interest)
   
   # Print cell numbers to double check
-  print(filtered_seurat@meta.data %>% dplyr::count(Condition, cell_type, sub_type, Sample))
+  print(filtered_seurat@meta.data %>% dplyr::count(Condition, cell_class, cell_type, sub_type, Sample))
   
   # Remove unwanted assays after changing default assay
   DefaultAssay(filtered_seurat) <- "RNA"
@@ -1777,7 +1869,6 @@ visualize_dotplot <- function(){
 #                  STEP 13: CALCULATE STATS FOR EACH CLUSTER                   #               
 #******************************************************************************#
 
-#***STEP 13: CALCULATE NUMBER OF CELLS IN EACH CLUSTER FOR EVERY RESOLUTION***#
 # NOTE: We identify sparse as well as dominant cells at this step but we 
 # remove them after checking all plots in prior steps (10A-C)
 

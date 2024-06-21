@@ -467,6 +467,9 @@ if (whitelist == TRUE){
 #                       STEP 3: RUN THE STANDARD PIPELINE                      #
 #******************************************************************************#
 
+# cell_type has classification based on UMAP clusters
+# cell_class has classification based on UCell scores
+
 if (whitelist == FALSE){
   
   # Load rds file of filtered_seurat object
@@ -502,7 +505,7 @@ if (whitelist == FALSE){
 # "Module_plot(All Markers)__JointPCA.jpg" plots to decide which reduction gives
 # (i) clear separation of clusters 
 # (ii) clusters cells together i.e. B cells are not split between clusters.
-# In all cases so far, Harmony seemed to work best.
+# In all cases so far, RPCA and Harmony seemed to work best.
 
 #******************************************************************************#
 

@@ -191,7 +191,7 @@ if (proj=="scRNASeq_Simon"){
   # of epithelial cells in many other non-epithelial clusters.
   reduc <- "rpca"
   clusters <- list("Fibroblasts" = c(13,21,27),
-                   "Myofibroblasts" = c(12,19,11,18,28,29),
+                   "Myofibroblasts" = c(12,19,11,18,28,29,5),
                    "Epithelial" = c(0,2,4,6,7,9,10,24,25,26,33,34),
                    "Myeloid - Macrophages" = c(),
                    "Myeloid - DCs" = c(),
@@ -207,14 +207,15 @@ if (proj=="scRNASeq_Simon"){
                    "Neurons" = c(),
                    "Myocytes" = c(),
                    "Erythrocytes" = c(),
-                   "Unclassified" = c(1,3,5,8,15,16,17,23,30,32))
+                   "Unclassified" = c(1,3,8,15,16,17,23,30,32))
 }
 
 res <- 1.4
 # reduc is defined for each proj within the if statement
 celltype <- NULL
-integ <- annotate_data(res, reduc, celltype, clusters)
-
+integ <- annotate_data_umap(res, reduc, celltype, clusters)
+integ <- annotate_data_ucell(integ, celltype)
+  
 #******************************************************************************#
 #       STEP 5: PERFORM INITIAL SUBTYPE ANALYSIS ON REQUIRED CELL TYPES        #
 #******************************************************************************#
@@ -232,11 +233,14 @@ integ <- annotate_data(res, reduc, celltype, clusters)
 # An alternative to AddModuleScore() is AddModuleScore_UCell() which is not
 # affected by subsetting seurat objects as the score is calculated differently.
 
-# Load the integrated seurat object
+# Load the full seurat object
 integrated_seurat <- readRDS(paste0(seurat_results, "integrated_seurat_snn.rds"))
 
 for (celltype in c("Epithelial", "Fibroblasts", "Myeloid", "Lymphoid")){
   
+  # prep_data() filters celltypes based on cell_class column of metadata which 
+  # is based on UCell scoring, not based on cluster based annotation we 
+  # performed in the previous step
   filt <- prep_data(integrated_seurat, celltype)
   sct <- sctransform_data(filt)
   
