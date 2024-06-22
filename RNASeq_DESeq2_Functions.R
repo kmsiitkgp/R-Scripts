@@ -11,6 +11,7 @@ library("org.Hs.eg.db")
 library("org.Mm.eg.db")
 library("DESeq2")               # Needed for Differential Expression analysis
 library("sva")
+library("preprocessCore")
 
 # Data wrangling packages
 library("openxlsx")             # Needed for reading, writing xlsx files
@@ -862,3 +863,335 @@ plot_qc <- function(dds, meta_data, approach){
   
   grDevices::dev.off()
 } 
+
+
+#******************************************************************************#
+#
+#******************************************************************************#
+
+# Values should be raw i.e. untransformed. DO NOT use log transformed values etc.
+# DO NOT replace NA with 0 etc. Leave NA as they are.
+# NA values will be imputed/replaced with average of non-NA values.
+# If all values are NA, they will be set to 0.
+# NO duplicated genes MUST be present.
+impute_with_mean <- function(raw_counts){
+  
+  # Replace NA with average
+  for (j in 1:nrow(raw_counts)){
+    
+    data <- raw_counts[j,] %>% 
+      t() %>% 
+      as.data.frame() %>% 
+      tibble::rownames_to_column(var = "Sample") %>%
+      dplyr::left_join(metadata, by = c("Sample" = "Sample"))
+    colnames(data) <- c("Sample", "values", "Condition")
+    
+    # If all values for Reference == NA or Target == NA, set them to 0. 
+    # Replace NA with average wherever possible.
+    data <- data %>% 
+      dplyr::mutate(values = as.numeric(values)) %>%
+      dplyr::group_by(Condition) %>% 
+      dplyr::mutate(average = mean(values, na.rm=TRUE)) %>%
+      dplyr::ungroup() %>%
+      dplyr::mutate(average = dplyr::if_else(is.na(average), 0, average),
+                    values = dplyr::if_else(is.na(values), average, values))
+    
+    data <- data %>% 
+      dplyr::select(Sample, values) %>% 
+      tibble::column_to_rownames("Sample") %>% 
+      t()
+    
+    if(all(colnames(data) == colnames(raw_counts))){
+      raw_counts[j,] <- data[,colnames(raw_counts[j,])] %>% unlist(use.names=FALSE)
+    }
+  }
+  
+  imputed_counts <- raw_counts %>% 
+    dplyr::mutate(across(.cols=everything(), .fns = as.numeric))
+  
+  return(imputed_counts)
+}
+
+#******************************************************************************#
+#
+#******************************************************************************#
+
+# Perform quantile normalization after imputation (?check online?)
+quantile_norm <- function(raw_counts, quant_norm){
+  
+  # Perform quantile normalization
+  if (quant_norm == TRUE){
+    quant_norm_counts <- as.data.frame(preprocessCore::normalize.quantiles(as.matrix(raw_counts)))
+    rownames(quant_norm_counts) <- rownames(raw_counts)
+    colnames(quant_norm_counts) <- colnames(raw_counts)
+  } else {
+    quant_norm_counts <- raw_counts
+  }
+  
+  return(quant_norm_counts)
+}
+
+#******************************************************************************#
+#
+#******************************************************************************#
+
+# Function to calculate pval and log2FoldChange
+calc_stats <- function(counts, metadata, Target, Reference){
+  
+  # Perform t.test
+  SYMBOL <- c()
+  expt <- c()
+  control <- c()
+  pval <- c()
+  for (j in 1:nrow(counts)){
+    
+    data <- counts[j,] %>% 
+      t() %>% 
+      as.data.frame() %>% 
+      tibble::rownames_to_column(var = "Sample") %>%
+      dplyr::left_join(metadata, by = c("Sample" = "Sample"))
+    colnames(data) <- c("Sample", "values", "Condition")
+    
+    # Use F.test() to determine if variances are equal or not.
+    # NOTE: p < 0.05 => unequal variance
+    
+    # NOTE: If Iso <- c(NA, NA, 18) and IP <- c(17, NA, 18),
+    # var.test and t.test with throw error since Iso has only 1 value.
+    
+    # NOTE: If Iso <- c(1,1,1) and IP <- c(1,1,1),
+    # t.test will throw error "data are essentially constant".
+    
+    # NOTE: If Iso <- c(0,0,0) and IP <- c(1,1,1),
+    # t.test will throw error "data are essentially constant".
+    
+    if (sum(!is.na(data[data$Condition == Reference, ]$values)) > 1 &
+        sum(!is.na(data[data$Condition == Target, ]$values)) > 1 & 
+        (length(unique(data[data$Condition == Reference, ]$values)) + 
+         length(unique(data[data$Condition == Target, ]$values)) > 2)){
+      #   f_test <- var.test(formula = values ~ Condition, 
+      #                      data = data,
+      #                      alternative = "two.sided")
+      #   
+      #   if(!is.na(f_test$p.value)){
+      # if (f_test$p.value < 0.05){
+      # t_test <- t.test(formula = values ~ Condition,
+      #                  data = data,
+      #                  alternative = "two.sided",
+      #                  var.equal = FALSE)
+      # }
+      
+      # # Remove outliers
+      # ref_data <- data[data$Condition == Reference, ]$values
+      # low_ref <- quantile(ref_data, na.rm=TRUE)[2] - 1.5*IQR(ref_data, na.rm=TRUE)
+      # high_ref <- quantile(ref_data, na.rm=TRUE)[3] + 1.5*IQR(ref_data, na.rm=TRUE)
+      # 
+      # target_data <- data[data$Condition == Target, ]$values
+      # low_tar <- quantile(target_data, na.rm=TRUE)[2] - 1.5*IQR(target_data, na.rm=TRUE)
+      # high_tar <- quantile(target_data, na.rm=TRUE)[3] + 1.5*IQR(target_data, na.rm=TRUE)
+      # 
+      # data <- data %>%
+      #   dplyr::filter(!(Condition == Reference & (values > high_ref | values < low_ref))) %>%
+      #   dplyr::filter(!(Condition == Target & (values > high_tar | values < low_tar)))
+      
+      
+      # Calculate p values, mean expression
+      t_test <- t.test(formula = values ~ Condition, 
+                       data = data,
+                       alternative = "two.sided",
+                       var.equal = FALSE)
+      
+      if (grepl(Reference, names(t_test$estimate[1]))){
+        SYMBOL <- c(SYMBOL, rownames(raw_counts)[j])
+        pval <- c(pval, t_test$p.value)
+        control <- c(control, t_test$estimate[[1]])
+        expt <- c(expt, t_test$estimate[[2]])
+      } else if (grepl(Reference, names(t_test$estimate[2]))) {
+        SYMBOL <- c(SYMBOL, rownames(raw_counts)[j])
+        pval <- c(pval, t_test$p.value)
+        control <- c(control, t_test$estimate[[2]])
+        expt <- c(expt, t_test$estimate[[1]])
+      }
+    } else{
+      SYMBOL <- c(SYMBOL, rownames(raw_counts)[j])
+      pval <- c(pval, 1) # Note: DO NOT SET to NA. It will increase padj.
+      control <- c(control, mean(data[data$Condition == Reference, ]$values, na.rm=TRUE))
+      expt <- c(expt, mean(data[data$Condition == Target, ]$values, na.rm=TRUE))
+    }
+  }
+  
+  stats_df <- data.frame(SYMBOL, expt, control, pval)
+  stats_df$padj <- stats::p.adjust(p = stats_df$pval, method = "fdr", n = length(stats_df$pval))
+  stats_df$log2FoldChange <- log2(1+stats_df$expt) - log2(1+stats_df$control)
+  
+  result <- counts %>% 
+    tibble::rownames_to_column(var = "SYMBOL") %>% 
+    dplyr::left_join(stats_df, by = c("SYMBOL" = "SYMBOL"))
+  
+  return(result)
+}
+
+
+#******************************************************************************#
+#                          GSEA ANALYSIS USING FGSEA                           #
+#******************************************************************************#
+
+# Enrichment analysis takes differential data from every measured gene and looks
+# for pathways displaying significantly coordinated shifts in those values.
+
+# https://www.biostars.org/p/12182/
+# https://www.biostars.org/p/17628/
+# https://www.reddit.com/r/bioinformatics/comments/11o7mrv/gene_set_enrichment_analysis_do_you_separate_out/?rdt=59356
+# https://groups.google.com/g/gsea-help/c/oXsBOAUYnH4
+# https://www.biostars.org/p/132575/
+
+# DEGs_df MUST contain columns "SYMBOL", "padj" & "log2FoldChange"
+# gmt_file MUST be the original unmodified filename of gmt_file with full 
+# path as downloaded from GSEA
+
+fgsea <- function(DEGs_df, gmt_file, annotations){
+  
+  #****************************************************************************#
+  #     PREPARE A RANKED GENE LIST OF ALL GENES EXPRESSED IN YOUR SAMPLES      #
+  #****************************************************************************#
+  
+  # NOTE: ALL genes MUST be used for this analysis, NOT just DEGs. 
+  # NOTE: Genes MUST be ranked i.e. sorted in descending fold change. You can 
+  # also rank based on log2FC & p value like: sign(df$log2fc)*(-log10(df$pval)))
+  # NOTE: Genes MUST be stored in list format, not as a dataframe.
+  
+  DEGs_df <- DEGs_df %>%
+    dplyr::distinct_at("SYMBOL", .keep_all = TRUE) %>%
+    dplyr::filter(!is.na(padj)) %>%
+    dplyr::arrange(desc(log2FoldChange))
+  
+  DEGs_list <- DEGs_df$log2FoldChange
+  names(DEGs_list) <- DEGs_df$SYMBOL
+  
+  #****************************************************************************#
+  #                         DEFINE scoreType PARAMETER                         #
+  #****************************************************************************#
+  
+  # Define score type in fgseaMultilevel() based on fold change values.
+  # NOTE: Use "pos", if you are ONLY interested in activated pathways.
+  # NOTE: Use "neg", if you are ONLY interested in inhibited pathways. 
+  # NOTE: Else, use "std" for both activated & inhibited pathways. 
+  score_type <- dplyr::if_else(max(DEGs_list) > 0 & min(DEGs_list) < 0, "std", 
+                               dplyr::if_else(max(DEGs_list) < 0 & min(DEGs_list) < 0, "neg", "pos"))
+  
+  #****************************************************************************#
+  #                      IMPORT YOUR GENE SETS OF INTEREST                     #
+  #****************************************************************************#
+  
+  # NOTE: Unlike clusterProfiler::GSEA(), fgsea::fgseaMultilevel() needs gene 
+  # sets in a specific list format
+  
+  # NOTE: If you run multiple gene sets like C5 and C2 together, padj will not 
+  # be significant as there will be too many multiple comparisons.
+  
+  gmt <- fgsea::gmtPathways(gmt_file)
+  gmt_name <- gsub(pattern="^.*/|v2023.*$", replacement="", x=gmt_file)
+  
+  # From each gene set, remove genes that are absent in your DEGs_list
+  for (i in 1:length(gmt)){
+    gmt[[i]] <- gmt[[i]][gmt[[i]] %in% names(DEGs_list)]
+  }
+  
+  #****************************************************************************#
+  #                                  RUN fGSEA                                 #
+  #****************************************************************************#
+  
+  fgsea <- fgsea::fgseaMultilevel(pathways = gmt,
+                                  stats = DEGs_list,
+                                  scoreType = score_type,
+                                  sampleSize = 101,
+                                  minSize = 1,
+                                  maxSize = length(DEGs_list) - 1,
+                                  eps = 1e-50,
+                                  nproc = 0,
+                                  gseaParam = 1,
+                                  BPPARAM = NULL,
+                                  nPermSimple = 10000)
+  
+  #****************************************************************************#
+  #                               FORMAT RESULTS                               #
+  #****************************************************************************#
+  
+  # NOTE: Output of fgsea is a data.table & data.frame. 
+  # "leadingEdge" column is a list of genes. 
+  # So, DO NOT FORCE the output of fgsea to a dataframe as this will lead to 
+  # data loss from "leadingEdge" column & affect plotting using fgsea::plotEnrichment()
+  
+  # Reformat the output
+  gsea_results <- fgsea %>%
+    dplyr::mutate(abs_NES = abs(NES)) %>%
+    dplyr::arrange(desc(abs_NES)) %>%
+    dplyr::mutate(Direction = dplyr::if_else(NES > 0, "Upregualted", "Downregulated"))
+  
+  # If you ordered your gene list based on fold change, then +ve NES indicates
+  # that the genes in this gene set are mostly at the top of your gene list
+  # (hence, most of them are upregulated) and -ve NES indicates that the genes
+  # in this gene set are mostly at the bottom of your gene list (hence, most 
+  # of them are downregulated)
+  
+  # Identify overlapping pathways and collapse them into major pathways
+  concise_gsea_results <- fgsea::collapsePathways(fgseaRes = gsea_results,
+                                                  pathways = gmt,
+                                                  stats = DEGs_list)
+  # Filter out overlapping pathways
+  concise_gsea_results <- gsea_results %>% 
+    dplyr::filter(pathway %in% concise_gsea_results$mainPathways)
+  
+  # Function to convert genelist to df
+  convert_genelist_to_df <- function(gsea_results){  
+    
+    # Create a dataframe containing genes for each pathway
+    max_len <- max(unlist(lapply(X=stringr::str_split(string = gsea_results$leadingEdge, pattern = ","), FUN=length)))
+    df <- data.frame(matrix(NA, nrow=max_len))
+    
+    # Add genes from each pathway to a separate column
+    for (i in 1:nrow(gsea_results)){
+      l1 <- unlist(stringr::str_split(string = unlist(gsea_results$leadingEdge[[i]]), pattern = ","))
+      
+      # If leading edge column has ENSEMBL_IDs, convert them to SYMBOL
+      if (length(intersect(l1, annotations$ENSEMBL_ID)) > length(intersect(l1, annotations$SYMBOL))){
+        l1 <- annotations %>% 
+          dplyr::filter(ENSEMBL_ID %in% l1) %>% 
+          dplyr::select(SYMBOL) %>% 
+          unlist(., use.names=FALSE)
+      }
+      
+      l1 <- c(l1, rep(x=NA, times=max_len-length(l1)))
+      df <- dplyr::bind_cols(df, l1)
+      colnames(df)[i+1] <- gsea_results$pathway[i]
+    }
+    
+    # Remove the dummy column containing NAs
+    df <- df[,-1]
+    
+    return(df)
+  }
+  
+  if(nrow(gsea_results) > 0){
+    gsea_gene_df <- convert_genelist_to_df(gsea_results)
+  } else{
+    gsea_gene_df <- data.frame(matrix(NA, nrow=1))
+  }
+  if(nrow(concise_gsea_results) > 0){
+    concise_gsea_gene_df <- convert_genelist_to_df(concise_gsea_results)
+  } else{
+    concise_gsea_gene_df <- data.frame(matrix(NA, nrow=1))
+  }
+  
+  # Save the results in excel file
+  wb <- openxlsx::createWorkbook()
+  openxlsx::addWorksheet(wb, sheetName="gsea_full")
+  openxlsx::writeData(wb, sheet="gsea_full", x=gsea_results, rowNames=FALSE)
+  openxlsx::addWorksheet(wb, sheetName="gsea_concise")
+  openxlsx::writeData(wb, sheet="gsea_concise", x=concise_gsea_results, rowNames=FALSE)
+  openxlsx::addWorksheet(wb, sheetName="gsea_full_genes")
+  openxlsx::writeData(wb, sheet="gsea_full_genes", x=gsea_gene_df, rowNames=FALSE)
+  openxlsx::addWorksheet(wb, sheetName="gsea_concise_genes")
+  openxlsx::writeData(wb, sheet="gsea_concise_genes", x=concise_gsea_gene_df, rowNames=FALSE)
+  openxlsx::saveWorkbook(wb, file = paste0(results_path, gmt_name, "fGSEA_Results.xlsx"),
+                         overwrite = TRUE)
+}

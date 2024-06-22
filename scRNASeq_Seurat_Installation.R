@@ -29,7 +29,8 @@ install.packages(pkgs = c("BiocManager", "remotes"),
 # Data analysis packages
 BiocManager::install(pkgs = c("AnnotationHub", "ensembldb", "fgsea", 
                               "clusterProfiler", "org.Hs.eg.db", "org.Mm.eg.db",
-                              "DESeq2", "progeny", "dorothea", "viper", "sva"),
+                              "DESeq2", "progeny", "dorothea", "viper", "sva",
+                              "preprocessCore"),
                      force = FALSE,
                      INSTALL_opts = '--no-lock')
 

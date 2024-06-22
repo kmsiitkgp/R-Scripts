@@ -45,6 +45,7 @@ library("dorothea")
 library("viper")
 #library("infercnv")
 library("sva")
+library("preprocessCore")
 
 # Data wrangling packages
 library("openxlsx")             # Needed for reading, writing xlsx files

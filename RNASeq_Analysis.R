@@ -4,11 +4,13 @@
 #source("/hpc/home/kailasamms/projects/scRNASeq/RNASeq_DESeq2_Functions.R")
 source("C:/Users/kailasamms/Documents/GitHub/R-Scripts/RNASeq_DESeq2_Functions.R")
 
-#****************************DEFINE DESEQ2 VARIABLES***************************#
+#******************************************************************************#
+#                            DEFINE DESEQ2 VARIABLES                           #
+#******************************************************************************#
 
-# "proj" is the directory name containing input files "Meta_data.xlsx", 
-# "Read_data.xlsx" or input folders like "count_results" (which contain the 
-# HTSEQ/STAR count output files)
+# Directory name containing input files ("Meta_data.xlsx", "Read_data.xlsx") or
+# input folders ("count_results" which contain HTSEQ/STAR count output files)
+
 proj <- "TCGA"
 proj <- "IMVigor210"
 proj <- "Boopati_MB49Sigma_DDR2KD3"
@@ -29,6 +31,7 @@ proj <- "GSE75192"
 proj <- "EGAD00001007575"
 proj <- "EGAD00001003977"
 
+# Path to directory containing input files or folders
 parent_path <- paste0("C:/Users/KailasammS/Box/Saravana@cedars/05. Bioinformatics/RNASeq/", proj, "/")
 results_path <- parent_path
 
@@ -51,46 +54,38 @@ heatmap_plot <- FALSE
 volcano_plot <- FALSE
 cor_plot  <- FALSE
 
-# read_data MUST be xlsx file
-# read_data MUST have "SYMBOL" column with gene names without any duplication
-read_data <- openxlsx::read.xlsx(xlsxFile=paste0(parent_path, "Read_data.xlsx"))
+#******************************************************************************#
+#                         TO SUBSET DATA OR NOT!!!                          
+#******************************************************************************#
 
-# meta_data MUST be xlsx file
-# meta_data MUST have "Sample" column with sample names without any duplication
-# meta_data MUST have "Batch" column with batch info
-# Example: If samples were isolated on different days & prepared using different
-# kits, "Batch" column must have values like "1_Ribo", "1_Poly-A", "2_Ribo", etc
-# NOTE: Make sure there are no white spaces in the Target and Reference columns
-# in excel file. R will change any white space (" ") to dot ("."). So, replace 
-# white space (" ") with underscore ("_") before importing into R.
-meta_data <- openxlsx::read.xlsx(xlsxFile=paste0(parent_path, "Meta_data.xlsx"))
+# You have 3 groups A, B & C but want to perform DEG between group A and B only.
+# Should you exclude group C samples and perform DEG analysis??
+# NOTE: Subsetting data affects (i) sizeFactors (ii) Dispersion estimates and
+# hence the final DEGs
 
-annotations <- get_annotations(species)
-#read_data <- compile_raw_counts(parent_path, method)
-meta_data <- prep_metadata(meta_data, Variable)
-read_data <- prep_readdata(read_data, meta_data)
-l <- check_data(read_data, meta_data)
-meta_data <- l[[2]]
-read_data <- l[[1]]
-
-combat_corrected_read_data <- combatseq_batch(read_data, meta_data)
-sva_dds <- svaseq_batch(read_data, meta_data)
-
-# ....????......
+# The links below explain when data needs to be subset.
+# https://support.bioconductor.org/p/108471/
 # https://support.bioconductor.org/p/81038/
-
-# DESeq2 calculates sizefactors using all the samples in meta_data. So, final
-# results are heavily dependent on sizefactors. 
-# For instance, if you have 5 replicates each for 
-# (i) Vehicle (ii) Enzalutamide and (iii) R1881 treated samples, and you want 
-# to find DEGs between R1881 vs vehicle, you will get different DEGs if you 
-# use all 15 samples vs using only R1881 and vehicle samples.
-
-# The authors of DESeq2 recommend NOT to subset the meta_data & read_data
-# but use contrasts to get DEGs between groups.
-# https://bioconductor.org/packages/release/bioc/vignettes/DESeq2/inst/doc/DESeq2.html#if-i-have-multiple-groups-should-i-run-all-together-or-split-into-pairs-of-groups
+# https://support.bioconductor.org/p/9156036/
 # https://support.bioconductor.org/p/69341/
 
+# The authors of DESeq2 and EdgeR recommend NOT to subset meta_data & 
+# read_data but rather use contrasts to get DEGs between groups
+# You should subset your data ONLY when one of the groups has large variance 
+# (like group C) in link below
+# https://master.bioconductor.org/packages/release/bioc/vignettes/DESeq2/inst/doc/DESeq2.html#if-i-have-multiple-groups-should-i-run-all-together-or-split-into-pairs-of-groups
+
+# Dispersion of gene X in group A ~ Variance of gene X in group A/mean of gene X group A
+# Dispersion of gene X in group B ~ Variance of gene X in group B/mean of gene X group B
+# Dispersion of gene X in group C ~ Variance of gene X in group C/mean of gene X group C
+# Dispersion of gene X for experiment ~ (Dispersion of gene X in groups A, B, C)
+# Samples within Group A and B have low variance in overall expression profile 
+# (clustered closely in PCA plot) but samples in group C have different
+# expression profile. So, the final dispersion estimates of most genes will be 
+# affected a lot by group C. In such a scenario, if we are only doing DEG 
+# comparison between groups A & B, then we can subset only group A and B samples
+# before doing DESeq2. 
+# SO, CHECK PCA PLOT FOR EVERY EXPERIMENT TO DETERMINE IF DATA NEED TO BE SUBSET.
 
 # meta_data <- meta %>% dplyr::filter(get(Variable) %in% c(Comparisons$Target[n], Comparisons$Reference[n]))
 # corrected_read_data <- read %>% dplyr::select(rownames(meta_data))
@@ -111,7 +106,52 @@ sva_dds <- svaseq_batch(read_data, meta_data)
 # Study effect of Sex on treatment?
 # Study effect of Treatment after removing effect of Sex (assumes different effect of Sex on different treatments)
 #dds <- DESeqDataSetFromMatrix(countData=corrected_read_data, colData=meta_data, design=~ Sex + Treatment + Sex:Treatment)
-#.....??.........
+
+
+# TO DO
+# (i) add script to subset data and perform analysis
+# (ii) Add script for different design
+# (iii) how to handle single sample with group C having high variability?
+# (iv) add more QC plots from deseq2 vignette
+# (v) Fix script for heatmap, volcano and correlation plot
+# (vi) A moure intuitive way to link proj with variable and comparisons, target, refence
+
+
+#******************************************************************************#
+#                             READ DATA & META DATA                            #                    
+#******************************************************************************#
+
+# read_data MUST be xlsx file
+# read_data MUST have "SYMBOL" column with gene names without any duplication
+read_data <- openxlsx::read.xlsx(xlsxFile=paste0(parent_path, "Read_data.xlsx"))
+
+# meta_data MUST be xlsx file
+# meta_data MUST have "Sample" column with sample names without any duplication
+# meta_data MUST have "Batch" column with batch info
+# Example: If samples were isolated on different days & prepared using different
+# kits, "Batch" column must have values like "1_Ribo", "1_Poly-A", "2_Ribo", etc
+# NOTE: Make sure there are no white spaces in the Target and Reference columns
+# in excel file. R will change any white space (" ") to dot ("."). So, replace 
+# white space (" ") with underscore ("_") before importing into R.
+meta_data <- openxlsx::read.xlsx(xlsxFile=paste0(parent_path, "Meta_data.xlsx"))
+
+# If "Read_data.xlsx" is not prepared yet and counts are stored in count files
+# read_data <- compile_raw_counts(parent_path, method)
+
+
+#******************************************************************************#
+#                    IMPORT DATA AND RUN THE DESEQ2 PIPLEINE                   #                    
+#******************************************************************************#
+
+annotations <- get_annotations(species)
+meta_data <- prep_metadata(meta_data, Variable)
+read_data <- prep_readdata(read_data, meta_data)
+l <- check_data(read_data, meta_data)
+meta_data <- l[[2]]
+read_data <- l[[1]]
+
+combat_corrected_read_data <- combatseq_batch(read_data, meta_data)
+sva_dds <- svaseq_batch(read_data, meta_data)
 
 # Perform DEG analysis for each Target:Reference pair in Comparisons variable
 
@@ -161,9 +201,7 @@ for (n in 1:length(Comparisons$Target)){
   plot_qc(sva_dds, meta_data, approach)
 }
 
-#*************************************END*************************************#
-
-
+#*************************************END**************************************#
 
 # Define Target and Reference base don project
 if (proj == "TCGA"){
