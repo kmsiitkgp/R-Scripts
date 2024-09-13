@@ -7,9 +7,12 @@ chooseCRANmirror(ind=1)
 # NOTE: Install all packages from submit node NOT computing node. 
 
 # NOTE: Some packages need hdf5r package which in turn needs HDF5 library files
-# for installation as well as to work. Also, Rcpp which is needed by most basic
-# R packages doesnt get installed if you skip "module load hdf5/1.8.18"
-# (i) qrsh -> conda activate R -> module load hdf5/1.8.18 -> R -> install... 
+# for installation and others like SSGSEA will need gcc compiler. 
+# Also, Rcpp which is needed by most basic R packages doesnt get installed if 
+# you skip "module load hdf5/1.8.18"
+# (i) qrsh -> conda activate R -> module load hdf5/1.8.18 -> 
+# module load gcc/11.1.0 -> R -> install... 
+
 
 # NOTE: If you get "libxml not found", "Cannot find xml2-config",
 # "ERROR: configuration failed for package ‘XML’", then, 
@@ -30,7 +33,7 @@ install.packages(pkgs = c("BiocManager", "remotes"),
 BiocManager::install(pkgs = c("AnnotationHub", "ensembldb", "fgsea", 
                               "clusterProfiler", "org.Hs.eg.db", "org.Mm.eg.db",
                               "DESeq2", "progeny", "dorothea", "viper", "sva",
-                              "preprocessCore"),
+                              "preprocessCore", "MAGeCKFlute", "GSVA"),
                      force = FALSE,
                      INSTALL_opts = '--no-lock')
 
@@ -74,7 +77,8 @@ BiocManager::install(pkgs = c("BiocNeighbors", "RcisTarget", "UCell",
 # Sometimes connection is timed out when connecting to GitHub. So, use a proxy.
 library("httr")
 httr::set_config(use_proxy("8.8.8.8", port = 8080))
-remotes::install_github(repo = c("hhoeflin/hdf5r",
+remotes::install_github(repo = c("nicolerg/ssGSEA2",
+                                 "hhoeflin/hdf5r",
                                  "mojaveazure/seurat-disk",
                                  "aertslab/SCENIC",
                                  "aertslab/SCopeLoomR",
@@ -97,7 +101,7 @@ pkgs <- c("BiocManager", "remotes", "TCGAbiolinks", "ensembldb", "AnnotationHub"
           "SCENIC", "SCopeLoomR", "ktplots", "CellChat", "wordcloud", "UCell", 
           "infercnv", "illuminaHumanv4.db", "pathview", "colorspace", 
           "reticulate", "ashr", "multtest", "RcisTarget", "BiocNeighbors", 
-          "harmony", "glmGamPoi")
+          "harmony", "glmGamPoi", "ssGSEA2", "GSVA")
 
 # Display packages that couldn't be installed
 cat("These pacakges have NOT yet been installed:", sort(pkgs[!(pkgs %in% installed.packages()[,1])]), sep="\n")

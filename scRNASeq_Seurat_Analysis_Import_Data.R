@@ -291,13 +291,13 @@ if (demultiplexed_data == FALSE){
   umi_qc <- function(metadata, tag){
     
     ggplot(data = get(metadata), aes(x=Sample, y=nUMIs, fill=Sample)) +
-      geom_violin() +        
-      theme_classic() +       
+      geom_violin() + 
+      geom_boxplot(width=0.1) +
+      theme_classic() +  
+      my_theme +
       labs(x = "Sample", y = "Number of UMIs", title = stringr::str_wrap(paste0("Distribution of UMIs ", tag),30)) +
       coord_cartesian(ylim = c(100, 1000000), clip = "off") +
-      my_theme +        
       scale_y_log10(breaks = c(100, 1000, 10000, 100000, 1000000)) +  		     #display y axis in log scale
-      geom_boxplot(width=0.1) + 
       geom_hline(yintercept = gene_cutoff, linetype = 2)
   }
   
@@ -305,13 +305,13 @@ if (demultiplexed_data == FALSE){
   gene_qc <- function(metadata, tag){
     
     ggplot(data = get(metadata), aes(x=Sample, y=nGenes, fill = Sample)) +
-      geom_violin() +         
-      theme_classic() +       
+      geom_violin() + 
+      geom_boxplot(width=0.1) +
+      theme_classic() + 
+      my_theme + 
       labs(x = "Sample", y = "Number of Genes", title = stringr::str_wrap(paste0("Distribution of Genes ", tag),30)) +
       coord_cartesian(ylim = c(1, 30000), clip = "off") +
-      my_theme +        
       scale_y_log10() +    	
-      geom_boxplot(width=0.1) + 
       geom_hline(yintercept = gene_cutoff, linetype = 2)
   }
   
@@ -319,12 +319,12 @@ if (demultiplexed_data == FALSE){
   mito_qc <- function(metadata, tag){
     
     ggplot(data = get(metadata), aes(x=Sample, y=MitoRatio, fill = Sample)) +
-      geom_violin() +         
-      theme_classic() +       
+      geom_violin() + 
+      geom_boxplot(width=0.1) + 
+      theme_classic() + 
+      my_theme +
       labs(x = "Sample", y = "MitoRatio", title = stringr::str_wrap(paste0("Distribution of MitoRatio ", tag),30)) +
       coord_cartesian(ylim = c(0, 1), clip = "off") +
-      my_theme +        
-      geom_boxplot(width=0.1) + 
       geom_hline(yintercept = mito_cutoff, linetype = 2)
   }
   
@@ -332,12 +332,12 @@ if (demultiplexed_data == FALSE){
   ribo_qc <- function(metadata, tag){
     
     ggplot(data = get(metadata), aes(x=Sample, y=RiboRatio, fill = Sample)) +
-      geom_violin() +         
-      theme_classic() +       
+      geom_violin() + 
+      geom_boxplot(width=0.1) + 
+      theme_classic() + 
+      my_theme +
       labs(x = "Sample", y = "RiboRatio", title = stringr::str_wrap(paste0("Distribution of RiboRatio ", tag),30)) +
       coord_cartesian(ylim = c(0, 1), clip = "off") +
-      my_theme +        
-      geom_boxplot(width=0.1) + 
       geom_hline(yintercept = ribo_cutoff, linetype = 2)
   }
   
@@ -345,12 +345,12 @@ if (demultiplexed_data == FALSE){
   novelty_qc <- function(metadata, tag){
     
     ggplot(data = get(metadata), aes(x=Sample, y=Novelty, fill = Sample)) +
-      geom_violin() +     
+      geom_violin() + 
+      geom_boxplot(width=0.1) + 
       theme_classic() + 
+      my_theme + 
       labs(x = "Sample", y = "Novelty Score", title = stringr::str_wrap(paste0("Distribution of Novelty Score ", tag),30)) +
       coord_cartesian(ylim = c(0, 1), clip = "off") +
-      my_theme +        
-      geom_boxplot(width=0.1) + 
       geom_hline(yintercept = novelty_cutoff, linetype = 2)
   }
   
@@ -364,8 +364,8 @@ if (demultiplexed_data == FALSE){
     ggplot(data = get(metadata), aes(x=nUMIs, y=nGenes, color = MitoRatio)) +
       geom_point() +
       theme_classic() + 
-      labs(x = "Number of UMIs", y = "Number of Genes",	 title = paste0("Distribution of UMIs, Genes & MitoRatio ", tag)) +
       my_theme + 
+      labs(x = "Number of UMIs", y = "Number of Genes",	 title = paste0("Distribution of UMIs, Genes & MitoRatio ", tag)) +
       coord_cartesian(xlim = c(100, 1000000), ylim = c(100, 20000), clip = "off") +
       scale_x_log10(breaks = c(100, 1000, 10000, 100000, 1000000)) + 
       scale_y_log10() + 
@@ -468,13 +468,14 @@ if (whitelist == TRUE){
 #******************************************************************************#
 
 # cell_type has classification based on UMAP clusters
-# cell_class has classification based on UCell scores
+# ucell_class has classification based on UCell scores
+# seurat_class has classification based on seurat scores
 
 if (whitelist == FALSE){
   
   # Load rds file of filtered_seurat object
   filtered_seurat <- base::readRDS(paste0(seurat_results, "filtered_seurat.rds"))
-  
+
   filt <- filtered_seurat
   sct <- sctransform_data(filt)
   
@@ -483,19 +484,21 @@ if (whitelist == FALSE){
   integ <- integrate_data(sct, kweight)
   celltype <- NULL
   integ <- cluster_data(integ, celltype)
-  res <- 1.4
-  integ <- add_module_scores(res, celltype, "All Markers")
+  integ <- add_module_scores(integ, "All Markers")
+  save_data(integ, celltype)
   #plot_pre_integration(sct)
   
   for (reduc in c("CCA", "RPCA", "Harmony", "JointPCA")){
     res <- 1.4
     plot_conserved_modules(res, reduc, celltype, "All Markers")
-    res <- 0.4
-    get_markers(res, reduc, celltype)
   }
   
-  res <- 1.4
   reduc <- "Harmony"
+  res <- 0.4
+  get_markers(res, reduc, celltype)
+  
+  reduc <- "Harmony"
+  res <- 1.4
   idents <- paste0("cluster.", res, ".", base::tolower(reduc))
   plot_post_integration(res, reduc, idents, celltype)
 }

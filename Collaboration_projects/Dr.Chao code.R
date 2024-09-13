@@ -1,3 +1,5 @@
+source("C:/Users/kailasamms/OneDrive - Cedars-Sinai Health System/Documents/GitHub/R-Scripts/RNASeq_DESeq2_Functions.R")
+
 # Define axis font etc to use in all plots
 my_theme <- ggplot2::theme(aspect.ratio = 1,
                            plot.title =   element_text(family="sans", face="bold",  colour="black", size=15, hjust = 0.5),
@@ -17,10 +19,10 @@ my_theme <- ggplot2::theme(aspect.ratio = 1,
                            legend.text.align = 0)
 
 # Fig 1B, supplementary
-# Read survival functions from survival script
 
 # Define variables for fucntions from survival script
-parent_path <- "C:/Users/KailasammS/Desktop/"
+parent_path <- "C:/Users/KailasammS/OneDrive - Cedars-Sinai Health System/Desktop/Dr.Chao/"
+results_path <- parent_path
 gse <- "TCGA_BLCA"
 subset_group <- NA
 subset_value <- NA
@@ -28,11 +30,11 @@ plot_by <- "Expression"
 split_by <- subset_group
 combine_plot <- FALSE 
 multiple_cutoff <- FALSE
-stratify_criteria <- "m" #o"
+stratify_criteria <- "o" #o"
 reference <- "LOW"
 confidence_interval <- FALSE
 legend_title <- "Expression"
-plot_risk_table <- FALSE
+plot_risk_table <- TRUE
 plot_curve <- TRUE
 all_quartiles <- FALSE
 gene_signature <- TRUE
@@ -48,8 +50,8 @@ c3_genes <- c("CADM2", "CDH12", "CNTNAP2", "CSMD1", "CSMD3", "CTNNA2", "CTNNA3",
 scaffold_genes <- c("DLG2", "DLG4", "HOMER1", "HOMER2", "HOMER3", "SHANK1", 
                     "SHANK2", "SHANK3")
 cam_genes <- c("CDH2", "CDH12", "LRFN1", "DAG1", "NLGN1", "NLGN2", "NLGN3",
-               "LRRTM1", "LRRTM2", "ADGRL2", 
-               "ADGRL3", "EPHB2", "EPHB3", "ADGRB1", "ADGRB3") #"NRXN1", "NRXN2", "NRXN3",
+               "LRRTM1", "LRRTM2", "ADGRL2", "ADGRL3", "EPHB2", "EPHB3", 
+               "ADGRB1", "ADGRB3") #"NRXN1", "NRXN2", "NRXN3",
 
 cam_scaffold_genes <- c(cam_genes, scaffold_genes)
 
@@ -76,7 +78,7 @@ family_eleven <- c(adrenergic, ampa, muscarinergic, ionotrophic, gaba_a, gaba_b,
                    glycinergic, kainate, glutamate, nicotinergic, nmda)
 
 # Import TCGA BLCA metadata
-meta_data <- openxlsx::read.xlsx("C:/Users/KailasammS/Desktop/Dr Chao/TCGA_BLCA_Metadata.xlsx")
+meta_data <- openxlsx::read.xlsx(paste0(parent_path,"TCGA_BLCA_Metadata.xlsx"))
 
 meta_data <- meta_data %>% 
   dplyr::mutate(GEO_ID = make.names(names = GEO_ID)) %>%
@@ -85,8 +87,7 @@ meta_data <- meta_data %>%
   dplyr::distinct_at("GEO_ID", .keep_all = TRUE)
 
 # Import TCGA BLCA normalized counts
-normalized_counts <- read.xlsx("C:/Users/KailasammS/Desktop/Dr Chao/TCGA_BLCA_Normalized_Counts.xlsx")
-
+normalized_counts <- read.xlsx(paste0(parent_path, "TCGA_BLCA_Normalized_Counts.xlsx"))
 normalized_counts <- normalized_counts[, -c(2,3,4)]
 
 normalized_counts <- normalized_counts %>%
@@ -98,11 +99,10 @@ colnames(normalized_counts) <- base::make.names(names = colnames(normalized_coun
 normalized_counts <- normalized_counts[,intersect(make.names(meta_data$GEO_ID), colnames(normalized_counts))]
 normalized_counts <- normalized_counts[!rowSums(normalized_counts, na.rm=TRUE) == 0,]
 
-# Perform log1p transformation 
+# Perform log transformation 
 normalized_counts <- log(1+normalized_counts, base=2)
 
-# Perform median centering for each gene across samples as median expression is 
-# more robust to outliers as compared to mean expression.
+# Perform median centering for each gene across samples
 t <- base::apply(X=normalized_counts, MARGIN=1, FUN=median, na.rm=TRUE)
 normalized_counts <- base::sweep(x=normalized_counts, MARGIN=1, FUN="-", STATS=t)
 
@@ -116,7 +116,7 @@ for (plot_genes in c("adrenergic", "ampa", "muscarinergic", "ionotrophic",
                      "gaba_a", "gaba_b", "glycinergic", "kainate", "glutamate",
                      "nicotinergic", "nmda", "cam_genes", "scaffold_genes", 
                      "cam_scaffold_genes")){
-  gse <- plot_genes
+
   # Calculate z-score using the function described in above paper
   expr_df <- as.data.frame(advanced_Z(get(plot_genes), normalized_counts))
   
@@ -127,9 +127,10 @@ for (plot_genes in c("adrenergic", "ampa", "muscarinergic", "ionotrophic",
     tibble::rownames_to_column("GEO_ID") %>%
     dplyr::inner_join(meta_data, by=c("GEO_ID"="GEO_ID"))
   
+  prefix <- plot_genes 
   gene <- "combined.exp"
   if (nrow(expr_df > 0)){
-    summary <- wrangle_data(stratify_criteria)
+    summary <- wrangle_data(expr_df, stratify_criteria,prefix)
   }
   
   surv_df <- summary[[1]] %>%
@@ -154,11 +155,12 @@ new_metadata <- meta_data %>%
                                          grepl(pattern="T4", x=Stage) ~ 4,
                                          TRUE ~ 0)) %>%
   dplyr::filter(Stage %in% c(1,2,3,4))
+
 for (plot_genes in c("adrenergic", "ampa", "muscarinergic", "ionotrophic", 
                      "gaba_a", "gaba_b", "glycinergic", "kainate", "glutamate",
                      "nicotinergic", "nmda")){
   
-  data <- read.xlsx("C:/Users/KailasammS/Desktop/Survival.xlsx", 
+  data <- read.xlsx(paste0(parent_path, "Survival.xlsx"), 
                     sheet = plot_genes) %>%
     dplyr::select(GEO_ID, combined.exp) %>%
     dplyr::rename(!!plot_genes := "combined.exp")
@@ -177,29 +179,42 @@ openxlsx::saveWorkbook(wb, file = paste0(parent_path, "Prism.xlsx"), overwrite =
 
 # Supplementary survival of individual genes
 wb <- openxlsx::createWorkbook()
-plot_genes <- cam_scaffold_genes
+plot_genes <- c(cam_scaffold_genes)
+
+# Since with optimal cutoff GRIA2 is slightly better than GRIA1, we plot differently
+stratify_criteria <- "q" 
+plot_genes <- c(ampa)
 
 # Merge expression data with survival data
 expr_df <- normalized_counts %>%
   t() %>%
   data.frame() %>%
   tibble::rownames_to_column("GEO_ID") %>%
+  dplyr::select(GEO_ID, all_of(plot_genes)) %>%
   dplyr::inner_join(meta_data, by=c("GEO_ID"="GEO_ID"))
+  
 
 # Create a list to store survminer cutoffs, coxph stats, etc..
-stats <- list("gene" = c(),
+stats <- list("gene" = c(), 
               "group" = c(),
               "lower_cutoff" = c(),
               "middle_cutoff" = c(),
               "upper_cutoff" = c(),
-              "HR" = c(),
-              "CI_lower" = c(),
-              "CI_upper" = c(),
-              "pvalue" = c())
+              "HR" = c(), 
+              "CI_lower" = c(), 
+              "CI_upper" = c(), 
+              "logrank" = c(), 
+              "reg_logrank.late" = c(), 
+              "Gehan_Breslow.early" = c(),
+              "Tarone_Ware.early" = c(), 
+              "Peto_Peto.early" = c(),  
+              "modified_Peto_Peto" = c(), 
+              "Fleming_Harrington" = c())
 
 # Plot survival curves
+prefix <- "TCGA_BLCA"
 for (gene in intersect(unique(plot_genes), rownames(normalized_counts))) {
-  summary <- wrangle_data(stratify_criteria)
+  summary <- wrangle_data(expr_df, stratify_criteria, prefix)
   stats$gene          <- c(stats$gene, summary[[2]]$gene)
   stats$group         <- c(stats$group, summary[[2]]$group)
   stats$lower_cutoff  <- c(stats$lower_cutoff, summary[[2]]$lower)
@@ -208,7 +223,13 @@ for (gene in intersect(unique(plot_genes), rownames(normalized_counts))) {
   stats$HR            <- c(stats$HR, summary[[2]]$HR )
   stats$CI_lower      <- c(stats$CI_lower, summary[[2]]$CI_lower)
   stats$CI_upper      <- c(stats$CI_upper, summary[[2]]$CI_upper)
-  stats$pvalue        <- c(stats$pvalue, summary[[2]]$pvalue)
+  stats$logrank       <- c(stats$logrank, summary[[2]]$logrank)
+  stats$reg_logrank.late    <- c(stats$reg_logrank.late, summary[[2]]$reg_logrank.late)
+  stats$Gehan_Breslow.early <- c(stats$Gehan_Breslow.early, summary[[2]]$Gehan_Breslow.early)
+  stats$Tarone_Ware.early   <- c(stats$Tarone_Ware.early, summary[[2]]$Tarone_Ware.early)
+  stats$Peto_Peto.early     <- c(stats$Peto_Peto.early, summary[[2]]$Peto_Peto.early)
+  stats$modified_Peto_Peto   <- c(stats$modified_Peto_Peto, summary[[2]]$modified_Peto_Peto)
+  stats$Fleming_Harrington   <-c(stats$Fleming_Harrington, summary[[2]]$Fleming_Harrington)
 }
 
 stats_df <- data.frame(stats)
@@ -219,13 +240,14 @@ openxlsx::addWorksheet(wb, sheetName = "Summary")
 openxlsx::writeData(wb, sheet = "Summary", x = stats_df, rowNames = FALSE)
 openxlsx::saveWorkbook(wb, file = paste0(parent_path, "Individual_gene_stats.xlsx"), overwrite = TRUE)
 
+
 #******************************************************************************#
 
 # Fig 1A Oncoprint for CAMs, Scaffolds, CAMs+Scaffolds
 
 # Import the dataframe containing scores with TCGA metadata
 for (y in c("cam_genes", "scaffold_genes", "cam_scaffold_genes")){
-  metadata <- read.xlsx("C:/Users/KailasammS/Desktop/Survival.xlsx",
+  metadata <- read.xlsx(paste0(parent_path, "Survival.xlsx"),
                         sheet = y) %>%
     dplyr::select(GEO_ID, model, Age, Sex, Race, ajcc_pathologic_stage, ajcc_pathologic_m, Stage) %>%
     dplyr::rename("Score" = "model",
@@ -289,6 +311,8 @@ for (y in c("cam_genes", "scaffold_genes", "cam_scaffold_genes")){
   gap_columns <- "Score"   # Irrelevant if gaps_in_col is FALSE
   gaps_in_row <- FALSE
   gap_rows <- "Pathway"    # Irrelevant if gaps_in_row is FALSE
+  col_clustering_within_group <- FALSE
+  row_clustering_within_group <- FALSE
   
   # List annotations you want on heatmap
   # NOTE: anno_columns MUST match one of the column names in metadata_column while
@@ -298,10 +322,8 @@ for (y in c("cam_genes", "scaffold_genes", "cam_scaffold_genes")){
   color_by_cols <- TRUE
   color_by_rows <- FALSE
   my_palette <- colorRampPalette(rev(brewer.pal(n = 11, name = "RdYlBu")))(100)
-  
   file_format <- ".tiff"
   file_suffix <- y
-  results_path <- "C:/Users/KailasammS/Desktop/"
   bar_width <- NA
   bar_height <- NA
   expr_legend <- FALSE
@@ -309,6 +331,40 @@ for (y in c("cam_genes", "scaffold_genes", "cam_scaffold_genes")){
                disp_genes, file_suffix, file_format, results_path, 
                bar_width, bar_height, expr_legend)
 }
+
+#******************************************************************************#
+
+# Calculate stats on Fig 1A
+pvals <- c()
+vars <- c()
+sheets <- c()
+for (y in c("cam_genes", "scaffold_genes", "cam_scaffold_genes")){
+  
+  data <- read.xlsx(paste0(parent_path, "Survival.xlsx"),
+                    sheet = y)
+  
+  for (var in c("Sex", "Stage", "Race", "ajcc_pathologic_m", "ajcc_pathologic_stage")) {
+    
+    df <- as.data.frame.matrix(table(data %>% dplyr::select(all_of(var)) %>% unlist(use.names=FALSE),
+                                     data %>% dplyr::select(model) %>% unlist(use.names=FALSE)))
+    
+    
+    results <- chisq.test(data %>% dplyr::select(all_of(var)) %>% unlist(use.names=FALSE),
+                          data %>% dplyr::select(model) %>% unlist(use.names=FALSE))
+    
+    pvals <- c(pvals, results[["p.value"]])
+    vars <- c(vars, var)
+    sheets <- c(sheets, y)
+  }   
+}
+
+df <- data.frame(sheets, vars, pvals)
+
+# Save the results
+wb <- openxlsx::createWorkbook()
+openxlsx::addWorksheet(wb, sheetName = "Summary")
+openxlsx::writeData(wb, sheet = "Summary", x = df, rowNames = FALSE)
+openxlsx::saveWorkbook(wb, file = paste0(parent_path, "Fig3A_stats.xlsx"), overwrite = TRUE)
 
 #******************************************************************************#
 
@@ -538,36 +594,4 @@ class %>%
   dplyr::count(class) %>%
   dplyr::mutate(percent_n = 100*n/sum(n))
 
-#******************************************************************************#
 
-# Calculate stats on Fig 1A
-pvals <- c()
-vars <- c()
-sheets <- c()
-for (y in c("cam_genes", "scaffold_genes", "cam_scaffold_genes")){
-  
-  data <- read.xlsx(paste0(parent_path, "Survival.xlsx"),
-                    sheet = y)
-  
-  for (var in c("Sex", "Stage", "Race", "ajcc_pathologic_m", "ajcc_pathologic_stage")) {
-    
-    df <- as.data.frame.matrix(table(data %>% dplyr::select(all_of(var)) %>% unlist(use.names=FALSE),
-                                     data %>% dplyr::select(model) %>% unlist(use.names=FALSE)))
-    
-    
-    results <- chisq.test(data %>% dplyr::select(all_of(var)) %>% unlist(use.names=FALSE),
-                          data %>% dplyr::select(model) %>% unlist(use.names=FALSE))
-    
-    pvals <- c(pvals, results[["p.value"]])
-    vars <- c(vars, var)
-    sheets <- c(sheets, y)
-  }   
-}
-
-df <- data.frame(sheets, vars, pvals)
-
-# Save the results
-wb <- openxlsx::createWorkbook()
-openxlsx::addWorksheet(wb, sheetName = "Summary")
-openxlsx::writeData(wb, sheet = "Summary", x = df, rowNames = FALSE)
-openxlsx::saveWorkbook(wb, file = paste0(parent_path, "Fig3A_stats.xlsx"), overwrite = TRUE)

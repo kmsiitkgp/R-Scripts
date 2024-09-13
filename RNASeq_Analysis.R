@@ -1,35 +1,24 @@
 # https://master.bioconductor.org/packages/release/workflows/vignettes/rnaseqGene/inst/doc/rnaseqGene.html
 # https://hbctraining.github.io/DGE_workshop/lessons/08_DGE_LRT.html
 
-#source("/hpc/home/kailasamms/projects/scRNASeq/RNASeq_DESeq2_Functions.R")
-source("C:/Users/kailasamms/Documents/GitHub/R-Scripts/RNASeq_DESeq2_Functions.R")
-
+#source("/hpc/home/kailasamms/projects/RNASeq/RNASeq_DESeq2_Functions.R")
+source("C:/Users/kailasamms/OneDrive - Cedars-Sinai Health System/Documents/GitHub/R-Scripts/RNASeq_DESeq2_Functions.R")
 #******************************************************************************#
 #                            DEFINE DESEQ2 VARIABLES                           #
 #******************************************************************************#
 
-# Directory name containing input files ("Meta_data.xlsx", "Read_data.xlsx") or
-# input folders ("count_results" which contain HTSEQ/STAR count output files)
+# proj is the directory name containing 
+# input files (paste0(proj, "_Metadata.xlsx"), "Read_data.xlsx") or 
+# input folders ("count_results" which contain HTSEQ/STAR count output files. 
+# The names of files in count_results folder MUST match with Sample_ID column in
+# metadata file)
 
-proj <- "TCGA"
-proj <- "IMVigor210"
-proj <- "Boopati_MB49Sigma_DDR2KD3"
-proj <- "Boopati_MB49Y-_DDR2KO"
-proj <- "Mukta_NA13_MB49_CDH12OE"
-proj <- "Mukta_GSE95097"
-proj <- "Hany_Y"
-proj <- "Hany_YKO"
-proj <- "Hany_KO"
-proj <- "Hany_OE"
-proj <- "Hany_OE_Tumor"
-proj <- "TRAMP_GSE79756"
-proj <- "Hany_Y_Tumor"
-proj <- "Prince_DepMap"
-proj <- "Jinfen_CRISPR"
-proj <- "PRJNA587619"
-proj <- "GSE75192"
 proj <- "EGAD00001007575"
 proj <- "EGAD00001003977"
+proj <- "RNASeq_Hany_Antigen"
+proj <- "RNASeq_Hany_Natural_LOY_cells"
+proj <- "RNASeq_Hany_CRISPR_LOY_cells"
+proj <- "RNASeq_Boopati_DDR2KO"
 
 # Path to directory containing input files or folders
 parent_path <- paste0("C:/Users/KailasammS/Box/Saravana@cedars/05. Bioinformatics/RNASeq/", proj, "/")
@@ -54,68 +43,23 @@ heatmap_plot <- FALSE
 volcano_plot <- FALSE
 cor_plot  <- FALSE
 
-#******************************************************************************#
-#                         TO SUBSET DATA OR NOT!!!                          
-#******************************************************************************#
+suffix <- ""
 
-# You have 3 groups A, B & C but want to perform DEG between group A and B only.
-# Should you exclude group C samples and perform DEG analysis??
-# NOTE: Subsetting data affects (i) sizeFactors (ii) Dispersion estimates and
-# hence the final DEGs
-
-# The links below explain when data needs to be subset.
-# https://support.bioconductor.org/p/108471/
-# https://support.bioconductor.org/p/81038/
-# https://support.bioconductor.org/p/9156036/
-# https://support.bioconductor.org/p/69341/
-
-# The authors of DESeq2 and EdgeR recommend NOT to subset meta_data & 
-# read_data but rather use contrasts to get DEGs between groups
-# You should subset your data ONLY when one of the groups has large variance 
-# (like group C) in link below
-# https://master.bioconductor.org/packages/release/bioc/vignettes/DESeq2/inst/doc/DESeq2.html#if-i-have-multiple-groups-should-i-run-all-together-or-split-into-pairs-of-groups
-
-# Dispersion of gene X in group A ~ Variance of gene X in group A/mean of gene X group A
-# Dispersion of gene X in group B ~ Variance of gene X in group B/mean of gene X group B
-# Dispersion of gene X in group C ~ Variance of gene X in group C/mean of gene X group C
-# Dispersion of gene X for experiment ~ (Dispersion of gene X in groups A, B, C)
-# Samples within Group A and B have low variance in overall expression profile 
-# (clustered closely in PCA plot) but samples in group C have different
-# expression profile. So, the final dispersion estimates of most genes will be 
-# affected a lot by group C. In such a scenario, if we are only doing DEG 
-# comparison between groups A & B, then we can subset only group A and B samples
-# before doing DESeq2. 
-# SO, CHECK PCA PLOT FOR EVERY EXPERIMENT TO DETERMINE IF DATA NEED TO BE SUBSET.
-
-# meta_data <- meta %>% dplyr::filter(get(Variable) %in% c(Comparisons$Target[n], Comparisons$Reference[n]))
-# corrected_read_data <- read %>% dplyr::select(rownames(meta_data))
-# NOTE: sizefactors MUST be calculated ONLY using samples being compared for 
-# differential expression. So, make sure read_data and meta_data ONLY have
-# samples being compared for differential expression.
-
-# dds <- DESeq2::DESeqDataSetFromMatrix(countData=corrected_read_data, colData=meta_data, design=~ Tissue + Age)
-# dds <- DESeq(dds, test="LRT", reduced=~ Tissue)
-# res <- DESeq2::results(object=dds)
-
-# Study effect of Treatment ignoring effect of Sex
-#dds <- DESeqDataSetFromMatrix(countData=corrected_read_data, colData=meta_data, design=~ Treatment)
-
-# Study effect of Treatment after removing effect of Sex (assumes equal effect of Sex on different treatments)
-#dds <- DESeqDataSetFromMatrix(countData=corrected_read_data, colData=meta_data, design=~ Sex + Treatment)
-
-# Study effect of Sex on treatment?
-# Study effect of Treatment after removing effect of Sex (assumes different effect of Sex on different treatments)
-#dds <- DESeqDataSetFromMatrix(countData=corrected_read_data, colData=meta_data, design=~ Sex + Treatment + Sex:Treatment)
-
-
-# TO DO
-# (i) add script to subset data and perform analysis
-# (ii) Add script for different design
-# (iii) how to handle single sample with group C having high variability?
-# (iv) add more QC plots from deseq2 vignette
-# (v) Fix script for heatmap, volcano and correlation plot
-# (vi) A moure intuitive way to link proj with variable and comparisons, target, refence
-
+if (proj=="RNASeq_Hany_Antigen"){
+  Comparisons <- list(Variable =c("Epitope",  "Growth",     "Condition",         "Condition"),
+                      Target   =c("Edited",   "Progressor", "Edited Progressor", "Unedited Progressor"),
+                      Reference=c("Unedited", "Regressor",  "Edited Regressor",  "Unedited Regressor"))    
+}
+if (proj %in% c("RNASeq_Hany_Natural_LOY_cells","RNASeq_Hany_CRISPR_LOY_cells")){
+  Comparisons <- list(Variable =c("Condition"),
+                      Target   =c("Y_Negative"),
+                      Reference=c("Y_Positive"))    
+}
+if (proj %in% c("RNASeq_Boopati_DDR2KO")){
+  Comparisons <- list(Variable =c("Condition"),
+                      Target   =c("KO"),
+                      Reference=c("Control"))    
+}
 
 #******************************************************************************#
 #                             READ DATA & META DATA                            #                    
@@ -126,18 +70,17 @@ cor_plot  <- FALSE
 read_data <- openxlsx::read.xlsx(xlsxFile=paste0(parent_path, "Read_data.xlsx"))
 
 # meta_data MUST be xlsx file
-# meta_data MUST have "Sample" column with sample names without any duplication
+# meta_data MUST have "Sample_ID" column with sample names without any duplication
 # meta_data MUST have "Batch" column with batch info
 # Example: If samples were isolated on different days & prepared using different
 # kits, "Batch" column must have values like "1_Ribo", "1_Poly-A", "2_Ribo", etc
 # NOTE: Make sure there are no white spaces in the Target and Reference columns
 # in excel file. R will change any white space (" ") to dot ("."). So, replace 
 # white space (" ") with underscore ("_") before importing into R.
-meta_data <- openxlsx::read.xlsx(xlsxFile=paste0(parent_path, "Meta_data.xlsx"))
+meta_data <- openxlsx::read.xlsx(xlsxFile=paste0(parent_path, proj, "_Metadata.xlsx"))
 
 # If "Read_data.xlsx" is not prepared yet and counts are stored in count files
 # read_data <- compile_raw_counts(parent_path, method)
-
 
 #******************************************************************************#
 #                    IMPORT DATA AND RUN THE DESEQ2 PIPLEINE                   #                    
@@ -149,9 +92,6 @@ read_data <- prep_readdata(read_data, meta_data)
 l <- check_data(read_data, meta_data)
 meta_data <- l[[2]]
 read_data <- l[[1]]
-
-combat_corrected_read_data <- combatseq_batch(read_data, meta_data)
-sva_dds <- svaseq_batch(read_data, meta_data)
 
 # Perform DEG analysis for each Target:Reference pair in Comparisons variable
 
@@ -165,40 +105,47 @@ sva_dds <- svaseq_batch(read_data, meta_data)
 # in svaseq(). As a result, the number of genes in normalized counts excel file
 # is lower than DeSeq2.
 
-for (n in 1:length(Comparisons$Target)){
+for (n in 1:length(Comparisons$Variable)){
+  
+  # This generates a new column "id" that has info on samples being comparared
+  meta_data_comp <- meta_data %>%
+    dplyr::mutate(id=get(Comparisons$Variable[n]))
+  
+  #combat_corrected_read_data <- combatseq_batch(read_data, meta_data_comp)
+  #sva_dds <- svaseq_batch(read_data, meta_data_comp)
   
   # Perform DESeq2() using in-built batch modelling
   approach <- "DESeq2_modelled"
-  if (length(unique(meta_data$Batch)) > 1){
+  if (length(unique(meta_data_comp$Batch)) > 1){
     dds <- DESeq2::DESeqDataSetFromMatrix(countData=read_data,
-                                          colData=meta_data, 
+                                          colData=meta_data_comp, 
                                           design=~ Batch+id)
   } else {
     dds <- DESeq2::DESeqDataSetFromMatrix(countData=read_data,
-                                          colData=meta_data, 
+                                          colData=meta_data_comp, 
                                           design=~ id)
   }
-  dds <- run_deseq2(dds, meta_data, annotations, Comparisons, n, lfc.cutoff, padj.cutoff, approach)
-  deseq2_norm_counts(dds, annotations, approach) # batch corrected if you more than 1 batch
-  plot_qc(dds, meta_data, approach)
+  dds <- run_deseq2(dds, meta_data_comp, annotations, Comparisons, n, lfc.cutoff, padj.cutoff, approach, suffix)
+  deseq2_norm_counts(dds, annotations, approach, suffix) # batch corrected if you more than 1 batch
+  plot_qc(dds, meta_data_comp, approach, suffix)
   
   # Perform DESeq2() using combat corrected read counts
   if (!identical(read_data, combat_corrected_read_data)){
     approach <- "combat_corrected"
     combat_dds <- DESeq2::DESeqDataSetFromMatrix(countData=combat_corrected_read_data,
-                                                 colData=meta_data, 
+                                                 colData=meta_data_comp, 
                                                  design=~ id)
-    combat_dds <- run_deseq2(combat_dds, meta_data, annotations, Comparisons, n, lfc.cutoff, padj.cutoff)
-    combatseq_norm_counts(combat_dds, annotations, approach)  #combat batch corrected
-    plot_qc(combat_dds, meta_data, approach)
+    combat_dds <- run_deseq2(combat_dds, meta_data_comp, annotations, Comparisons, n, lfc.cutoff, padj.cutoff, suffix)
+    combatseq_norm_counts(combat_dds, annotations, approach, suffix)  #combat batch corrected
+    plot_qc(combat_dds, meta_data_comp, approach, suffix)
   }
   
   # Perform DESeq2() using sva modelled surrogate variables SV1 and SV2
   approach <- "sva_modelled"
-  sva_dds <- run_deseq2(sva_dds, meta_data, annotations, Comparisons, n, lfc.cutoff, padj.cutoff, approach)
-  # calc_norm_counts(sva_dds, annotations, approach)   # uncorrected
-  svaseq_norm_counts(sva_dds, annotations, approach)   # sva seq batch corrected
-  plot_qc(sva_dds, meta_data, approach)
+  sva_dds <- run_deseq2(sva_dds, meta_data_comp, annotations, Comparisons, n, lfc.cutoff, padj.cutoff, approach, suffix)
+  # calc_norm_counts(sva_dds, annotations, approach, suffix)   # uncorrected
+  svaseq_norm_counts(sva_dds, annotations, approach, suffix)   # sva seq batch corrected
+  plot_qc(sva_dds, meta_data_comp, approach, suffix)
 }
 
 #*************************************END**************************************#
@@ -364,6 +311,8 @@ if (proj=="EGAD00001003977"){
   Variable2 <- ""
   Variable2_value <- ""
 }
+
+
 
 #***************************DEFINE HEATMAP VARIABLES***************************#
 
@@ -573,3 +522,66 @@ log2_cutoff <- 0.58
 # # sizefactors <- sizeFactors(dds)         #sizefactors[j]=median (counts[,j]/geometric_mean(counts[i,]))
 # # colSums(counts(dds))                    #Total number of raw counts per sample
 # # colSums(counts(dds, normalized=TRUE))   #Total number of normalized counts per sample
+
+#******************************************************************************#
+#                         TO SUBSET DATA OR NOT!!!                          
+#******************************************************************************#
+
+# You have 3 groups A, B & C but want to perform DEG between group A and B only.
+# Should you exclude group C samples and perform DEG analysis??
+# NOTE: Subsetting data affects (i) sizeFactors (ii) Dispersion estimates and
+# hence the final DEGs
+
+# The links below explain when data needs to be subset.
+# https://support.bioconductor.org/p/108471/
+# https://support.bioconductor.org/p/81038/
+# https://support.bioconductor.org/p/9156036/
+# https://support.bioconductor.org/p/69341/
+
+# The authors of DESeq2 and EdgeR recommend NOT to subset meta_data & 
+# read_data but rather use contrasts to get DEGs between groups
+# You should subset your data ONLY when one of the groups has large variance 
+# (like group C) in link below
+# https://master.bioconductor.org/packages/release/bioc/vignettes/DESeq2/inst/doc/DESeq2.html#if-i-have-multiple-groups-should-i-run-all-together-or-split-into-pairs-of-groups
+
+# Dispersion of gene X in group A ~ Variance of gene X in group A/mean of gene X group A
+# Dispersion of gene X in group B ~ Variance of gene X in group B/mean of gene X group B
+# Dispersion of gene X in group C ~ Variance of gene X in group C/mean of gene X group C
+# Dispersion of gene X for experiment ~ (Dispersion of gene X in groups A, B, C)
+# Samples within Group A and B have low variance in overall expression profile 
+# (clustered closely in PCA plot) but samples in group C have different
+# expression profile. So, the final dispersion estimates of most genes will be 
+# affected a lot by group C. In such a scenario, if we are only doing DEG 
+# comparison between groups A & B, then we can subset only group A and B samples
+# before doing DESeq2. 
+# SO, CHECK PCA PLOT FOR EVERY EXPERIMENT TO DETERMINE IF DATA NEED TO BE SUBSET.
+
+# meta_data <- meta %>% dplyr::filter(get(Variable) %in% c(Comparisons$Target[n], Comparisons$Reference[n]))
+# corrected_read_data <- read %>% dplyr::select(rownames(meta_data))
+# NOTE: sizefactors MUST be calculated ONLY using samples being compared for 
+# differential expression. So, make sure read_data and meta_data ONLY have
+# samples being compared for differential expression.
+
+# dds <- DESeq2::DESeqDataSetFromMatrix(countData=corrected_read_data, colData=meta_data, design=~ Tissue + Age)
+# dds <- DESeq(dds, test="LRT", reduced=~ Tissue)
+# res <- DESeq2::results(object=dds)
+
+# Study effect of Treatment ignoring effect of Sex
+#dds <- DESeqDataSetFromMatrix(countData=corrected_read_data, colData=meta_data, design=~ Treatment)
+
+# Study effect of Treatment after removing effect of Sex (assumes equal effect of Sex on different treatments)
+#dds <- DESeqDataSetFromMatrix(countData=corrected_read_data, colData=meta_data, design=~ Sex + Treatment)
+
+# Study effect of Sex on treatment?
+# Study effect of Treatment after removing effect of Sex (assumes different effect of Sex on different treatments)
+#dds <- DESeqDataSetFromMatrix(countData=corrected_read_data, colData=meta_data, design=~ Sex + Treatment + Sex:Treatment)
+
+
+# TO DO
+# (i) add script to subset data and perform analysis
+# (ii) Add script for different design
+# (iii) how to handle single sample with group C having high variability?
+# (iv) add more QC plots from deseq2 vignette
+# (v) Fix script for heatmap, volcano and correlation plot
+# (vi) A more intuitive way to link proj with variable and comparisons, target, refence
+

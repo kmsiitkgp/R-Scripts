@@ -53,11 +53,13 @@ meta_data <- utils::read.table(file = paste0(results_path, "SraRunTable.txt"),
                                header = TRUE,
                                sep = ",") %>%
   dplyr::rename_with(.fn = ~gsub(pattern = "\\.", replacement = "_", x = .x), .cols = everything()) 
-  #dplyr::select(GEO_Accession__exp_, Run)
+
+# Find which column of meta_data has the Accession numbers
+col <- colnames(meta_data)[as.numeric(which(meta_data == sample_info[1,1], arr.ind = TRUE)[1,2])]
 
 # Merge sample_info and meta_data
 meta_data <- sample_info %>% 
-  dplyr::left_join(meta_data, by=c("GEO_Accession__exp_"= "GEO_Accession__exp_")) %>%
+  dplyr::left_join(meta_data, by=c("GEO_Accession__exp_"= col)) %>%
   dplyr::select(Run, Description, everything())
 
 # Save meta_data

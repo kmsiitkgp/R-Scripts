@@ -800,7 +800,7 @@ cluster_data <- function(integrated_seurat, celltype){
   
   # Determine the clusters for various resolutions
   for (r in c("CCA", "RPCA", "Harmony", "JointPCA")){
-    for (res in c(0.4, 0.6, 0.8, 1.0, 1.2, 1.4)){
+    for (res in c(0.4, 1.4)){
       integrated_seurat <- Seurat::FindClusters(object=integrated_seurat,
                                                 resolution=res,
                                                 graph.name=paste0("graph_snn.", base::tolower(r)),
@@ -860,11 +860,6 @@ cluster_data <- function(integrated_seurat, celltype){
                               invert=TRUE)
   
   cat("\nCells removed:", length(unique(sparse_cells)), "\n")
-  
-  #********************STEP 8E: SAVE THE INTEGRATED OBJECT*********************#
-  
-  saveRDS(integrated_seurat, paste0(seurat_results, "integrated_seurat_snn", 
-                                    dplyr::if_else(is.null(celltype), ".rds", paste0("_", celltype, ".rds"))))
   
   return(integrated_seurat)
 }
@@ -1091,14 +1086,9 @@ plot_post_integration <- function(res, reduc, idents, celltype){
 #                            CLUSTER IDENTIFICATION                            #
 #******************************************************************************#
 
-# Calculate UCell and Seurat scores for major cell types based on markers listed
-# in scRNASeq_Markers.xlsx
-add_module_scores <- function(res, celltype, sheetname){
-  
-  # Load the integrated seurat object
-  integrated_seurat <- base::readRDS(paste0(seurat_results, "integrated_seurat_snn", 
-                                            dplyr::if_else(is.null(celltype), ".rds", paste0("_", celltype, ".rds"))))
-  
+# Calculate UCell and Seurat scores based on markers in scRNASeq_Markers.xlsx
+add_module_scores <- function(integrated_seurat, sheetname){
+
   # Set default assay
   DefaultAssay(integrated_seurat) <- "RNA"
   
@@ -1133,10 +1123,6 @@ add_module_scores <- function(res, celltype, sheetname){
                                                        name="_UCell")
     }
   }
-  
-  # Save the object with calculated module scores
-  saveRDS(integrated_seurat, paste0(seurat_results, "integrated_seurat_snn", 
-                                    dplyr::if_else(is.null(celltype), ".rds", paste0("_", celltype, ".rds"))))
   
   return(integrated_seurat)
 }
@@ -1240,6 +1226,17 @@ plot_conserved_modules <- function(res, reduc, celltype, sheetname){
                     limitsize=FALSE,
                     bg="white")
   }
+}
+
+#******************************************************************************#
+#                               SAVE SEURAT OBJECT                             #
+#******************************************************************************#
+
+save_data <- function(integrated_seurat, celltype){
+  
+saveRDS(integrated_seurat, paste0(seurat_results, "integrated_seurat_snn", 
+                                  dplyr::if_else(is.null(celltype), ".rds", paste0("_", celltype, ".rds"))))
+
 }
 
 #******************************************************************************#
@@ -1377,80 +1374,69 @@ annotate_data_umap <- function(res, reduc, celltype, clusters){
   return(integrated_seurat)
 }
 
-# Annotate cells based on UCell scores calculated by add_module_scores().
-# Here we annotate each cell based on UCell scores. So, all cells in a cluster
-# may belong to 'multiple' cell types. We can retain these contaminating cells
-# while performing subtype analysis but remove them from the final UMAP plot of
-# all cell types. This way we retain most cells for subtype analysis but also 
-# identify these contaminants and remove them before visualization.
+# Annotate cells based on scores calculated by 
+# (i) UCell::AddModuleScore_UCell() : scores lie between [0,1]
+# (ii) Seurat::AddModuleScore()     : scores can be positive or negative
+# Cells in a cluster may belong to 'multiple' cell types. We can retain these 
+# contaminating cells while performing subtype analysis but remove them from 
+# the final UMAP plot of all cell types. This way we retain most cells for 
+# subtype analysis but also identify these contaminants and remove them before
+# final visualization.
 
 # NOTE: DO NOT CHANGE column names in scRNASeq_Markers.xlsx as the varaibles
 # defined within the function are based on column names in scRNASeq_Markers.xlsx
-annotate_data_ucell <- function(integrated_seurat, celltype){
+annotate_data_score <- function(integrated_seurat, celltype){
   
   integrated_seurat@meta.data <- integrated_seurat@meta.data %>%
     # you can also use rowwise() instead of using group_by() and ungroup()
-    group_by(Cell) %>%  
-    dplyr::mutate(cell_class = max(B.Cells_UCell, Dendritic.Cells_UCell, 
+    group_by(Cell) %>%  # only 1 row per cell after grouping
+    dplyr::mutate(ucell_class = max(B_UCell, Dendritic_UCell, 
                                    Endothelial_UCell, Epithelial_UCell,
                                    Fibroblasts_UCell, Granulocytes_UCell,
                                    Lymphatic.Endothelial_UCell, Macrophages_UCell,
-                                   Mast_UCell, Myofibroblasts_UCell, NK.cells_UCell,
-                                   Plasma.cells_UCell, T.cells_UCell, 
-                                   Neurons_UCell, Erythrocytes_UCell)) %>%
-    ungroup() %>%
-    dplyr::mutate(cell_class = dplyr::case_when(Epithelial_UCell            == cell_class & cell_class > 0 ~ "Epithelial",
-                                                Fibroblasts_UCell           == cell_class & cell_class > 0 ~ "Fibroblasts",
-                                                Myofibroblasts_UCell        == cell_class & cell_class > 0 ~ "Myofibroblasts",
-                                                Dendritic.Cells_UCell       == cell_class & cell_class > 0 ~ "Myeloid - DCs",
-                                                Granulocytes_UCell          == cell_class & cell_class > 0 ~ "Myeloid - Granulocytes",
-                                                Macrophages_UCell           == cell_class & cell_class > 0 ~ "Myeloid - Macrophages", 
-                                                Mast_UCell                  == cell_class & cell_class > 0 ~ "Myeloid - Mast", 
-                                                B.Cells_UCell               == cell_class & cell_class > 0 ~ "Lymphoid - B", 
-                                                Plasma.cells_UCell          == cell_class & cell_class > 0 ~ "Lymphoid - Plasma",
-                                                T.cells_UCell               == cell_class & cell_class > 0 ~ "Lymphoid - T", 
-                                                NK.cells_UCell              == cell_class & cell_class > 0 ~ "Lymphoid - NK",
-                                                Endothelial_UCell           == cell_class & cell_class > 0 ~ "Endothelial",
-                                                Lymphatic.Endothelial_UCell == cell_class & cell_class > 0 ~ "Endothelial - Lymphatic",
-                                                Neurons_UCell               == cell_class & cell_class > 0 ~ "Neurons",
-                                                Erythrocytes_UCell          == cell_class & cell_class > 0 ~ "Erythrocytes",
+                                   Mast_UCell, Myofibroblasts_UCell, NK_UCell,
+                                   Plasma_UCell, T_UCell, Neurons_UCell, 
+                                   Erythrocytes_UCell)) %>%
+    dplyr::mutate(seurat_class = max(B1, Dendritic1, Endothelial1, Epithelial1,
+                                    Fibroblasts1, Granulocytes1, 
+                                    Lymphatic.Endothelial1, Macrophages1,
+                                    Mast1, Myofibroblasts1, NK1, Plasma1, T1, 
+                                    Neurons1, Erythrocytes1)) %>%
+    dplyr::ungroup() %>%
+    dplyr::mutate(ucell_class = dplyr::case_when(Epithelial_UCell           == ucell_class & ucell_class > 0 ~ "Epithelial",
+                                                Fibroblasts_UCell           == ucell_class & ucell_class > 0 ~ "Fibroblasts",
+                                                Myofibroblasts_UCell        == ucell_class & ucell_class > 0 ~ "Myofibroblasts",
+                                                Dendritic_UCell             == ucell_class & ucell_class > 0 ~ "Myeloid - DCs",
+                                                Granulocytes_UCell          == ucell_class & ucell_class > 0 ~ "Myeloid - Granulocytes",
+                                                Macrophages_UCell           == ucell_class & ucell_class > 0 ~ "Myeloid - Macrophages", 
+                                                Mast_UCell                  == ucell_class & ucell_class > 0 ~ "Myeloid - Mast", 
+                                                B_UCell                     == ucell_class & ucell_class > 0 ~ "Lymphoid - B", 
+                                                Plasma_UCell                == ucell_class & ucell_class > 0 ~ "Lymphoid - Plasma",
+                                                T_UCell                     == ucell_class & ucell_class > 0 ~ "Lymphoid - T", 
+                                                NK_UCell                    == ucell_class & ucell_class > 0 ~ "Lymphoid - NK",
+                                                Endothelial_UCell           == ucell_class & ucell_class > 0 ~ "Endothelial",
+                                                Lymphatic.Endothelial_UCell == ucell_class & ucell_class > 0 ~ "Endothelial - Lymphatic",
+                                                Neurons_UCell               == ucell_class & ucell_class > 0 ~ "Neurons",
+                                                Erythrocytes_UCell          == ucell_class & ucell_class > 0 ~ "Erythrocytes",
                                                 TRUE ~ "Unclassified")) %>%
+    dplyr::mutate(seurat_class = dplyr::case_when(Epithelial1           == seurat_class & seurat_class > 0 ~ "Epithelial",
+                                                 Fibroblasts1           == seurat_class & seurat_class > 0 ~ "Fibroblasts",
+                                                 Myofibroblasts1        == seurat_class & seurat_class > 0 ~ "Myofibroblasts",
+                                                 Dendritic1             == seurat_class & seurat_class > 0 ~ "Myeloid - DCs",
+                                                 Granulocytes1          == seurat_class & seurat_class > 0 ~ "Myeloid - Granulocytes",
+                                                 Macrophages1           == seurat_class & seurat_class > 0 ~ "Myeloid - Macrophages", 
+                                                 Mast1                  == seurat_class & seurat_class > 0 ~ "Myeloid - Mast", 
+                                                 B1                     == seurat_class & seurat_class > 0 ~ "Lymphoid - B", 
+                                                 Plasma1                == seurat_class & seurat_class > 0 ~ "Lymphoid - Plasma",
+                                                 T1                     == seurat_class & seurat_class > 0 ~ "Lymphoid - T", 
+                                                 NK1                    == seurat_class & seurat_class > 0 ~ "Lymphoid - NK",
+                                                 Endothelial1           == seurat_class & seurat_class > 0 ~ "Endothelial",
+                                                 Lymphatic.Endothelial1 == seurat_class & seurat_class > 0 ~ "Endothelial - Lymphatic",
+                                                 Neurons1               == seurat_class & seurat_class > 0 ~ "Neurons",
+                                                 Erythrocytes1          == seurat_class & seurat_class > 0 ~ "Erythrocytes",
+                                                 TRUE ~ "Unclassified")) %>%
     dplyr::mutate(rnames = Cell) %>%
     tibble::column_to_rownames("rnames")
-  
-  integrated_seurat@meta.data <- integrated_seurat@meta.data %>%
-    # you can also use rowwise() instead of using group_by() and ungroup()
-    group_by(Cell) %>%  
-    dplyr::mutate(cell_class_seurat = max(B.Cells1, Dendritic.Cells1, 
-                                   Endothelial1, Epithelial1,
-                                   Fibroblasts1, Granulocytes1,
-                                   Lymphatic.Endothelial1, Macrophages1,
-                                   Mast1, Myofibroblasts1, NK.cells1,
-                                   Plasma.cells1, T.cells1, 
-                                   Neurons1, Erythrocytes1)) %>%
-    ungroup() %>%
-    dplyr::mutate(cell_class_seurat = dplyr::case_when(Epithelial1     == cell_class_seurat & cell_class_seurat > 0 ~ "Epithelial",
-                                                Fibroblasts1           == cell_class_seurat & cell_class_seurat > 0 ~ "Fibroblasts",
-                                                Myofibroblasts1        == cell_class_seurat & cell_class_seurat > 0 ~ "Myofibroblasts",
-                                                Dendritic.Cells1       == cell_class_seurat & cell_class_seurat > 0 ~ "Myeloid - DCs",
-                                                Granulocytes1          == cell_class_seurat & cell_class_seurat > 0 ~ "Myeloid - Granulocytes",
-                                                Macrophages1           == cell_class_seurat & cell_class_seurat > 0 ~ "Myeloid - Macrophages", 
-                                                Mast1                  == cell_class_seurat & cell_class_seurat > 0 ~ "Myeloid - Mast", 
-                                                B.Cells1               == cell_class_seurat & cell_class_seurat > 0 ~ "Lymphoid - B", 
-                                                Plasma.cells1          == cell_class_seurat & cell_class_seurat > 0 ~ "Lymphoid - Plasma",
-                                                T.cells1               == cell_class_seurat & cell_class_seurat > 0 ~ "Lymphoid - T", 
-                                                NK.cells1              == cell_class_seurat & cell_class_seurat > 0 ~ "Lymphoid - NK",
-                                                Endothelial1           == cell_class_seurat & cell_class_seurat > 0 ~ "Endothelial",
-                                                Lymphatic.Endothelial1 == cell_class_seurat & cell_class_seurat > 0 ~ "Endothelial - Lymphatic",
-                                                Neurons1               == cell_class_seurat & cell_class_seurat > 0 ~ "Neurons",
-                                                Erythrocytes1          == cell_class_seurat & cell_class_seurat > 0 ~ "Erythrocytes",
-                                                TRUE ~ "Unclassified")) %>%
-    dplyr::mutate(rnames = Cell) %>%
-    tibble::column_to_rownames("rnames")
-  
-  # Save the object with calculated module scores
-  saveRDS(integrated_seurat, paste0(seurat_results, "integrated_seurat_snn", 
-                                    dplyr::if_else(is.null(celltype), ".rds", paste0("_", celltype, ".rds"))))
   
   return(integrated_seurat)
 }
@@ -1501,7 +1487,8 @@ prep_data <- function(integrated_seurat, celltype){
   
   # Get major cell types present in seurat object
   # major_celltypes <- unique(integrated_seurat@meta.data$cell_type)
-  major_celltypes <- unique(integrated_seurat@meta.data$cell_class)
+  #major_celltypes <- unique(integrated_seurat@meta.data$ucell_class)
+  major_celltypes <- unique(integrated_seurat@meta.data$seurat_class)
   
   # Identify all sub types of relevance. 
   # Since, we want to subset all Myeloid subtypes like "Myeloid-MDSC", 
@@ -1510,10 +1497,10 @@ prep_data <- function(integrated_seurat, celltype){
   
   # Keep ONLY necessary celltype being analyzed
   filtered_seurat <- subset(x=integrated_seurat, 
-                            cell_class %in% celltypes_of_interest)
+                            seurat_class %in% celltypes_of_interest)
   
   # Print cell numbers to double check
-  print(filtered_seurat@meta.data %>% dplyr::count(Condition, cell_class, cell_type, sub_type, Sample))
+  print(filtered_seurat@meta.data %>% dplyr::count(Condition, seurat_class, cell_type, sub_type, Sample))
   
   # Remove unwanted assays after changing default assay
   DefaultAssay(filtered_seurat) <- "RNA"
@@ -2683,6 +2670,10 @@ prep_DESeq2 <- function(celltype){
                               subset=cell_class %in% c("Mixed", "Unclassified"),
                               invert=TRUE)
   
+  integrated_seurat <- subset(x=integrated_seurat,
+                              subset=cell_type %in% celltype)
+                             
+  
   # Perform analysis on cell types like T cell, B cell rather than Myeloid, Lymphoid
   
   subtypes <- integrated_seurat@meta.data %>% 
@@ -2710,8 +2701,8 @@ prep_DESeq2 <- function(celltype){
       unique()
     
     # Second, create an empty dataframe with rows=genes and columns=samples
-    read_data <- data.frame(matrix(NA, nrow=nrow(subset_seurat@assays$RNA@counts), ncol=nrow(meta_data)))
-    rownames(read_data) <- rownames(subset_seurat@assays$RNA@counts)
+    read_data <- data.frame(matrix(NA, nrow=nrow(subset_seurat@assays$RNA$counts), ncol=nrow(meta_data)))
+    rownames(read_data) <- rownames(subset_seurat@assays$RNA$counts)
     colnames(read_data) <- samples
     
     # Thirdly, we will add row-wise, the counts of each gene for each sample
@@ -2721,7 +2712,7 @@ prep_DESeq2 <- function(celltype){
       cells_subset <- rownames(subset_seurat@meta.data %>% dplyr::filter(Sample == i))
       
       # Use data.frame to convert "." in sparse matrix to "0"
-      subset <- data.frame(subset_seurat@assays$RNA@counts[,cells_subset])
+      subset <- data.frame(subset_seurat@assays$RNA$counts[,cells_subset])
       read_data[,i]  <- rowSums(subset)
     }
     
@@ -2729,9 +2720,20 @@ prep_DESeq2 <- function(celltype){
       tibble::rownames_to_column("SYMBOL")
     
     file_suffix <- subtype
-    analyze_DESeq2(meta_data, read_data, file_suffix)
+    #analyze_DESeq2(meta_data, read_data, file_suffix)
+    
+    annotations <- get_annotations(species)
+    meta_data <- prep_metadata(meta_data, Variable)
+    read_data <- prep_readdata(read_data, meta_data)
+    l <- check_data(read_data, meta_data)
+    meta_data <- l[[2]]
+    read_data <- l[[1]]
   }
 }
+
+
+
+
 
 #*********************************CLEAR MEMORY*********************************#
 

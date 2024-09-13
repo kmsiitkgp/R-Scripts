@@ -120,7 +120,7 @@
 #                        overwrite = TRUE)
 
 #******************************************************************************#
-#                  STEP 3: PLOT Y GENES FROM SINGLE CELL DATA                  #
+#                  STEP 3: HEATMAP Y GENES FROM SINGLE CELL DATA                  #
 #******************************************************************************#
 #!/usr/bin/env Rscript
 
@@ -245,137 +245,106 @@ for (proj in c("scRNASeq_BBN_C57B6", "scRNASeq_BBN_Rag", "scRNASeq_Chen",
     }
   }
 }
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-  }
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  # Convert count matrix to binary format [1=Expressed, 0=Not expressed]
-  #df <- as.data.frame(df) %>% replace(.> 0, 1)
-  df[df>0] <- 1
-  
-  gene_count_per_cell <- data.frame(counts = colSums(df)) %>%
-    tibble::rownames_to_column("Cell") %>%
-    dplyr::mutate(Cell = gsub(pattern= "_.*" , replacement="", x=Cell)) %>%
-    dplyr::group_by(Cell, counts) %>%
-    dplyr::summarise(n = n()) %>%
-    #tidyr::pivot_wider(id_cols=Cell, names_from=counts, values_from=n) %>%
-    dplyr::rename(Sample=Cell, n_gene=counts) %>%
-    dplyr::mutate(Percent = 100*n/sum(n))
-  
-  ggplot(data = gene_count_per_cell, aes(x=n_gene, y=Percent, group=Sample, fill=Sample)) +
-    geom_col() +
-    my_theme +
-    facet_wrap(~Sample, nrow=1) +
-    scale_x_continuous(breaks=seq(0,10,1))
-  theme(legend.position="right",
-        panel.spacing = unit(0.1, "lines"),
-        axis.ticks.x=element_blank())
-  
-  ggsave(paste0(celltype, "_ngene_bar.tiff"))
-  
-  gene_count_per_cell <- data.frame(counts = colSums(df)) %>%
-    tibble::rownames_to_column("Cell") %>%
-    dplyr::mutate(Cell = gsub(pattern= "_.*" , replacement="", x=Cell)) %>%
-    dplyr::group_by(Cell, counts) %>%
-    dplyr::rename(Sample=Cell, n_gene=counts)
-  
-  ggplot(data = gene_count_per_cell, aes(x=n_gene, group=Sample, fill=Sample)) +
-    geom_density(adjust=1.5) +
-    my_theme +
-    facet_wrap(~Sample, nrow=1) +
-    scale_x_continuous(breaks=seq(0,10,1))
-  theme(legend.position="right",
-        panel.spacing = unit(0.1, "lines"),
-        axis.ticks.x=element_blank())
-  
-  ggsave(paste0(celltype, "_ngene_density.tiff"))
-  
-  x <- Seurat::AddModuleScore(object = integrated_seurat,
-                              features = list(rownames(df)),
-                              name = "Y_score",
-                              pool = NULL,
-                              nbin = 24,
-                              ctrl = 5, #100,
-                              k = FALSE,
-                              assay = "RNA",
-                              seed = 1,
-                              search = FALSE)
-  y_score <- x@meta.data %>% 
-    dplyr::select(Sample, Y_score1) %>%
-    tibble::remove_rownames()
-  
-  ggplot(data = y_score, aes(x=Y_score1, group=Sample, fill=Sample)) +
-    geom_density() +
-    my_theme +
-    facet_wrap(~Sample, nrow=1) +
-    scale_x_continuous(breaks=seq(0,10,1))
-  theme(legend.position="right",
-        panel.spacing = unit(0.1, "lines"),
-        axis.ticks.x=element_blank())
-  
-  ggsave(paste0(celltype, "_yscore.tiff"))
-  
-  #BiocManager::install("UCell")   
-  DefaultAssay(integrated_seurat) <- "RNA"
-  x <- UCell::AddModuleScore_UCell(obj = integrated_seurat, 
-                                   features = list(Yscore = rownames(df)),
-                                   maxRank = 1500,
-                                   chunk.size = 1000,
-                                   BPPARAM = NULL,
-                                   ncores = 1,
-                                   storeRanks = FALSE,
-                                   w_neg = 1,
-                                   assay = NULL,
-                                   slot = "data",
-                                   ties.method = "average",
-                                   force.gc = FALSE,
-                                   name = "_UCell")
-  
-  y_score_ucell <- x@meta.data %>% 
-    dplyr::select(Sample, Yscore_UCell) %>%
-    tibble::remove_rownames()
-  
-  ggplot(data = y_score_ucell, aes(x=Yscore_UCell, group=Sample, fill=Sample)) +
-    geom_density() +
-    my_theme +
-    facet_wrap(~Sample, nrow=1) +
-    scale_x_continuous(breaks=seq(0,10,1)) + 
-    ylim(0,40)
-  theme(legend.position="right",
-        panel.spacing = unit(0.1, "lines"),
-        axis.ticks.x=element_blank())
-  
-  ggsave(paste0(celltype, "_yscore_ucell.tiff"))
-  
+
+# Convert count matrix to binary format [1=Expressed, 0=Not expressed]
+#df <- as.data.frame(df) %>% replace(.> 0, 1)
+df[df>0] <- 1
+
+gene_count_per_cell <- data.frame(counts = colSums(df)) %>%
+  tibble::rownames_to_column("Cell") %>%
+  dplyr::mutate(Cell = gsub(pattern= "_.*" , replacement="", x=Cell)) %>%
+  dplyr::group_by(Cell, counts) %>%
+  dplyr::summarise(n = n()) %>%
+  #tidyr::pivot_wider(id_cols=Cell, names_from=counts, values_from=n) %>%
+  dplyr::rename(Sample=Cell, n_gene=counts) %>%
+  dplyr::mutate(Percent = 100*n/sum(n))
+
+ggplot(data = gene_count_per_cell, aes(x=n_gene, y=Percent, group=Sample, fill=Sample)) +
+  geom_col() +
+  my_theme +
+  facet_wrap(~Sample, nrow=1) +
+  scale_x_continuous(breaks=seq(0,10,1))
+theme(legend.position="right",
+      panel.spacing = unit(0.1, "lines"),
+      axis.ticks.x=element_blank())
+
+ggsave(paste0(celltype, "_ngene_bar.tiff"))
+
+gene_count_per_cell <- data.frame(counts = colSums(df)) %>%
+  tibble::rownames_to_column("Cell") %>%
+  dplyr::mutate(Cell = gsub(pattern= "_.*" , replacement="", x=Cell)) %>%
+  dplyr::group_by(Cell, counts) %>%
+  dplyr::rename(Sample=Cell, n_gene=counts)
+
+ggplot(data = gene_count_per_cell, aes(x=n_gene, group=Sample, fill=Sample)) +
+  geom_density(adjust=1.5) +
+  my_theme +
+  facet_wrap(~Sample, nrow=1) +
+  scale_x_continuous(breaks=seq(0,10,1))
+theme(legend.position="right",
+      panel.spacing = unit(0.1, "lines"),
+      axis.ticks.x=element_blank())
+
+ggsave(paste0(celltype, "_ngene_density.tiff"))
+
+x <- Seurat::AddModuleScore(object = integrated_seurat,
+                            features = list(rownames(df)),
+                            name = "Y_score",
+                            pool = NULL,
+                            nbin = 24,
+                            ctrl = 5, #100,
+                            k = FALSE,
+                            assay = "RNA",
+                            seed = 1,
+                            search = FALSE)
+y_score <- x@meta.data %>% 
+  dplyr::select(Sample, Y_score1) %>%
+  tibble::remove_rownames()
+
+ggplot(data = y_score, aes(x=Y_score1, group=Sample, fill=Sample)) +
+  geom_density() +
+  my_theme +
+  facet_wrap(~Sample, nrow=1) +
+  scale_x_continuous(breaks=seq(0,10,1))
+theme(legend.position="right",
+      panel.spacing = unit(0.1, "lines"),
+      axis.ticks.x=element_blank())
+
+ggsave(paste0(celltype, "_yscore.tiff"))
+
+#BiocManager::install("UCell")   
+DefaultAssay(integrated_seurat) <- "RNA"
+x <- UCell::AddModuleScore_UCell(obj = integrated_seurat, 
+                                 features = list(Yscore = rownames(df)),
+                                 maxRank = 1500,
+                                 chunk.size = 1000,
+                                 BPPARAM = NULL,
+                                 ncores = 1,
+                                 storeRanks = FALSE,
+                                 w_neg = 1,
+                                 assay = NULL,
+                                 slot = "data",
+                                 ties.method = "average",
+                                 force.gc = FALSE,
+                                 name = "_UCell")
+
+y_score_ucell <- x@meta.data %>% 
+  dplyr::select(Sample, Yscore_UCell) %>%
+  tibble::remove_rownames()
+
+ggplot(data = y_score_ucell, aes(x=Yscore_UCell, group=Sample, fill=Sample)) +
+  geom_density() +
+  my_theme +
+  facet_wrap(~Sample, nrow=1) +
+  scale_x_continuous(breaks=seq(0,10,1)) + 
+  ylim(0,40)
+theme(legend.position="right",
+      panel.spacing = unit(0.1, "lines"),
+      axis.ticks.x=element_blank())
+
+ggsave(paste0(celltype, "_yscore_ucell.tiff"))
+
 }
-
-
-
-
 
 # # Prepare dataframe for plotting
 # gene_count_per_cell <- data.frame(counts = colSums(df)) %>%
@@ -386,8 +355,6 @@ for (proj in c("scRNASeq_BBN_C57B6", "scRNASeq_BBN_Rag", "scRNASeq_Chen",
 #   dplyr::summarise(n = n()) %>%
 #   tidyr::pivot_wider(id_cols=Patient, names_from=counts, values_from=n) %>%
 #   dplyr::rename(Sample=Patient)
-
-
 
 #gsub(pattern= "^.*?-" , replacement="", x="AAAGATGGTGTCCTCT-1-24-0-0")
 
@@ -1136,7 +1103,7 @@ integrated_seurat <- subset(x = integrated_seurat,
 y_genes <- c("Ddx3y", "Eif2s3y", "Kdm5d","Uty","Rbmy","Sly","Sry","Uba1y",
              "Usp9y","Zfy1","Zfy2","H2al2b","H2al2c","Orly","Rbm31y","Srsy",
              "Ssty1","Ssty2")
-features <- intersect(y_genes, rownames(integrated_seurat@assays$RNA@data))
+features <- intersect(y_genes, rownames(integrated_seurat@assays$RNA$data))
 label <- "y_genes"
 
 x <- Seurat::AddModuleScore(object = integrated_seurat,
@@ -1157,7 +1124,7 @@ Seurat::FeaturePlot(object = x,
                     pt.size = 0.4,
                     order = TRUE,
                     min.cutoff = 'q10',
-                    reduction = "umap",
+                    reduction = "umap.harmony",
                     label = TRUE,
                     combine = TRUE,
                     raster = FALSE)
@@ -1663,4 +1630,157 @@ pheatmap::pheatmap(mat = as.matrix(mat),
                    filename = paste0(results_path, "Dorothea1.pdf"))
 
 #******************************************************************************#
+
+integrated_seurat <- subset(x = integrated_seurat,
+                            subset = Sex == "Male")
+
+y_genes <- c("Ddx3y", "Eif2s3y", "Kdm5d","Uty","Rbmy","Sly","Sry","Uba1y",
+             "Usp9y","Zfy1","Zfy2","H2al2b","H2al2c","Orly","Rbm31y","Srsy",
+             "Ssty1","Ssty2")
+features <- intersect(y_genes, rownames(integrated_seurat@assays$RNA$data))
+
+i <- 1
+celltypes <- unique(integrated_seurat@meta.data$cell_type)
+for (c in celltypes){
+  
+  x <- paste0("p",i)
+  i <- i+1;
+  
+  seurat_obj <- subset(x=integrated_seurat,
+                       cell_type == c)
+  
+  # Extract expression inf, keep only Y genes that have expression
+  df <- seurat_obj@assays$RNA$data
+  df <- df[features,]
+  df <- df[rowSums(df) != 0,]
+  df[df>0] <- 1
+  
+  
+  gene_count_per_cell <- data.frame(counts = colSums(df)) %>%
+    tibble::rownames_to_column("Cell") %>%
+    dplyr::mutate(Cell = gsub(pattern= "_.*" , replacement="", x=Cell)) %>%
+    dplyr::group_by(Cell, counts) %>%
+    dplyr::summarise(n = n()) %>%
+    #tidyr::pivot_wider(id_cols=Cell, names_from=counts, values_from=n) %>%
+    dplyr::rename(Sample=Cell, n_gene=counts) %>%
+    dplyr::mutate(Percent = 100*n/sum(n)) %>%
+    dplyr::filter(n_gene==0)
+  
+  print(c)
+  print(gene_count_per_cell)
+  
+  p <- ggplot(data = gene_count_per_cell, aes(x=n_gene, y=Percent, group=Sample, fill=Sample)) +
+    geom_col() +
+    my_theme +
+    facet_wrap(~Sample, nrow=1) +
+    scale_x_continuous(breaks=seq(0,6,1)) + 
+    labs(x="Number of Y genes expressed in a single cell", y="% of cells expressing indicated number of Y genes",
+         title = c) 
+    # theme(legend.position="right",
+    #       panel.spacing = unit(0.1, "lines"),
+    #       axis.ticks.x=element_blank())
+  
+  assign(x,p)
+}
+
+# Save all plots
+plot_grid(p1,p2,p3,p4,p5,p6,p7,p8,p9,p10,
+          align = c("hv"),
+          axis = c("tblr"),
+          nrow = 2,
+          ncol = 5,
+          rel_widths = 1,
+          rel_heights = 1,
+          labels = NULL,
+          label_size = 14,
+          label_fontfamily = NULL,
+          label_fontface = "bold",
+          label_colour = NULL,
+          label_x = 0,
+          label_y = 1,
+          hjust = -0.5,
+          vjust = 1.5,
+          scale = 1,
+          greedy = TRUE,
+          byrow = TRUE)
+
+ggsave(filename = "Y Expression Frequency.pdf",
+       plot = last_plot(),
+       device = "pdf",
+       width = 33,
+       height = 11,
+       units = c("in"),	 
+       dpi = 300,
+       limitsize = TRUE,
+       bg = "white")
+
+i <- 1
+celltypes <- unique(integrated_seurat@meta.data$cell_type)
+for (c in celltypes){
+  
+  x <- paste0("p",i)
+  i <- i+1;
+  
+  seurat_obj <- subset(x=integrated_seurat,
+                       cell_type == c)
+  seurat_obj <- Seurat::AddModuleScore(obj = seurat_obj,
+                                       features = list(features),
+                                       assay = "RNA",
+                                       slot = "data",
+                                       name = "Yscore")
+  
+  gene_count_per_cell <- seurat_obj@meta.data %>%
+    dplyr::select(Yscore1) %>%
+    tibble::rownames_to_column("Cell") %>%
+    dplyr::mutate(Cell = gsub(pattern= "_.*" , replacement="", x=Cell)) %>%
+    dplyr::group_by(Cell) %>%
+    dplyr::summarise(n = mean(Yscore1)) %>%
+    #tidyr::pivot_wider(id_cols=Cell, names_from=counts, values_from=n) %>%
+    dplyr::rename(Sample=Cell, Yscore=n)
+  
+  p <- ggplot(data = gene_count_per_cell, aes(y=Sample, x=Yscore, group=Sample, fill=Sample)) +
+    geom_col(width=0.25) +
+    my_theme + 
+    coord_cartesian(xlim = c(-0.125,0.125), clip = "off") +
+    labs(x="Y Score", y="Sample", title = c) + 
+    geom_text(aes(label=round(Yscore,2)), position = position_stack(vjust = .5))
+  
+  assign(x,p)
+  
+}
+
+# Save all plots
+plot_grid(p1,p2,p3,p4,p5,p6,p7,p8,p9,p10,
+          align = c("hv"),
+          axis = c("tblr"),
+          nrow = 2,
+          ncol = 5,
+          rel_widths = 1,
+          rel_heights = 1,
+          labels = NULL,
+          label_size = 14,
+          label_fontfamily = NULL,
+          label_fontface = "bold",
+          label_colour = NULL,
+          label_x = 0,
+          label_y = 1,
+          hjust = -0.5,
+          vjust = 1.5,
+          scale = 1,
+          greedy = TRUE,
+          byrow = TRUE)
+
+ggsave(filename = "Y Score Distribution.pdf",
+       plot = last_plot(),
+       device = "pdf",
+       width = 33,
+       height = 11,
+       units = c("in"),	 
+       dpi = 300,
+       limitsize = TRUE,
+       bg = "white")
+  
+
+  
+
 

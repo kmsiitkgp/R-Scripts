@@ -210,11 +210,35 @@ if (proj=="scRNASeq_Simon"){
                    "Unclassified" = c(1,3,8,15,16,17,23,30,32))
 }
 
+if (proj=="scRNASeq_GSE217093"){
+  # rpca works better especially for epithelial. In harmony, there are patches 
+  # of epithelial cells in many other non-epithelial clusters.
+  reduc <- "harmony"
+  clusters <- list("Fibroblasts" = c(6,12,27,25,28,38,45,47,54),
+                   "Myofibroblasts" = c(35),
+                   "Epithelial" = c(0,1,2,3,4,5,7,11,13,14,15,19,20,22,26,30,31,33,39,40,41,44,46,48,51,52,53,55,56,59,61),
+                   "Myeloid - Macrophages" = c(16,17,32,34),
+                   "Myeloid - DCs" = c(50),
+                   "Myeloid - MDSC" = c(),
+                   "Myeloid - Granulocytes" = c(),
+                   "Myeloid - Mast" = c(8,18,29,43,49),
+                   "Lymphoid - B" = c(37),
+                   "Lymphoid - Plasma" = c(36,42),
+                   "Lymphoid - T" = c(9,57),
+                   "Lymphoid - NK" = c(24),
+                   "Endothelial" = c(10,21,23,58,60),
+                   "Endothelial - Lymphatic" = c(),
+                   "Neurons" = c(),
+                   "Myocytes" = c(),
+                   "Erythrocytes" = c(62),
+                   "Unclassified" = c())
+}
+
 res <- 1.4
 # reduc is defined for each proj within the if statement
 celltype <- NULL
 integ <- annotate_data_umap(res, reduc, celltype, clusters)
-integ <- annotate_data_ucell(integ, celltype)
+integ <- annotate_data_score(integ, celltype)
   
 #******************************************************************************#
 #       STEP 5: PERFORM INITIAL SUBTYPE ANALYSIS ON REQUIRED CELL TYPES        #
@@ -248,8 +272,8 @@ for (celltype in c("Epithelial", "Fibroblasts", "Myeloid", "Lymphoid")){
   kweight <- min(kweight, 100) 
   integ <- integrate_data(sct, kweight)
   integ <- cluster_data(integ, celltype)
-  res <- 1.4
-  integ <- add_module_scores(res, celltype, "All Markers")
+  integ <- add_module_scores(integ, "All Markers")
+  save_data(integ, celltype)
   #plot_pre_integration(sct)
   
   for (reduc in c("CCA", "RPCA", "Harmony", "JointPCA")){

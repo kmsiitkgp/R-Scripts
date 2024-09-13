@@ -19,7 +19,7 @@ library("viridis")
 library("RColorBrewer")
 library("ggrepel")
 library("ggpubr")
-library("extrafont")
+
 
 # Specialized Graph plotting packages
 library("VennDiagram")
@@ -35,7 +35,7 @@ library("VennDiagram")
 # circles in Venn Diagram
 #(iv) Maximum of 5 data sets can be plotted
 
-parent_path <- "C:/Users/KailasammS/Desktop/venn/"
+parent_path <- "C:/Users/kailasamms/OneDrive - Cedars-Sinai Health System/Desktop/venn/"
 
 # Choose one of the below three palettes with upto 5 colorblind colors:
 palette1 <- c("#ffb6db","#db6d00","#490092","#006ddb","#004949") # regular
@@ -55,7 +55,7 @@ plot_title <- ""
 # Use this website for 3 set data if this script's venn diagram isnt pretty
 # http://www.ehbio.com/test/venn/#/
 
-# Import data
+# # Import data
 file <- list.files(path = parent_path)
 file <- file[grepl(pattern=".xlsx", x=file)]
 data <- openxlsx::read.xlsx(xlsxFile = paste0(parent_path, file))
@@ -101,6 +101,7 @@ genes <- base::vector(mode = "list", length = ncol(data))
 names(genes) <- annotation$Labels
 
 for (i in 1:ncol(data)){
+  
   # remove NA values and create a list of genes for each label
   genes[[i]] <- data[!is.na(data[i]),i]
 }
@@ -140,16 +141,16 @@ VennDiagram::venn.diagram(x = genes,
                           cat.cex = 2,               #font size
                           cat.fontface = "bold",     #font style
                           cat.fontfamily = "sans",   #font type
-                          cat.col = palette1[c(1:ncol)],  #"black",  #c("#00008C", "#00008C", "#E75480", "#E75480"),
+                          cat.col = palette1,  #"black",  #c("#00008C", "#00008C", "#E75480", "#E75480"),
                           
                           # Formatting colors of venn diagram
-                          fill = palette1[c(1:ncol)],
+                          fill = palette1,
                           alpha = rep(0.5, ncol), #0.5=50% transparency, 1=0% transparency
                           #cat.default.pos = "outer",    
                           
                           cat.pos = pos,    
                           cat.dist = dist, 
-                          disable.logging = FALSE,
+                          disable.logging = TRUE,
                           ext.text = TRUE)
 
 #******************************************************************************#
@@ -180,10 +181,12 @@ for (i in 1:length(overlap)){
 
 # Save the results
 wb <- openxlsx::createWorkbook()
-
 openxlsx::addWorksheet(wb, sheetName = "venn_input")
 openxlsx::writeData(wb, sheet = "venn_input", x = data, rowNames = FALSE)
 openxlsx::addWorksheet(wb, sheetName = "venn_output")
 openxlsx::writeData(wb, sheet = "venn_output", x = results, rowNames = TRUE)
-
 openxlsx::saveWorkbook(wb, file = paste0(parent_path, "Overlap.xlsx"), overwrite = TRUE,  returnValue = FALSE)
+
+
+
+

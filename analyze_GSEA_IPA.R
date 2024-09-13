@@ -4,8 +4,7 @@
 # For mass pec data wrangling, read below
 # https://ab604.github.io/docs/bspr_workshop_2018/transform.html#fig:compare-normalisation
 
-source("C:/Users/kailasamms/Documents/GitHub/R-Scripts/RNASeq_DESeq2_Functions.R")
-
+source("C:/Users/kailasamms/OneDrive - Cedars-Sinai Health System/Documents/GitHub/R-Scripts/RNASeq_DESeq2_Functions.R")
 # msigdbr package can be used to retrieve genesets from GSEA.
 # However, it seems the package hasnt been updated since 2022. 
 # Hence, it might be better to get gene sets directly from GSEA

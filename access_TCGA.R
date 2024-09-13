@@ -1,5 +1,8 @@
 #!/usr/bin/env Rscript
 
+source("/hpc/home/kailasamms/projects/RNASeq/RNASeq_DESeq2_Functions.R")
+source("C:/Users/kailasamms/Documents/GitHub/R-Scripts/RNASeq_DESeq2_Functions.R")
+
 #******************************************************************************#
 #                          INSTALL NECESSARY PACKAGES                          #
 #******************************************************************************#
@@ -268,6 +271,143 @@ openxlsx::saveWorkbook(wb, file=paste0(parent_path, "Meta_data_TCGA.xlsx"), over
 #        STEP 4: NORMALIZE PAN CANCER DATA & CORRECT FOR BATCH EFFECTS         #
 #******************************************************************************#
 
+# Download batch corrected normalized pan cancer RNA expression data from below
+# https://gdc.cancer.gov/about-data/publications/pancanatlas
+# RNA (Final) - EBPlusPlusAdjustPANCAN_IlluminaHiSeq_RNASeqV2.geneExp.tsv
+# The clinical data from previous step can be used 
+
+parent_path <- "/hpc/home/kailasamms/scratch/TCGA_GDC/"
+meta_data <- openxlsx::read.xlsx(xlsxFile=paste0(parent_path, "Meta_data_TCGA.xlsx"))
+#read_data <- utils::read.table(file=paste0(parent_path, "EBPlusPlusAdjustPANCAN_IlluminaHiSeq_RNASeqV2.geneExp.tsv"),
+read_data <- utils::read.table(file=paste0(parent_path, "Normalized_Counts_TCGA_original.tsv"),
+                               header=TRUE, sep="\t", quote="", skip=0, fill=TRUE) 
+
+# Rename column names to match with Sample_ID from meta_data
+cols <- colnames(read_data)
+
+# NOTE: str_detect is better than grepl
+# grepl(pattern, replacement) where both pattern and replacement MUST be string
+# str_detect(string, pattern) either string or pattern can be a vector but not BOTH.
+
+for (i in 1:ncol(read_data)){
+  
+  if(sum(stringr::str_detect(string=colnames(read_data)[i],
+                             pattern=make.names(meta_data$Sample_ID))) == 1){
+    cols[i] <- meta_data$Sample_ID[stringr::str_detect(string=colnames(read_data)[i],
+                                                       pattern=make.names(meta_data$Sample_ID))]
+    print(i)
+  }
+}
+
+# Replace with proper Sample_ID as column names
+colnames(read_data) <- cols
+colnames(read_data)[1] <- "ENTREZ_ID"
+
+# There are 795 duplicated columns
+sum(duplicated(colnames(read_data)))
+which(colnames(read_data) == "TCGA-06-0125")
+read_data[1:5, 6695]
+read_data[1:5, 6696]
+
+# Make them unique
+colnames(read_data) <- make.names(colnames(read_data), unique=TRUE)
+
+# Separate the first column which contains SYMBOL and ENTREZ_ID joined together
+# using piping character | into 2 columns
+read_data <- read_data %>% 
+  tidyr::separate(col=ENTREZ_ID, into=c("SYMBOL", "ENTREZ_ID"), sep="\\s*\\|\\s*")
+
+# Remove the \" from SYMBOL and ENTREZ_ID
+# cat(read_data$ENTREZ_ID[100]) will show 5826"
+# print(read_data$ENTREZ_ID[100]) will show "5826\""
+read_data$SYMBOL <- gsub(pattern="[\"\"]", replacement="", x=read_data$SYMBOL)
+read_data$ENTREZ_ID <- gsub(pattern="[\"\"]", replacement="", x=read_data$ENTREZ_ID)
+
+# Replace all NA values with 0
+read_data <- read_data %>%
+  base::replace(is.na(.), 0)
+
+# Remove genes with no expression in all samples
+read_data <- read_data[rowSums(read_data[,c(-1,-2)]) !=0,]
+
+# Replace symbols with ? with ENTREZ_ID
+read_data <- read_data %>% 
+  dplyr::mutate(SYMBOL = dplyr::case_when(SYMBOL == "?" ~ ENTREZ_ID, TRUE ~ SYMBOL))
+
+# Remove duplicated genes
+read_data <- read_data %>% dplyr::distinct_at("SYMBOL", .keep_all = TRUE)
+
+# Save the reformatted read_data(DO NOT SAVE xlsx as file is too large)
+write.table(x=read_data, file=paste0(parent_path, "Normalized_Counts_TCGA.tsv"), 
+            quote=FALSE, sep='\t', row.names = FALSE)
+
+#******************************************************************************#
+#              STEP 4A: NORMALIZE EACH CANCER DATA INDIVIDUALLY                #
+#******************************************************************************#
+
+parent_path <- "/hpc/home/kailasamms/scratch/TCGA_GDC/"
+results_path <- parent_path
+species <- "Homo sapiens"
+Variable <- "Treatment"
+Comparisons <- list(Target=c("Radiation"),
+                    Reference=c("No Treatment"))
+padj.cutoff <- 0.1
+lfc.cutoff <- 0  
+annotations <- get_annotations(species)
+
+meta_data_full <- openxlsx::read.xlsx(xlsxFile=paste0(parent_path, "Meta_data_TCGA.xlsx"))
+
+for(proj in unique(meta_data_full$Project_ID)){
+  
+  read_data <- openxlsx::read.xlsx(xlsxFile=paste0(parent_path, "Read_data_", proj, ".xlsx")) %>% 
+    dplyr::mutate(SYMBOL = make.names(SYMBOL, unique=TRUE))
+  
+  meta_data <- meta_data_full %>% 
+    dplyr::filter(make.names(Sample_ID) %in% colnames(read_data)) %>%
+    dplyr::mutate(Batch=Project_ID)
+  
+  # Save the cancer specific meta_data
+  wb <- openxlsx::createWorkbook()
+  openxlsx::addWorksheet(wb, sheetName="Metadata")
+  openxlsx::writeData(wb, sheet="Metadata", x=meta_data)
+  openxlsx::saveWorkbook(wb, file=paste0(parent_path, "Meta_data_", proj, ".xlsx"), overwrite=TRUE)
+  
+  meta_data <- prep_metadata(meta_data, Variable)
+  read_data <- prep_readdata(read_data, meta_data)
+  l <- check_data(read_data, meta_data)
+  meta_data <- l[[2]]
+  read_data <- l[[1]]
+  sva_dds <- svaseq_batch(read_data, meta_data)
+  n <- 1
+  
+  #Perform DESeq2() using in-built batch modelling
+  approach <- "DESeq2_modelled"
+  if (length(unique(meta_data$Batch)) > 1){
+    dds <- DESeq2::DESeqDataSetFromMatrix(countData=read_data,
+                                          colData=meta_data, 
+                                          design=~ Batch+id)
+  } else {
+    dds <- DESeq2::DESeqDataSetFromMatrix(countData=read_data,
+                                          colData=meta_data, 
+                                          design=~ id)
+  }
+  dds <- run_deseq2(dds, meta_data, annotations, Comparisons, n, lfc.cutoff, padj.cutoff, approach)
+  deseq2_norm_counts(dds, annotations, approach) # batch corrected if you more than 1 batch
+  plot_qc(dds, meta_data, approach)
+  
+  # Perform DESeq2() using sva modelled surrogate variables SV1 and SV2
+  approach <- "sva_modelled"
+  sva_dds <- run_deseq2(sva_dds, meta_data, annotations, Comparisons, n, lfc.cutoff, padj.cutoff, approach)
+  # calc_norm_counts(sva_dds, annotations, approach)   # uncorrected
+  svaseq_norm_counts(sva_dds, annotations, approach)   # sva seq batch corrected
+  plot_qc(sva_dds, meta_data, approach)
+}
+
+
+#*****************************************************************************#
+
+
+
 # The below 2 posts recommend using all samples from a single experiment for 
 # normalizing but avoiding using all samples from multiple experiments.
 # https://support.bioconductor.org/p/92879/, https://www.biostars.org/p/9560478/
@@ -292,8 +432,3 @@ openxlsx::saveWorkbook(wb, file=paste0(parent_path, "Meta_data_TCGA.xlsx"), over
 # projects and normalize them together due to issues explained above, we will
 # perform normalization on each TCGA project individually ASSUMING there are
 # no batch effects within each experiment.
-
-
-
-
-
