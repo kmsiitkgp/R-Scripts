@@ -5,18 +5,6 @@
 chooseCRANmirror(ind=1)
 
 #******************************************************************************#
-#                          INSTALL NECESSARY PACKAGES                          #
-#******************************************************************************#
-
-# # Data analysis packages
-# BiocManager::install(pkgs = c("dorothea", "viper"),
-#                      #lib = "/hpc/home/kailasamms/R/x86_64-pc-linux-gnu-library/4.1",
-#                      force = TRUE,
-#                      INSTALL_opts = '--no-lock')
-# 
-# install.packages("matrixStats")
-
-#******************************************************************************#
 #                           LOAD NECESSARY PACKAGES                            #
 #******************************************************************************#
 

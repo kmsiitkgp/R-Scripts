@@ -1,187 +1,119 @@
 #!/usr/bin/env Rscript
 
-# BiocManager::install("SigCheck")
-
-# Read this paper
-# https://doi.org/10.1093/jncimonographs/lgu024
-
 #******************************************************************************#
-#                           LOAD NECESSARY PACKAGES                            #
-#******************************************************************************#
-
-# Data wrangling packages     
-library("openxlsx")
-library("dplyr")
-library("tibble")
-
-# Graph plotting packages
-library("ggplot2")
-library("grid")  
-
-# Specialized Graph plotting packages
-library("survival")
-library("survminer")  #If this is not loaded %++% wont work
-library("SigCheck")
-
-#******************************************************************************#
-#                           DECLARE GLOBAL VARIABLES                           #
+#                   INFORMATION REGARDING SURVIVAL PARAMETERS                  #
 #******************************************************************************#
 
 ## NOTE: Some predefined columns name MUST be present in the meta/clinical data
 ## "Sample_ID" : this column MUST contain sample names
 ## "Time:      : this column MUST contain survival duration in months
 ## "Status     : this column MUST contain Dead/Alive status (Alive = 0, Dead = 1)
-## "Sex        : this column MUST contain sex/Sex "Male" or "Female"
+## "Sex        : this column MUST contain "Male" or "Female"
 
-## Declare column in metadata to subset samples and its values
-## If plotting the whole data, set subset_group <- NA and subset_value <- NA
-## If metadata has column named "Race" with "Asian", "African", "American" 
-## values and you want to plot only Asian and African origin patients, define
-## subset_group <- "Race" and subset_value <- c("Asian", "African").
-subset_group <- "Sex"   #"Received.platinum" # "Sample.collected.pre.platinum" 
-subset_value <- c("Male")  #c("Y", "N")  #c("Y", "N", "NE")
-subset_group <- "Stage"   #"Received.platinum" # "Sample.collected.pre.platinum" 
-subset_value <- c("T1", "T2", "T3", "T4")  #c("Y", "N")  #c("Y", "N", "NE")
-subset_group <- "binaryResponse"
-subset_value <- c("SD/PD","CR/PR")
-subset_group <- "Condition"
-subset_value <- c("PDL1", "Control")
-subset_group <- "prior_neoadjuvant_chemotherapy"
-subset_value <- c("YES", "NO")
-subset_group <- "Sample.collected.pre.platinum"
-subset_value <- c("Y", "N")
-subset_group <- NA
-subset_value <- NA
-subset_group <- "Received.platinum"
-subset_value <- c("Y", "N")
+# "plot_by" defines parameter based on which survival curves are plotted.
+# By default, survival curves are plotted on gene expression of single/multiple
+# genes i.e. plot_by = c(NA).  
+# If "plot_by = c("Race")", a column named "Race" MUST exist in metadata.
 
-## "plot_by": define parameter to plot survival.
-## To plot by gene expression, set as "Expression" (default). 
-## To plot by "Race" etc, a column named "Race" MUST exist in metadata.
-plot_by <- "Stage"
-plot_by <- "Expression"
+# "split_by" defines parameter based on which patients are split into groups.
+# To plot curves of gene X for male and female patients, a column named "Sex" 
+# MUST exist in metadata.
 
-## "split_by": define parameter to split data. 
-## If you want to plot curves of gene X for male and female patients, then a 
-# column named "Sex" MUST exist in metadata.
-split_by <- subset_group  #NA
+# "split_plot" defines whether separate plots need to be made for patients
+# grouped using "split_by" variable. 
+# To plot curves of gene X for male and female patients SEPARATELY, set 
+# "split_plot = TRUE"
+# If "split_by == c(NA)", then split_plot variable is ignored
 
-## If you want to plot curves of gene X for male and female patients SEPARATELY,
-## then set combine_plot <- FALSE
-## If "split_by" <- NA, then combine_plot variable is ignored and its 
-## value doesnt matter
-combine_plot <- FALSE 
+# "multiple_cutoff" defines whether to calculate a single cutoff for all 
+# patients or multiple cutoffs for each group of patients grouped using 
+# "split_by" variable
 
-## If plotting by expression, expression cutoffs will be calculated to stratify
-## patients into HIGH vs LOW groups. Define if you want to calculate a single 
-## cutoff for all patients in subset_groups or individual cutoffs for each
-## subset_group
-multiple_cutoff <- TRUE
+# "stratify_criteria" defines method used to determine cutoff for stratifying samples
+# "m" : stratify using median cutoff (top 50% vs bottom 50%)
+# "t" : stratify using tertile expression (top 33% vs bottom 33%)
+# "q" : stratify using quartile expression (top 25% vs bottom 25%)
+# "o" : stratify using optimal cutoff calculated by survminer
+# "th": stratify using thirds cutoff
 
-## Choose a stratify_criteria to set cutoff for stratifying samples
-## "m" : stratify using median cutoff (top 50% vs bottom 50%)
-## "t" : stratify using tertile expression (top 33% vs bottom 33%)
-## "q" : stratify using quartile expression (top 25% vs bottom 25%)
-## "o" : stratify using optimal cutoff calculated by survminer
-## "th": stratify using thirds cutoff
-stratify_criteria <- "o"
+# "reference" defines the reference level for calculating Hazard Ratio (HR)
+# By default, when plotting by expression, reference is set to "LOW".
+# If plot_by = c("Race") etc, set appropriate reference
 
-# Define reference level for calculating Hazard Ratio (HR)
-# If you are plotting ONLY by expression, reference is set to "LOW" (default)
-# If you are plotting by expression independent favtor like Race or Sex, set
-# appropriate reference
-reference <- "T1" #"NA"
-reference <- dplyr::if_else(plot_by == "Expression", "LOW", reference)
+# "conf_interval" defines whether confidence interval are shown
+# "plot_curve" defines whether to plot the survival curve
+# "plot_risk_table" defines whether to plot the risk table
 
-## Indicate if you want to see confidence intervals in the plot
-confidence_interval <- FALSE
+# "legend_title" indicate the title of legend
 
-## Indicate the title of legend
-legend_title <- "Expression"  #Sex #Race
+# "plot_all_bins" defines whether to plot all bins or ONLY 2 bins (high, low)
+# stratify_criteria = "m" splits samples into 2 bins i.e. below 50%, above 50%
+# stratify_criteria = "t" splits samples into 3 bins i.e. below 33%, 33%-67%, above 67%
+# stratify_criteria = "q" splits samples into 4 bins i.e. below 25%, 25%-50%, 50%-75%, above 75%
+# stratify_criteria = "o" splits samples into 2 bins i.e. above & below optimum cutoff
+# stratify_criteria = "th" splits samples into 3 bins i.e. bottom 33%, middle33%, top 33% based on expression range
 
-## indicate if you want to plot the risk table
-plot_risk_table <- TRUE
+# "plot_all_quartiles" is relevant ONLY when stratify_criteria = "q" and defines
+# whether to plot all 4 bins or ONLY 2 bins (high, low)
 
-## indicate if you want to plot the survival curve
-plot_curve <- TRUE
+# "gene_sig_score" defines whether to calculate gene signature score
 
-## Indicate if you want to plot all quartiles or only HIGH vs LOW
-all_quartiles <- FALSE
+# Calculate z-score using the function described in Levine et al https://doi.org/10.1186/gb-2006-7-10-r93
+# NOTE: z-score is calculated within each sample across all genes. So, 
+# number of samples doesnt affect a sample's z-score.
+# prep_expr_df() does this if survival_params$gene_sig_score = TRUE
 
-## Indicate if you are plotting a gene signature or single gene
-gene_signature <- TRUE
-
-# # VERY VERY IMPORTANT: ggsurvplot() labels the groups in alphabetical order. So, 
-# # when we want to use custom labels, initialize them in alphabetical order. 
-# # Eg: c("High", "Low") instead of  c("Low, "High")
-legend_label <- c("Female", "Male")           # Reference is female
+# VERY VERY IMPORTANT: ggsurvplot() labels the groups in alphabetical order. So,
+# when we want to use custom labels, initialize them in alphabetical order.
+# Eg: c("High", "Low") instead of  c("Low, "High")
 color_palette <- c("#F6D2E0", "#C8E7F5")      # 1st color~female, 2nd color~male
 color_palette <- c("orchid2", "dodgerblue2")  # 1st color~female, 2nd color~male
 color_palette <- c("#EE7AE9", "#1C86EE")      # 1st color~female, 2nd color~male
-legend_label <- c("T1", "T2", "T3", "T4")
 color_palette <- c("#F6D2E0", "#C8E7F5","#EE7AE9", "#1C86EE" )
 legend_label <- c("High", "Low")              # Reference is Low
 color_palette <- c("#DB6D00", "#490092")      # 1st color~high, 2nd color~low
 color_palette <- c("#d73027","#0c2c84")
 color_palette <- c(color_palette, 
-                colorspace::adjust_transparency(col = color_palette, alpha = 0.3), 
-                colorspace::adjust_transparency(col = color_palette, alpha = 0.6))
-
-## Declare global variables for survival curves. 
-variable_x <- "Time"
-variable_y <- "Status" 
-
-# Unique prefix to each plot
-prefix <- ""
+                   colorspace::adjust_transparency(col = color_palette, alpha = 0.3), 
+                   colorspace::adjust_transparency(col = color_palette, alpha = 0.6))
 
 #******************************************************************************#
-#                     STEP 2: PLOT SURVIVAL CURVES BY SEX                      #
+#                          DEFINE SURVIVAL PARAMETERS                          #
 #******************************************************************************#
 
-# Read survival data
-expr_df <- openxlsx::read.xlsx(xlsxFile = paste0(parent_path, "BBN original figs/1A_data.xlsx"))
+source("/hpc/home/kailasamms/projects/RNASeq/RNASeq_DESeq2_Functions.R")
+source("C:/Users/kailasamms/OneDrive - Cedars-Sinai Health System/Documents/GitHub/R-Scripts/RNASeq_DESeq2_Functions.R")
 
-gse <- "Mice Expt"
-sex <- "Male vs Female"
-i <-  ""
+data_path <- "/hpc/home/kailasamms/scratch/ICB_TCGA_datasets/processed/"
+output_path <- "/hpc/home/kailasamms/scratch/ICB_TCGA_datasets/processed/"
 
-# Plot
-summary <- plot_survival(survival_data, group, prefix)
+survival_params <- list(plot_by             = c(NA), 
+                        split_by            = c(NA),
+                        split_plot          = FALSE,
+                        multiple_cutoff     = FALSE,
+                        stratify_criteria   = c("o"),
+                        reference           = c("LOW"),
+                        conf_interval       = FALSE,
+                        plot_curve          = TRUE,
+                        plot_risk_table     = TRUE,
+                        legend_title        = "Expression",
+                        legend_label        = c("High", "Low"),
+                        color_palette       = c("#d73027","#0c2c84"),
+                        plot_all_bins       = FALSE,
+                        plot_all_quartiles  = FALSE,
+                        gene_sig_score      = FALSE)
 
 #******************************************************************************#
-#                    STEP 3: PLOT SURVIVAL CURVES FOR GENES                    #
+#                                 IMPORT DATA                                  #
 #******************************************************************************#
 
-# If workign with huge datasets, try this
-options(future.globals.maxSize = 30000 * 1024^2)
+gse <- c("GSE78220", "GSE91061", "GSE96619", "GSE115821", "GSE131521", "IMvigor210", "IMvigor010")
 
-# Define the gse of the project
-gse <- "TCGA_BLCA"         # DESeq2 normalized counts
-gse <- "Blaveri"           # already log2 transformed & median centered
-gse <- "mskcc"             # already log2 transformed
-gse <- "gse13507"          # already log2 transformed
-gse <- "gse31684"          # already log2 transformed
-gse <- "gse32894"          # already log2 transformed
-gse <- "Imvigor210"        # DESeq2 normalized counts
-gse <- "Imvigor010"        # DESeq2 normalized counts
-gse <- "Imvigor210_old" 
-
-
-wb <- openxlsx::createWorkbook()
-for (gse in c("TCGA_BLCA", "Blaveri")){
+for (proj in gse){  
   
-  ## Store path of parent directory i.e. root directory for the project
-  parent_path <- parent_path <- "/hpc/home/kailasamms/"
-  parent_path <- "C:/Users/KailasammS/Box/Saravana@cedars/10. Ongoing Projects/BBN project/BLCA_Cohorts_correct/"
+  meta_data <- read.xlsx(paste0(data_path, proj, ".Metadata.xlsx"))
+  read_data <- openxlsx::read.xlsx(xlsxFile=paste0(data_path, proj,".Normalized.counts.xlsx"))
   
-  # Import read_data
-  read_data <- openxlsx::read.xlsx(xlsxFile = paste0(parent_path, gse, "_Normalized.xlsx"))
-  colnames(read_data)[1] <- "SYMBOL"
-  
-  # Import meta_data and subset meta_data if needed
-  meta_data <- openxlsx::read.xlsx(xlsxFile = paste0(parent_path, gse, "_Metadata.xlsx"))  
-  #%>% dplyr::filter(grepl(pattern = "T2|T3|T4", x = Stage))
-
   # Reformat metadata 
   meta_data <- meta_data %>% 
     dplyr::mutate(Sample_ID = make.names(names = Sample_ID)) %>%
@@ -189,42 +121,27 @@ for (gse in c("TCGA_BLCA", "Blaveri")){
     dplyr::filter(Time > 0 & !is.na(Time)) %>%
     dplyr::distinct_at("Sample_ID", .keep_all = TRUE)
   
-  if (!is.na(subset_group)){
-    meta_data <- meta_data %>% 
-      dplyr::filter(get(subset_group) %in% subset_value)
-  }
+  # Reformat readdata
+  norm_counts <- read_data %>%
+    # Replace NA with 0
+    base::replace(is.na(.), 0) %>%                               
+    # If there are duplicated genes, keep only row for highest expressing copy
+    dplyr::mutate(n = rowSums(.[,-1])) %>%
+    dplyr::group_by(SYMBOL) %>%
+    dplyr::slice_max(n) %>%
+    dplyr::ungroup() %>%
+    # Remove rows with 0 expression across all columns
+    dplyr::filter(n != 0) %>%
+    dplyr::select(everything(), -n) %>%
+    # Move gene names to rownames
+    tibble::remove_rownames() %>%
+    tibble::column_to_rownames("SYMBOL") %>%
+    # Make sure all columns are numeric
+    dplyr::mutate(across(.cols = everything(), .fns = as.numeric)) %>%
+    # Keep only samples in metadata
+    dplyr::select(all_of(intersect(make.names(meta_data$Sample_ID), colnames(norm_counts))))
   
-  # meta_data <- meta_data %>%
-  #   dplyr::filter(Sex == "Male", Received.platinum == "Y",
-  #                 !is.na(`Sample.collected.pre.platinum`),
-  #                 Tissue %in% c("bladder", "kidney", "ureter"))
-  # 
-  # meta_data <- meta_data %>%
-  #   dplyr::filter(Sex == "Male", Received.platinum == "N",
-  #                 Tissue %in% c("bladder", "kidney", "ureter"))
-  # 
-  # meta_data <- meta_data %>%
-  #      dplyr::filter(Sex == "Male", Tissue == "bladder")
-  # 
-  # meta_data <- meta_data %>%
-  #      dplyr::filter(Sex == "Male", Received.platinum == "Y",
-  #                    !is.na(`Sample.collected.pre.platinum`))
-  # 
-  # meta_data <- meta_data %>%
-  #      dplyr::filter(Sex == "Male", Received.platinum == "N")
-  
-  meta_data <- meta_data %>%
-       dplyr::filter(Sex == "Male")
-  
-  # Reformat read data
-  normalized_counts <- read_data %>%
-    dplyr::mutate(SYMBOL = make.names(names = SYMBOL, unique = TRUE)) %>%
-    dplyr::distinct_at("SYMBOL", .keep_all = TRUE) %>%
-    tibble::column_to_rownames(var = "SYMBOL") %>%
-    dplyr::mutate(across(.cols = everything(), .fns = as.numeric))
-  colnames(normalized_counts) <- base::make.names(names = colnames(normalized_counts))
-  normalized_counts <- normalized_counts[,intersect(make.names(meta_data$Sample_ID), colnames(normalized_counts))]
-  normalized_counts <- normalized_counts[!rowSums(normalized_counts, na.rm=TRUE) == 0,]
+  colnames(norm_counts) <- base::make.names(names = colnames(norm_counts))
   
   # Perform log1p transformation on the subsetted data if not done before
   # Perform median centering for each gene across samples as median expression 
@@ -232,64 +149,63 @@ for (gse in c("TCGA_BLCA", "Blaveri")){
   
   # NOTE: If plotting a single gene, using normalized counts or log1p transformed 
   # normalized counts or median centered log1p transformed normalized counts 
-  # will yield same curves, pvalues, HR values, etc. Results will be very 
-  # different in the 3 cases ONLY for gene signatures
+  # will yield same curves, pvalues, HR values, etc. 
+  # Results will be very different in the 3 cases ONLY for gene signatures
+  log_norm_counts <- log(1+norm_counts, base=2)
+  t <- base::apply(X=log_norm_counts, MARGIN=1, FUN=median, na.rm=TRUE)
+  log_norm_counts <- base::sweep(x=log_norm_counts, MARGIN=1, FUN="-", STATS=t)
   
-  if (gse == "TCGA_BLCA" | gse == "Imvigor210" | gse == "Imvigor010"){
-    normalized_counts <- log(1+normalized_counts, base=2)
-  }
-  if (gse != "Blaveri"){
-    t <- base::apply(X=normalized_counts, MARGIN=1, FUN=median, na.rm=TRUE)
-    normalized_counts <- base::sweep(x=normalized_counts, MARGIN=1, FUN="-", STATS=t)
-  }
+  # List genes to plot
+  plot_genes <- c("NPEPPS")
+  plot_genes <- intersect(plot_genes, rownames(log_norm_counts))
   
-  #*****************USE THIS SECTION FOR PLOTTING INDIVIDUAL GENES***************#
+  #******************************************************************************#
+  #                           PERFORM SUVIVAL ANALYSIS                           #
+  #******************************************************************************#
   
-  if (gene_signature == FALSE){
+  # Generate expr_df
+  expr_df <- prep_expr_df(log_norm_counts, meta_data, plot_genes, survival_params)
+  
+  # Create a list to store survminer cutoffs, coxph stats, etc..
+  stats <- list("gene" = c(),
+                "group" = c(),
+                "lower_cutoff" = c(),
+                "middle_cutoff" = c(),
+                "upper_cutoff" = c(),
+                "HR" = c(),
+                "CI_lower" = c(),
+                "CI_upper" = c(),
+                "logrank" = c(),  
+                "reg_logrank.late" = c(),
+                "Gehan_Breslow.early" = c(),
+                "Tarone_Ware.early"  = c(),
+                "Peto_Peto.early" = c(),
+                "modified_Peto_Peto"  = c(),
+                "Fleming_Harrington" = c())
+  
+  # Create a dataframe to classification info
+  classification_df <- expr_df %>% 
+    dplyr::select(Sample_ID) %>%
+    dplyr::mutate(Dummy_col = 0)
+  
+  # Plot survival curves
+  if (survival_params$gene_sig_score != TRUE){
     
-    # Create a list of genes for which survival curves need to be plotted
-    plot_genes <- c("ERK2")
-
-    # Merge expression data with survival data
-    expr_df <- normalized_counts %>%
-      t() %>%
-      data.frame() %>%
-      tibble::rownames_to_column("Sample_ID") %>%
-      dplyr::inner_join(meta_data, by=c("Sample_ID"="Sample_ID")) %>%
-      dplyr::filter(Sample_ID %in% (meta_data %>% 
-                                      #dplyr::filter(Received.platinum == "N") %>% 
-                                      dplyr::filter(Received.platinum == "Y", Sample.collected.pre.platinum == "N") %>% 
-                                      dplyr::select(Sample_ID) %>% 
-                                      unlist(use.names=FALSE)))
-    
-    
-    # Create a list to store survminer cutoffs, coxph stats, etc..
-    stats <- list("gene" = c(),
-                  "group" = c(),
-                  "lower_cutoff" = c(),
-                  "middle_cutoff" = c(),
-                  "upper_cutoff" = c(),
-                  "HR" = c(),
-                  "CI_lower" = c(),
-                  "CI_upper" = c(),
-                  "pvalue" = c())
-    
-    classification_df <- expr_df %>% 
-      dplyr::select(Sample_ID) %>%
-      dplyr::mutate(Dummy_col = 0)
-    
-    # Plot survival curves
-    for (gene in intersect(unique(plot_genes), rownames(normalized_counts))) {
-      plot_curve <- TRUE
-      summary <- wrangle_data(expr_df, stratify_criteria, prefix)
+    for (gene in plot_genes) {
       
+      prefix <- paste0(proj, "_", gene)
+      summary <- plot_survival(expr_df, gene, survival_params, prefix, output_path)
+      
+      # Get sample classification info for the individual gene
       class_df <- summary[[1]] %>%
-        dplyr::select(Sample_ID, model) %>%
-        dplyr::rename(!!gene := model)
+        dplyr::select(Sample_ID, all_of(gene), model) %>%
+        dplyr::rename(!!paste0(gene, "_model") := model)
       
+      # Merge classification info to parent dataframe
       classification_df <- classification_df %>% 
         dplyr::left_join(class_df, by=("Sample_ID"="Sample_ID"))
       
+      # Store stats for individual gene
       stats$gene          <- c(stats$gene, summary[[2]]$gene)
       stats$group         <- c(stats$group, summary[[2]]$group)
       stats$lower_cutoff  <- c(stats$lower_cutoff, summary[[2]]$lower)
@@ -299,67 +215,68 @@ for (gse in c("TCGA_BLCA", "Blaveri")){
       stats$CI_lower      <- c(stats$CI_lower, summary[[2]]$CI_lower)
       stats$CI_upper      <- c(stats$CI_upper, summary[[2]]$CI_upper)
       stats$pvalue        <- c(stats$pvalue, summary[[2]]$pvalue)
+      stats$logrank       <- c(stats$logrank, summary[[2]]$logrank) 
+      stats$reg_logrank.late    <- c(stats$reg_logrank.late, summary[[2]]$reg_logrank.late)
+      stats$Gehan_Breslow.early <- c(stats$Gehan_Breslow.early, summary[[2]]$Gehan_Breslow.early)
+      stats$Tarone_Ware.early   <- c(stats$Tarone_Ware.early, summary[[2]]$Tarone_Ware.early)
+      stats$Peto_Peto.early     <- c(stats$Peto_Peto.early, summary[[2]]$Peto_Peto.early)
+      stats$modified_Peto_Peto  <- c(stats$modified_Peto_Peto, summary[[2]]$modified_Peto_Peto)
+      stats$Fleming_Harrington  <- c(stats$Fleming_Harrington, summary[[2]]$Fleming_Harrington)
     }
     
+    # Merge all stats into a dataframe
     stats_df <- data.frame(stats)
-    val_df <- normalized_counts[intersect(plot_genes, rownames(normalized_counts)),] %>%
+    
+    # Create a dataframe of normalized counts of genes plotted
+    norm_df <- norm_counts[intersect(plot_genes, rownames(norm_counts)),] %>%
       t() %>%
-      data.frame()
-
+      data.frame() %>%
+      tibble::rownames_to_column("SYMBOL")
+    
     # Save the results
     wb <- openxlsx::createWorkbook()
     openxlsx::addWorksheet(wb, sheetName = "Summary")
     openxlsx::writeData(wb, sheet = "Summary", x = stats_df)
     openxlsx::addWorksheet(wb, sheetName = "Classification")
     openxlsx::writeData(wb, sheet = "Classification", x = classification_df)
-    openxlsx::saveWorkbook(wb, file = paste0(parent_path, "Individual_gene_stats.xlsx"), overwrite = TRUE)
+    openxlsx::addWorksheet(wb, sheetName = "Norm_counts")
+    openxlsx::writeData(wb, sheet = "Norm_counts", x = norm_df)
+    openxlsx::saveWorkbook(wb, file = paste0(data_path, proj, "_Individual_stats.xlsx"), overwrite = TRUE)
   }
   
-  #*****************USE THIS SECTION FOR PLOTTING GENE SIGNATURES**************#
-  
-  if (gene_signature == TRUE){
-    
-    # Human Y gene signature
-    plot_genes <- c("DDX3Y", "EIF1AY", "HSFY2", "KDM5D", "UTY", "NLGN4Y", 
-                    "PCDH11Y", "RPS4Y1", "TBL1Y", "TMSB4Y", "USP9Y", "ZFY", 
-                    "DAZ1", "DAZ2", "DAZ3", "DAZ4", "PRY2", "RBMY1A1")
-    
-    # Calculate z-score using the function described in above paper
-    # NOTE: z-score is calculated within each sample across all genes. So, 
-    # number of samples doesnt affect a sample's z-score.
-    expr_df <- as.data.frame(advanced_Z(plot_genes, normalized_counts))
-    
-    # Merge expression data with survival data
-    expr_df <- expr_df %>%
-      data.frame() %>%
-      dplyr::rename(combined.exp = identity(1)) %>%
-      tibble::rownames_to_column("Sample_ID") %>%
-      dplyr::inner_join(meta_data, by=c("Sample_ID"="Sample_ID"))
+  if (survival_params$gene_sig_score == TRUE){
     
     gene <- "combined.exp"
+    prefix <- paste0(proj, "_", gene)
+    summary <- plot_survival(expr_df, gene, survival_params, prefix, output_path)
     
-    #expr_df <- expr_df %>% dplyr::filter(Sex == "Male")
-    if (nrow(expr_df > 0)){
-      summary <- wrangle_data(expr_df, stratify_criteria, prefix)
-    }
-    
-    surv_df <- summary[[1]] %>%
+    # Merge classification info to parent dataframe
+    classification_df <- summary[[1]] %>%
       dplyr::select(Sample_ID, combined.exp,	model, everything())
+    
+    # Merge all stats into a dataframe
     stats_df <- as.data.frame(summary[[2]])
+    
+    # Create a dataframe of normalized counts of genes plotted
+    norm_df <- norm_counts[intersect(plot_genes, rownames(norm_counts)),] %>%
+      t() %>%
+      data.frame() %>%
+      tibble::rownames_to_column("SYMBOL")
     
     # Save the results
     wb <- openxlsx::createWorkbook()
-    openxlsx::addWorksheet(wb, sheetName = paste0("Summary_",gse))
-    openxlsx::writeData(wb, sheet = paste0("Summary_",gse), x = stats_df, rowNames = FALSE)
-    openxlsx::addWorksheet(wb, sheetName = gse)
-    openxlsx::writeData(wb, sheet = gse, x = surv_df, rowNames = FALSE)
-    openxlsx::saveWorkbook(wb, file = paste0(parent_path, "Summary.xlsx"), overwrite = TRUE)
+    openxlsx::addWorksheet(wb, sheetName = "Summary")
+    openxlsx::writeData(wb, sheet = "Summary", x = stats_df)
+    openxlsx::addWorksheet(wb, sheetName = "Classification")
+    openxlsx::writeData(wb, sheet = "Classification", x = classification_df)
+    openxlsx::addWorksheet(wb, sheetName = "Norm_counts")
+    openxlsx::writeData(wb, sheet = "Norm_counts", x = norm_df)
+    openxlsx::saveWorkbook(wb, file = paste0(data_path, proj, "_Stats.xlsx"), overwrite = TRUE)
   }
 }
-openxlsx::saveWorkbook(wb, file = paste0(parent_path, "Chao_summary.xlsx"), overwrite = TRUE)
 
 #******************************************************************************#
-#                      STEP 4: CHECK IF SIGNATURE IS GOOD                      #
+#                      OPTIONAL: CHECK IF GENE SIGNATURE IS GOOD               #
 #******************************************************************************#
 
 # Create an AnnotatedDataFrame object for meta data
@@ -395,8 +312,6 @@ fvarLabels(eset)
 # manually classify the samples using survminer and import the classification
 # into sigCheck() using scoreMethod and threshold parameters
 
-
-#*****************USE THIS SECTION FOR PLOTTING GENE SIGNATURES****************#
 p <- c()
 
 for (i in 1:100){
@@ -454,3 +369,78 @@ for (i in 1:100){
 }
 
 #******************************************************************************#
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+#******************************************************************************#
+#                     STEP 2: PLOT SURVIVAL CURVES BY SEX                      #
+#******************************************************************************#
+
+# Read survival data
+expr_df <- openxlsx::read.xlsx(xlsxFile = paste0(parent_path, "BBN original figs/1A_data.xlsx"))
+
+gse <- "Mice Expt"
+sex <- "Male vs Female"
+i <-  ""
+
+# Plot
+summary <- plot_survival(survival_data, group, prefix)
+
+#******************************************************************************#
+#                    STEP 3: PLOT SURVIVAL CURVES FOR GENES                    #
+#******************************************************************************#
+
+# If workign with huge datasets, try this
+options(future.globals.maxSize = 30000 * 1024^2)
+
+# Define the gse of the project
+gse <- "TCGA_BLCA"         # DESeq2 normalized counts
+gse <- "Blaveri"           # already log2 transformed & median centered
+gse <- "mskcc"             # already log2 transformed
+gse <- "gse13507"          # already log2 transformed
+gse <- "gse31684"          # already log2 transformed
+gse <- "gse32894"          # already log2 transformed
+gse <- "Imvigor210"        # DESeq2 normalized counts
+gse <- "Imvigor010"        # DESeq2 normalized counts
+gse <- "Imvigor210_old" 
+
+
+if (gse == "TCGA_BLCA" | gse == "Imvigor210" | gse == "Imvigor010"){
+  normalized_counts <- log(1+normalized_counts, base=2)
+}
+if (gse != "Blaveri"){
+  t <- base::apply(X=normalized_counts, MARGIN=1, FUN=median, na.rm=TRUE)
+  normalized_counts <- base::sweep(x=normalized_counts, MARGIN=1, FUN="-", STATS=t)
+}
+
+# Human Y gene signature
+plot_genes <- c("DDX3Y", "EIF1AY", "HSFY2", "KDM5D", "UTY", "NLGN4Y", 
+                "PCDH11Y", "RPS4Y1", "TBL1Y", "TMSB4Y", "USP9Y", "ZFY", 
+                "DAZ1", "DAZ2", "DAZ3", "DAZ4", "PRY2", "RBMY1A1")
+
+

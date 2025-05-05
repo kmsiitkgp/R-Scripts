@@ -237,7 +237,7 @@ if (proj=="scRNASeq_GSE217093"){
 res <- 1.4
 # reduc is defined for each proj within the if statement
 celltype <- NULL
-integ <- annotate_data_umap(res, reduc, celltype, clusters)
+#integ <- annotate_data_umap(res, reduc, celltype, clusters)
 integ <- annotate_data_score(integ, celltype)
   
 #******************************************************************************#

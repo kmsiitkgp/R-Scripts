@@ -206,7 +206,7 @@ import os
 sys.path.append(os.path.abspath("/hpc/home/kailasamms/projects/scRNASeq"))
 import pySCENIC_export_to_loom
 # Also, change line 82
-scope_lomm = pySCENIC_export_to_loom.SCopeLoom.read_loom(filename=args.loom_input)
+scope_loom = pySCENIC_export_to_loom.SCopeLoom.read_loom(filename=args.loom_input)
 
 #*****************STEP 4: RUN pySCENIC ANALYSIS IN HPC CLUSTER*****************#
 

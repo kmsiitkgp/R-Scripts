@@ -125,7 +125,7 @@ for (n in 1:length(Comparisons$Variable)){
                                           colData=meta_data_comp, 
                                           design=~ id)
   }
-  dds <- run_deseq2(dds, meta_data_comp, annotations, Comparisons, n, lfc.cutoff, padj.cutoff, approach, suffix)
+  dds <- run_deseq2(dds, meta_data_comp, annotations, Comparisons, n, approach, prefix, results_path)
   deseq2_norm_counts(dds, annotations, approach, suffix) # batch corrected if you more than 1 batch
   plot_qc(dds, meta_data_comp, approach, suffix)
   
@@ -312,8 +312,6 @@ if (proj=="EGAD00001003977"){
   Variable2_value <- ""
 }
 
-
-
 #***************************DEFINE HEATMAP VARIABLES***************************#
 
 # Define if data is log transformed already
@@ -347,21 +345,6 @@ my_palette <- colorRampPalette(rev(brewer.pal(n=11, name ="RdYlBu")))(200)
 cell_width <- NA
 cell_height <- NA
 
-#*************************DEFINE VOLCANO PLOT VARIABLES************************#
-
-# Define the target and reference groups
-# NOTE: These values MUST be present in "Condition" column of metadata
-Target <- Comparisons$Target
-Reference <- Comparisons$Reference
-
-# Define if you want to color by padj values or direction (up vs down)
-color_by <- "Significance"
-color_by <- "Direction"
-
-# Define cutoffs for padj and log2FC
-padj_cutoff <- 0.05
-log2_cutoff <- 0.58
-
 # #*******************************DIAGNOSTIC TESTS*******************************#
 
 # # (i) To view counts of specific gene across samples
@@ -370,25 +353,7 @@ log2_cutoff <- 0.58
 # plotCounts(dds, gene=which.max(res$log2FoldChange), intgroup=Variable) # gene with highest log2FC
 # plotCounts(dds, gene="ENSMUSG00000030598", intgroup=Variable)          # a specific gene
 # 
-# # (ii) Plot MA
-# # The output of plotMA is not a ggplot2 object. So, we cant use ggsave()
-# pdf(filename=paste0(diagnostics_path, "Diagnostic_MA_Plot_", celltype, ".pdf"),
-#     width=8.5,
-#     height=11,
-#     units="in",
-#     quality=75,
-#     bg="white",
-#     res=600)
-# 
-# # Blue points indicate genes with adj p value <0.1
-# plotMA(object=res,
-#        alpha=0.1,
-#        main="",
-#        xlab="Mean of Normalized Counts",
-#        #ylim=c(-5,5), 
-#        MLE=FALSE) 
-# 
-# dev.off()
+
 # # To identify the genes interactively, run the 2 lines below. 
 # # Then click on multiple dots and click Finish. A list of genes will be displayed 
 # # idx <- identify(res$baseMean, res$log2FoldChange)

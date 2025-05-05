@@ -1,8 +1,8 @@
 #!/usr/bin/env Rscript
 
-# Read and store variables from CLI
-cli <- commandArgs(trailingOnly = TRUE) 
-args <- strsplit(cli, "=", fixed = TRUE)
+# Read and store variables from command line interface (CLI)
+cli <- base::commandArgs(trailingOnly = TRUE) 
+args <- base::strsplit(x = cli, split = "=", fixed = TRUE)
 
 for (e in args){
   argname <- e[1]
@@ -12,7 +12,6 @@ for (e in args){
 
 # NOTE: All variables and functions are defined within the file below
 source("/hpc/home/kailasamms/projects/scRNASeq/scRNASeq_Seurat_Functions_Variables.R")
-options(Seurat.object.assay.version = "v5")
 
 #******************************************************************************#
 #                       STEP 1: SETUP THE SEURAT OBJECT                        #
@@ -62,42 +61,44 @@ if (demultiplexed_data == TRUE){
 
 if (demultiplexed_data == FALSE){
   
-  # Create a list of samples which will be added to each barcode.
+  # Create a list of sample names which will be added to each barcode.
   # Since folder names correspond to sample name, we just use list.files()
-  samples <- list.files(path = feature_matrix_path)
+  samples <- list.files(path = raw_matrix_path)
   
   # Loop through each of the individual folders in parent directory & import data
   for(i in samples){
-    
-    # Read the data files from each sample folder
-    # NOTE: gene.column=1 imports Ensembl ids from features.tsv. DO NOT DO THIS. 
-    # Read gene symbols from features.tsv as we will calculate mitoratio, 
-    # riboratio etc using gene names
-    sample.dgCMatrix <- Seurat::Read10X(data.dir = paste0(feature_matrix_path, i),
-                                        gene.column = 2,  
-                                        cell.column = 1,
-                                        unique.features = TRUE,
-                                        strip.suffix = FALSE)
-    
-    # Create a seurat object for each dgCMatrix object
-    # NOTE: Set min.features=100 to remove low quality cells & reduce object size
-    sample.seurat <- SeuratObject::CreateSeuratObject(counts = sample.dgCMatrix,
-                                                      project = i,
-                                                      assay = "RNA",
-                                                      names.field = 1,
-                                                      names.delim = "_",
-                                                      meta.data = NULL,
-                                                      min.cells = 0,
-                                                      min.features = 100)
-    
-    # Assign the seurat object to its corresponding variable
-    assign(i, sample.seurat)
-    
-    # Explore the meta.data slot
-    cat("\nFirst few rows of ", i, "\n")
-    print(head(sample.seurat@meta.data))
-    cat("\nLast few rows of ", i, "\n")
-    print(tail(sample.seurat@meta.data))
+    for (matrix_path in c(raw_matrix_path, filt_matrix_path)){
+   
+      # Read the data files from each sample folder
+      # NOTE: gene.column=1 imports Ensembl ids from features.tsv. DO NOT DO THIS. 
+      # Read gene symbols from features.tsv as we will calculate mitoratio, 
+      # riboratio etc using gene names
+      dgCMatrix <- Seurat::Read10X(data.dir = paste0(matrix_path, i),
+                                   gene.column = 2,  
+                                   cell.column = 1,
+                                   unique.features = TRUE,
+                                   strip.suffix = FALSE)
+      
+      # Create a seurat object for each dgCMatrix object
+      # NOTE: Set min.features=100 to remove low quality cells & reduce object size
+      sample.seurat <- SeuratObject::CreateSeuratObject(counts = dgCMatrix,
+                                                 project = i,
+                                                 assay = "RNA",
+                                                 names.field = 1,
+                                                 names.delim = "_",
+                                                 meta.data = NULL,
+                                                 min.cells = 0,
+                                                 min.features = 100)
+      
+      # Assign the seurat object to its corresponding variable
+      if (matrix_path == raw_matrix_path){
+        assign(paste0(i, ".raw"), sample.seurat)
+        cat("DATA IMPORTED FOR ", i, ".raw dataset\n")
+      } else{
+        assign(paste0(i, ".filt"), sample.seurat)
+        cat("DATA IMPORTED FOR ", i, ".filt dataset\n")
+      }
+    }
   }
 }
 
@@ -115,13 +116,17 @@ if (demultiplexed_data == FALSE){
 # samples and then merge the filtered seurat objects which have fewer cells.
 
 # Initialize an empty dataframe where the class of each column resembles those 
-# of raw_metadata. We will use this dataframe for making plots later.
-raw_metadata <- data.frame(Cell = c(""), Sample = as.factor(1), 
-                           nUMIs = c(0), nGenes = c(0), 
-                           MitoRatio = c(0), RiboRatio = c(0), Novelty = c(0))
+# of raw_metadata. We will use this dataframe for making QC plots later.
+raw_metadata <- data.frame(Cell = c(""), 
+                           Sample = as.factor(1), 
+                           nUMIs = c(0), 
+                           nGenes = c(0), 
+                           MitoRatio = c(0), 
+                           RiboRatio = c(0), 
+                           Novelty = c(0))
 
-# Calculate QC metrics for each sample individually  
-for(i in samples){
+# Calculate QC metrics for each sample individually using raw matrices
+for(i in paste0(samples, ".raw")){
   
   sample.seurat <- get(i)
   
@@ -143,12 +148,12 @@ for(i in samples){
   sample_metadata <- sample.seurat@meta.data
   
   # Rename columns to be more intuitive and add the additional QC metrics:
-  # (i)     Cell      : unique identifiers corresponding to each cell = barcodes
+  # (i)     Cell      : unique identifiers corresponding to each cell i.e. barcodes
   # (ii)    Sample    : sample names
   # (iii)   nUMIs     : number of transcripts per cell
   # (iv)    nGenes    : number of genes per cell
   # (v)     nHTO_UMIs : number of HTO reads per cell
-  # (vi)    nHTOs     : number of HTOs types per cell
+  # (vi)    nHTOs     : number of HTO types per cell
   # (vii)   MitoRatio : MitoPercent/100
   # (viii)	RiboRatio : RiboPercent/100  
   # (ix)    Novelty   : log ratio of genes per UMI
@@ -176,10 +181,11 @@ for(i in samples){
                     HTO_Final = NA) %>%
       dplyr::select(Cell, Sample, nUMIs, nGenes, nHTO_UMIs, nHTOs, HTO_Final, MitoRatio, RiboRatio, Novelty)
   }
-  # Replace the metadata in raw Seurat object
+  
+  # Replace metadata in raw Seurat object with updated column names
   sample.seurat@meta.data <- sample_metadata
   
-  # Save raw metadata
+  # Append raw metadata of each seurat object which will be used for QC plots later
   raw_metadata <- dplyr::bind_rows(raw_metadata, sample_metadata)
   
   # Assign the seurat object to its corresponding variable
@@ -189,7 +195,7 @@ for(i in samples){
 #******************************STEP 2B: PERFORM QC*****************************#
 
 # Perform QC for each sample individually
-for(i in samples){
+for(i in paste0(samples, ".raw")){
   
   sample.seurat <- get(i)
   
@@ -219,18 +225,43 @@ for(i in samples){
 # normal samples. Define samples <- list.files(path = feature_matrix_path) and
 # proceed with creating filtered seurat object
 
-# Create a merged Seurat object.
+# Create a merged Seurat object
 # NOTE: Samples will have same barcodes. To keep track of cell identities 
-# (i.e.barcodes) coming from each sample after merging, we add a prefix 
-# (i.e. sample name) to each barcode using add.cell.ids.
-filtered_seurat <- base::merge(x = get(samples[1]),
-                               y = lapply(samples[2:length(samples)], get),
-                               add.cell.ids = samples,
-                               merge.data = FALSE)
+# (i.e. barcodes) coming from each sample after merging, we add a prefix 
+# (i.e. sample name) to each barcode using "add.cell.ids"
+
+# This has all barcodes BEFORE removal of empty droplets and AFTER QC
+filtered_pre_emptydrops_seurat <- base::merge(x = get(paste0(samples[1], ".raw")),
+                                              y = lapply(paste0(samples[2:length(samples)], ".raw"), get),
+                                              add.cell.ids = samples,
+                                              merge.data = FALSE)
+
+# Create a merged seurat object from Cellranger filtered matrices
+# This has all barcodes AFTER removal of empty droplets but WIHTOUT ANY QC
+filt_seurat <- base::merge(x = get(paste0(samples[1], ".filt")),
+                           y = lapply(paste0(samples[2:length(samples)], ".filt"), get),
+                           add.cell.ids = samples,
+                           merge.data = FALSE)
+
+# Identify common barcodes between our filtering and Cellranger filtered matrices
+common_bc <- c()
+for (i in unique(filtered_pre_emptydrops_seurat@meta.data$Sample)){
+  
+  common_bc <- c(common_bc, 
+                 intersect(rownames(filtered_pre_emptydrops_seurat@meta.data %>% dplyr::filter(Sample == i)),
+                           rownames(filt_seurat@meta.data %>% dplyr::filter(orig.ident == i))))
+}
+
+# Remove barcodes classified as emptydroplets by CellRanger 
+# NOTE: We could start analysis directly with filtered matrices but then we wont 
+# know how many cells we are losing.
+# This has all barcodes AFTER removal of empty droplets and AFTER QC
+filtered_post_emptydrops_seurat <- subset(filtered_pre_emptydrops_seurat,
+                                          Cell %in% common_bc)
 
 # Remove HTO assay from to avoid complications during integration, etc
 if (demultiplexed_data == TRUE){
-  filtered_seurat[["HTO"]] <- NULL
+  filtered_post_emptydrops_seurat[["HTO"]] <- NULL
 }
 
 # If whitelist is not needed, add additional metadata
@@ -245,13 +276,13 @@ if (whitelist == FALSE){
   # NOTE: left_join etc will remove rownames. So, add rownames before replacing
   # metadata in Seurat object
   if (hto_info == TRUE){
-    filtered_seurat@meta.data <- filtered_seurat@meta.data %>%
+    filtered_post_emptydrops_seurat@meta.data <- filtered_post_emptydrops_seurat@meta.data %>%
       dplyr::mutate(Unique_ID = paste0(Sample, "_", HTO_Final)) %>%
       dplyr::left_join(extra_metadata, by=("Unique_ID"="Unique_ID")) %>%
       dplyr::mutate(index = Cell) %>%
       tibble::column_to_rownames(var = "index")
   } else{
-    filtered_seurat@meta.data <- filtered_seurat@meta.data %>%
+    filtered_post_emptydrops_seurat@meta.data <- filtered_post_emptydrops_seurat@meta.data %>%
       dplyr::mutate(Unique_ID = paste0(Sample)) %>%
       dplyr::left_join(extra_metadata, by=("Unique_ID"="Unique_ID")) %>%
       dplyr::mutate(index = Cell) %>%
@@ -261,7 +292,7 @@ if (whitelist == FALSE){
   #****************************STEP 2C: SAVE THE DATA****************************#
   
   # Create .rds object for filtered seurat object to load at any time
-  saveRDS(filtered_seurat, file=paste0(seurat_results, "filtered_seurat.rds"))
+  saveRDS(filtered_post_emptydrops_seurat, file=paste0(seurat_results, "filtered_seurat.rds"))
 }  
 
 # Plot graphs before demultiplexing or on data that doesnt need demultiplexing
@@ -273,7 +304,11 @@ if (demultiplexed_data == FALSE){
   raw_metadata <- raw_metadata[-1,]
   rownames(raw_metadata) <- raw_metadata$Cell
   
-  filtered_metadata <- filtered_seurat@meta.data
+  # Pre-removal of Empty droplets
+  pre_metadata <- filtered_pre_emptydrops_seurat@meta.data
+  
+  # Post-removal of Empty droplets
+  filtered_metadata <- filtered_post_emptydrops_seurat@meta.data
   
   # Visualize the number of cell counts per sample
   cell_qc <- function(metadata, tag){
@@ -387,13 +422,13 @@ if (demultiplexed_data == FALSE){
   for (i in 1:length(funcs)){
     
     # Plot QC metrics
-    purrr::map2(.x = c("raw_metadata", "filtered_metadata"),
-                .y = c("Pre QC", "Post QC"),
+    purrr::map2(.x = c("raw_metadata", "pre_metadata", "filtered_metadata"),
+                .y = c("Pre QC", "Post QC (Before Empty Drops)", "Post QC (After Empty Drops)"),
                 .f = get(funcs[i])) %>% 
       cowplot::plot_grid(plotlist = .,
                          align = "hv",
                          axis = "tblr",
-                         nrow = 2,  
+                         nrow = 3,  
                          ncol = 1, 
                          rel_widths = 1,
                          rel_heights = 1,
@@ -431,7 +466,7 @@ if (demultiplexed_data == FALSE){
 if (whitelist == TRUE){
   
   # Extract barcodes and split by "_"
-  bc <- filtered_seurat@meta.data$Cell
+  bc <- filtered_post_emptydrops_seurat@meta.data$Cell
   
   # Adjust this based on how your samples are named
   barcodes <- data.frame(stringr::str_split_fixed(bc, "_", 2)) %>%
@@ -484,24 +519,27 @@ if (whitelist == FALSE){
   integ <- integrate_data(sct, kweight)
   celltype <- NULL
   integ <- cluster_data(integ, celltype)
-  integ <- add_module_scores(integ, "All Markers")
+  # integ <- add_module_scores(integ, "All Markers")
+  # integ <- annotate_data_score(integ, celltype)
   save_data(integ, celltype)
-  #plot_pre_integration(sct)
-  
-  for (reduc in c("CCA", "RPCA", "Harmony", "JointPCA")){
-    res <- 1.4
-    plot_conserved_modules(res, reduc, celltype, "All Markers")
-  }
-  
   reduc <- "Harmony"
   res <- 0.4
-  get_markers(res, reduc, celltype)
+  get_markers(integ, res, reduc, celltype)
   
-  reduc <- "Harmony"
-  res <- 1.4
-  idents <- paste0("cluster.", res, ".", base::tolower(reduc))
-  plot_post_integration(res, reduc, idents, celltype)
+  # for (reduc in c("CCA", "RPCA", "Harmony", "JointPCA")){
+  #   res <- 1.4
+  #   plot_conserved_modules(res, reduc, celltype, "All Markers")
+  # }
+  
+  
+  #plot_pre_integration(sct)
+  # reduc <- "Harmony"
+  # res <- 1.4
+  # idents <- paste0("cluster.", res, ".", base::tolower(reduc))
+  # plot_post_integration(res, reduc, idents, celltype)
 }
+
+#******************************************************************************#
 
 # Next, look at "Module_plot(All Markers)__CCA.jpg", 
 # "Module_plot(All Markers)__Harmony.jpg", "Module_plot(All Markers)__RPCA.jpg",

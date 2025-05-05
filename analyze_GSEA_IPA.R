@@ -5,6 +5,8 @@
 # https://ab604.github.io/docs/bspr_workshop_2018/transform.html#fig:compare-normalisation
 
 source("C:/Users/kailasamms/OneDrive - Cedars-Sinai Health System/Documents/GitHub/R-Scripts/RNASeq_DESeq2_Functions.R")
+BiocManager::install("enrichplot")
+library(enrichplot)
 # msigdbr package can be used to retrieve genesets from GSEA.
 # However, it seems the package hasnt been updated since 2022. 
 # Hence, it might be better to get gene sets directly from GSEA
@@ -30,15 +32,6 @@ species <- "Mus musculus"
 
 # Choose database for encrichGO()
 species_db <- dplyr::if_else(species == "Mus musculus", "org.Mm.eg.db", "org.Hs.eg.db")
-
-# Choose whether to plot GSEA plot
-plot_fGSEA <- FALSE
-
-#******************************************************************************#
-#                            STEP 1: GET ANNOTATIONS                           #
-#******************************************************************************#
-
-annotations <- get_annotations(species)
 
 #******************************************************************************#
 #        STEP 2: GET REQUIRED GENE SET COLLECTIONS FROM BROAD DATABASE         #
@@ -262,108 +255,6 @@ ora <- function(DEGs_df){
 #   fgsea_pathways <- append(fgsea_pathways, l1)
 # }
 
-#*******************PLOT ENRICHMENT PLOT FOR EACH PATHWAY********************#
-
-# if (plot_fGSEA){
-#   for (p in concise_fgsea$mainPathways){
-#     fgsea::plotEnrichment(pathway = fgsea_results %>%
-#                             dplyr::filter(pathway == p) %>%
-#                             dplyr::select(leadingEdge) %>%
-#                             unlist(., use.names = FALSE),
-#                           stats = DEGs_list,
-#                           gseaParam = 1,
-#                           ticksSize = 0.2)
-#     
-#     ggplot2::ggsave(filename = paste0("(fGSEA)_Enrichment_plot", gsub(":", "_", collection),"_", p, ".tiff"),
-#                     plot = last_plot(),
-#                     device = "jpeg",
-#                     path = results_path,
-#                     scale = 1,
-#                     width = 6,
-#                     height = 7,
-#                     units = c("in"),
-#                     dpi = 600,
-#                     limitsize = TRUE,
-#                     bg = NULL)
-#   }
-# }
-# 
-# #****************PLOT SUMMARY OF ENRICHED PATHWAYS AS DOT PLOT***************#
-# 
-# # Visualize results if there are significant pathways. Else, skip plotting
-# if(nrow(fgsea_results) > 0){
-#   
-#   # It is difficult to control the width of bars in ggplot. Since, we plot
-#   # top 12 pathways, we insert dummy entries to make the data frame have 12
-#   # pathways "if" the data frame has less than 12 pathways
-#   if (nrow(fgsea_results) < 12){
-#     nrows <- nrow(fgsea_results)
-#     fgsea_results[(nrows+1):12,] <- seq(nrows+1:(12-nrows))
-#     fgsea_results$NES[(nrows+1):12]  <- rep(c(0), each = 12-nrows)
-#     fgsea_results$direction[(nrows+1):12] <- rep(c("Inhibited"), each = 12-nrows)
-#   } else {
-#     fgsea_results <- fgsea_results %>% 
-#       dplyr::slice_max(abs_NES, n = 12)
-#   }
-#   
-#   # Modify pathway names to make the plot pretty
-#   fgsea_results_pretty <- fgsea_results %>%
-#     dplyr::mutate(pathway = gsub("HALLMARK_|SA_|SIG_|NABA_|GOBP_|GOMF_", "", pathway),
-#                   pathway = gsub("_", " ", pathway),
-#                   pathway = gsub("ENDOPLASMIC RETICULUM", "ER", pathway),
-#                   #pathway = stringr::str_trunc(pathway, 45, "right"),
-#                   #pathway = stringr::str_to_title(pathway),
-#                   #length = stringr::str_length(pathway),
-#                   pathway = stringr::str_wrap(pathway, width = 22))
-#   
-#   ggplot2::ggplot(data = fgsea_results_pretty, 
-#                   aes(x = NES, y = reorder(pathway, NES), fill = direction)) +
-#     # fill = direction means direction will be arranged in alphabetical order.
-#     # So, if you had labeled direction as "Upregulated" and "Downregulated",
-#     # then first color in scale_fill_manual() will be assigned to 
-#     # "downregulated" and it will be labeled as "Activated in Males" in the
-#     # plot. So, be careful.
-#     ggplot2::geom_col(width = 0.75) +
-#     ggplot2::theme_classic() +
-#     ggplot2::labs(x = "Normalized Enrichment Score(NES)",
-#                   y = "",
-#                   title = "GSEA",
-#                   fill = "") +
-#     ggplot2::coord_cartesian(xlim = c(floor(-max(abs(fgsea_results$NES), na.rm=TRUE)), ceiling(max(abs(fgsea_results$NES), na.rm=TRUE)))) +
-#     ggplot2::theme(#aspect.ratio = 2,
-#       plot.title =   element_text(family="sans", face="plain", colour="black", size=10, hjust = 0.5),
-#       plot.caption = element_text(family="sans", face="plain", colour="black", size=10, hjust = 0),
-#       axis.title.x = element_text(family="sans", face="plain", colour="black", size=10, hjust = 0.5),
-#       axis.title.y = element_text(family="sans", face="plain", colour="black", size=10, hjust = 0.5),
-#       axis.text.x =  element_text(family="sans", face="plain", colour="black", size=10, hjust = 0.5),
-#       axis.text.y =  element_text(family="sans", face="plain", colour="black", size=10, hjust = 1),
-#       legend.title = element_text(family="sans", face="plain", colour="black", size=10, hjust = 0.5),
-#       legend.text =  element_text(family="sans", face="plain", colour="black", size=10, hjust = 0.5),
-#       #legend.background = element_rect(fill="lightblue", size=0.5, linetype="solid", colour ="darkblue"),
-#       legend.position = "bottom",
-#       legend.justification = "left",
-#       legend.direction = "horizontal",
-#       legend.key.height= unit(0.5, 'cm'),
-#       legend.key.width= unit(1.25, 'cm')) +
-#     ggplot2::scale_fill_manual(labels=c("Activated", "Inhibited"),
-#                                values = c(RColorBrewer::brewer.pal(11, "RdYlBu")[c(1)],
-#                                           RColorBrewer::brewer.pal(11, "RdYlBu")[c(11)]))
-#   
-#   # Save the plot
-#   ggplot2::ggsave(filename = paste0("(fGSEA)_Dot_plot", gsub(":", "_", collection), ".tiff"),
-#                   plot = last_plot(),
-#                   device = "jpeg",
-#                   path = results_path,
-#                   scale = 1,
-#                   width = 6,
-#                   height = 7,
-#                   units = c("in"),
-#                   dpi = 600,
-#                   limitsize = TRUE,
-#                   bg = NULL)
-# } else { print("No significant gene sets")}
-
-
 #******************************************************************************#
 #                     GSEA ANALYSIS USING CLUSTER PROFILER                     #
 #******************************************************************************#
@@ -386,153 +277,73 @@ gsea <- function(DEGs_df){
   DEGs_list <- DEGs_df$log2FoldChange
   names(DEGs_list) <- DEGs_df$SYMBOL
   
-
+  #**********************************RUN GSEA**********************************#
+  
+  gsea <- clusterProfiler::GSEA(geneList = DEGs_list,
+                                exponent = 1,
+                                minGSSize = 10,
+                                maxGSSize = 500,
+                                eps = 1e-10,
+                                pvalueCutoff = 0.05,
+                                pAdjustMethod = "BH",
+                                TERM2GENE = get(collection),
+                                TERM2NAME = NA,
+                                verbose = TRUE,
+                                seed = FALSE,
+                                by = "fgsea")
+  
+  #*******************************FORMAT RESULTS*******************************#
+  
+  # Reformat the output
+  gsea_results <- gsea@result %>% 
+    #dplyr::filter(p.adjust < 0.05) %>%
+    dplyr::mutate(abs_NES = abs(NES)) %>%
+    dplyr::arrange(desc(abs_NES)) %>% 
+    dplyr::mutate(direction = dplyr::if_else(NES > 0, "Activated", "Inhibited"))
+  
+  if(nrow(gsea_results) > 0){
+    cat(nrow(gsea_results), "pathways found")
     
-    #**********************************RUN GSEA**********************************#
+    # Create a dataframe containing genes for each pathway
+    max_len <- max(unlist(lapply(X=stringr::str_split(string = gsea_results$core_enrichment, pattern = "/"), FUN=length)))
+    genes_df <- data.frame(matrix(NA, nrow=max_len))
     
-    gsea <- clusterProfiler::GSEA(geneList = DEGs_list,
-                                  exponent = 1,
-                                  minGSSize = 10,
-                                  maxGSSize = 500,
-                                  eps = 1e-10,
-                                  pvalueCutoff = 0.05,
-                                  pAdjustMethod = "BH",
-                                  TERM2GENE = get(collection),
-                                  TERM2NAME = NA,
-                                  verbose = TRUE,
-                                  seed = FALSE,
-                                  by = "fgsea")
-    
-    #*******************************FORMAT RESULTS*******************************#
-    
-    # Reformat the output
-    gsea_results <- gsea@result %>% 
-      #dplyr::filter(p.adjust < 0.05) %>%
-      dplyr::mutate(abs_NES = abs(NES)) %>%
-      dplyr::arrange(desc(abs_NES)) %>% 
-      dplyr::mutate(direction = dplyr::if_else(NES > 0, "Activated", "Inhibited"))
-    
-    if(nrow(gsea_results) > 0){
-      cat(nrow(gsea_results), "pathways found")
-      
-      # Create a dataframe containing genes for each pathway
-      max_len <- max(unlist(lapply(X=stringr::str_split(string = gsea_results$core_enrichment, pattern = "/"), FUN=length)))
-      genes_df <- data.frame(matrix(NA, nrow=max_len))
-      
-      # If core enrichment column has ENSEMBL_IDs, convert them to SYMBOL
-      if (length(intersect(unlist(stringr::str_split(string = gsea_results$core_enrichment[1], pattern = "/")), 
-                           annotations$ENSEMBL_ID)) >
-          length(intersect(unlist(stringr::str_split(string = gsea_results$core_enrichment[1], pattern = "/")), 
-                           annotations$SYMBOL))){
-        for (i in 1:nrow(gsea_results)){
-          l1 <- annotations %>% 
-            dplyr::filter(ENSEMBL_ID %in% unlist(stringr::str_split(string = gsea_results$core_enrichment[[i]], pattern = "/"))) %>% 
-            dplyr::select(SYMBOL) %>% 
-            unlist(., use.names=FALSE)
-          l1 <- c(l1, rep(x=NA, times=max_len-length(l1)))
-          
-          genes_df <- dplyr::bind_cols(genes_df, l1)
-          colnames(genes_df)[i+1] <- gsea_results$Description[i]
-        }
-      } else{
-        for (i in 1:nrow(gsea_results)){
-          l1 <- unlist(stringr::str_split(string = gsea_results$core_enrichment[[i]], pattern = "/"))
-          l1 <- c(l1, rep(x=NA, times=max_len-length(l1)))
-          
-          genes_df <- dplyr::bind_cols(genes_df, l1)
-          colnames(genes_df)[i+1] <- gsea_results$Description[i]
-        }
+    # If core enrichment column has ENSEMBL_IDs, convert them to SYMBOL
+    if (length(intersect(unlist(stringr::str_split(string = gsea_results$core_enrichment[1], pattern = "/")), 
+                         annotations$ENSEMBL_ID)) >
+        length(intersect(unlist(stringr::str_split(string = gsea_results$core_enrichment[1], pattern = "/")), 
+                         annotations$SYMBOL))){
+      for (i in 1:nrow(gsea_results)){
+        l1 <- annotations %>% 
+          dplyr::filter(ENSEMBL_ID %in% unlist(stringr::str_split(string = gsea_results$core_enrichment[[i]], pattern = "/"))) %>% 
+          dplyr::select(SYMBOL) %>% 
+          unlist(., use.names=FALSE)
+        l1 <- c(l1, rep(x=NA, times=max_len-length(l1)))
+        
+        genes_df <- dplyr::bind_cols(genes_df, l1)
+        colnames(genes_df)[i+1] <- gsea_results$Description[i]
       }
-      genes_df <- genes_df[,-1]
-      
-      openxlsx::addWorksheet(wb, sheetName=collection)
-      openxlsx::writeData(wb, sheet=collection, x=gsea_results, rowNames=FALSE)
-      openxlsx::addWorksheet(wb, sheetName=paste0(collection, "_Genes"))
-      openxlsx::writeData(wb, sheet=paste0(collection, "_Genes"), x=genes_df, rowNames=FALSE)
     } else{
-      print("No pathways found")
+      for (i in 1:nrow(gsea_results)){
+        l1 <- unlist(stringr::str_split(string = gsea_results$core_enrichment[[i]], pattern = "/"))
+        l1 <- c(l1, rep(x=NA, times=max_len-length(l1)))
+        
+        genes_df <- dplyr::bind_cols(genes_df, l1)
+        colnames(genes_df)[i+1] <- gsea_results$Description[i]
+      }
     }
+    genes_df <- genes_df[,-1]
     
-    openxlsx::saveWorkbook(wb, file = paste0(results_path, "GSEA_Results.xlsx"),
-                           overwrite = TRUE)
+    openxlsx::addWorksheet(wb, sheetName=collection)
+    openxlsx::writeData(wb, sheet=collection, x=gsea_results, rowNames=FALSE)
+    openxlsx::addWorksheet(wb, sheetName=paste0(collection, "_Genes"))
+    openxlsx::writeData(wb, sheet=paste0(collection, "_Genes"), x=genes_df, rowNames=FALSE)
+  } else{
+    print("No pathways found")
   }
   
-  #*******************PLOT ENRICHMENT PLOT FOR EACH PATHWAY********************#
-  
-  #****************PLOT SUMMARY OF ENRICHED PATHWAYS AS DOT PLOT***************#
-  
-  # # Visualize results if there are significant pathways. Else, skip plotting
-  # if(nrow(gsea_results) > 0){
-  #   
-  #   # It is difficult to control the width of bars in ggplot. Since, we plot
-  #   # top 12 pathways, we insert dummy entries to make the data frame have 12
-  #   # pathways "if" the data frame has less than 12 pathways
-  #   if (nrow(gsea_results) < 12){
-  #     nrows <- nrow(gsea_results)
-  #     gsea_results[(nrows+1):12,] <- seq(nrows+1:(12-nrows))
-  #     gsea_results$NES[(nrows+1):12]  <- rep(c(0), each = 12-nrows)
-  #     gsea_results$direction[(nrows+1):12] <- rep(c("Inhibited"), each = 12-nrows)
-  #   } else {
-  #     gsea_results <- gsea_results %>% 
-  #       dplyr::slice_max(abs_NES, n = 12)
-  #   }
-  #   
-  #   # Modify pathway names to make the plot pretty
-  #   gsea_results_pretty <- gsea_results %>%
-  #     dplyr::mutate(pathway = gsub("HALLMARK_|SA_|SIG_|NABA_|GOBP_|GOMF_", "", Description),
-  #                   pathway = gsub("_", " ", pathway),
-  #                   pathway = gsub("ENDOPLASMIC RETICULUM", "ER", pathway),
-  #                   #pathway = stringr::str_trunc(pathway, 45, "right"),
-  #                   #pathway = stringr::str_to_title(pathway),
-  #                   #length = stringr::str_length(pathway),
-  #                   pathway = stringr::str_wrap(pathway, width = 22))
-  #   
-  #   ggplot2::ggplot(data = gsea_results_pretty, 
-  #                   aes(x = NES, y = reorder(pathway, NES), fill = direction)) +
-  #     # fill = direction means direction will be arranged in alphabetical order.
-  #     # So, if you had labeled direction as "Upregulated" and "Downregulated",
-  #     # then first color in scale_fill_manual() will be assigned to 
-  #     # "downregulated" and it will be labeled as "Activated in Males" in the
-  #     # plot. So, be careful.
-  #     ggplot2::geom_col(width = 0.75) +
-  #     ggplot2::theme_classic() +
-  #     ggplot2::labs(x = "Normalized Enrichment Score(NES)",
-  #                   y = "",
-  #                   title = "GSEA",
-  #                   fill = "") +
-  #     ggplot2::coord_cartesian(xlim = c(floor(-max(abs(gsea_results$NES), na.rm=TRUE)), ceiling(max(abs(gsea_results$NES), na.rm=TRUE)))) +
-  #     ggplot2::theme(#aspect.ratio = 2,
-  #       plot.title =   element_text(family="sans", face="plain", colour="black", size=10, hjust = 0.5),
-  #       plot.caption = element_text(family="sans", face="plain", colour="black", size=10, hjust = 0),
-  #       axis.title.x = element_text(family="sans", face="plain", colour="black", size=10, hjust = 0.5),
-  #       axis.title.y = element_text(family="sans", face="plain", colour="black", size=10, hjust = 0.5),
-  #       axis.text.x =  element_text(family="sans", face="plain", colour="black", size=10, hjust = 0.5),
-  #       axis.text.y =  element_text(family="sans", face="plain", colour="black", size=10, hjust = 1),
-  #       legend.title = element_text(family="sans", face="plain", colour="black", size=10, hjust = 0.5),
-  #       legend.text =  element_text(family="sans", face="plain", colour="black", size=10, hjust = 0.5),
-  #       #legend.background = element_rect(fill="lightblue", size=0.5, linetype="solid", colour ="darkblue"),
-  #       legend.position = "bottom",
-  #       legend.justification = "left",
-  #       legend.direction = "horizontal",
-  #       legend.key.height= unit(0.5, 'cm'),
-  #       legend.key.width= unit(1.25, 'cm')) +
-  #     ggplot2::scale_fill_manual(labels=c("Activated", "Inhibited"),
-  #                                values = c(RColorBrewer::brewer.pal(11, "RdYlBu")[c(1)],
-  #                                           RColorBrewer::brewer.pal(11, "RdYlBu")[c(11)]))
-  #   
-  #   # Save the plot
-  #   ggplot2::ggsave(filename = paste0("(GSEA)_Dot_plot", gsub(":", "_", collection), ".tiff"),
-  #                   plot = last_plot(),
-  #                   device = "jpeg",
-  #                   path = results_path,
-  #                   scale = 1,
-  #                   width = 6,
-  #                   height = 7,
-  #                   units = c("in"),
-  #                   dpi = 600,
-  #                   limitsize = TRUE,
-  #                   bg = NULL)
-  # } else { print("No significant gene sets")}
+  openxlsx::saveWorkbook(wb, file = paste0(results_path, "GSEA_Results.xlsx"),
+                         overwrite = TRUE)
 }
 
 #******************************************************************************#
@@ -545,21 +356,24 @@ gsea <- function(DEGs_df){
 # compared against the genes in the input dataframe. So, make sure they are
 # in the same format (gene name/ensembl_id/etc)
 
-proj <- "Hany_YKO"
-proj <- "Boopati_MB49Sigma_DDR2KD3"
-proj <- "Boopati_MB49Y-_DDR2KO"
-
 # parent directory : directory where input files, results, etc are stored
-parent_path <- paste0("C:/Users/KailasammS/Box/Saravana@cedars/05. Bioinformatics/RNASeq/", proj, "/")
-results_path <- paste0("C:/Users/KailasammS/Box/Saravana@cedars/05. Bioinformatics/RNASeq/", proj, "/")
+data_path <- "C:/Users/kailasamms/OneDrive - Cedars-Sinai Health System/Desktop/Collaboration projects data/Boopati/"
+species <- "Mus musculus"
 
-# Read DEGs. SYMBOL, padj, log2FoldChange columns MUST be present
-DEGs_df <- openxlsx::read.xlsx(xlsxFile = paste0(parent_path, "Results_id_Ddr2KO_vs_Control__DEGs.xlsx"))
+# Get annotations
+annotations <- get_annotations(species)
+
+# Get GMT files
+gmt_files <- list.files("C:/Users/kailasamms/OneDrive - Cedars-Sinai Health System/Documents/GitHub/R-Scripts/GSEA_genesets/Mouse/", full.names = TRUE)
 
 # Run fgsea and gsea on all collections. ora is usually run on hallmark collection
-ora(data)  
-fgsea(data)
-gsea(data)
+for (gmt_file in gmt_files){
+  
+  # Import DEGs dataframe with "SYMBOL", "padj" and "log2FoldChange" columns
+  DEGs_df <- openxlsx::read.xlsx(xlsxFile = paste0(data_path, "Results_id_Y_Negative_vs_Y_Positive_DESeq2_modelled__DEGs.xlsx"))
+  fgsea(DEGs_df, gmt_file, annotations, data_path)
+  
+}
 
 #******************************************************************************#
 #         (OPTIONAL): PLOT IPA CANONICAL PATHWAYS & UPSTREAM REGULATORS        #

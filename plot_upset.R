@@ -1,5 +1,3 @@
-install.packages("UpSetR")
-
 library("UpSetR")
 
 plot_example <- function(){ 

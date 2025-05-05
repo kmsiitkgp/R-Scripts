@@ -1,16 +1,6 @@
 #!/usr/bin/env Rscript
 
 #******************************************************************************#
-#                          INSTALL NECESSARY PACKAGES                          #
-#******************************************************************************#
-
-# # Data wrangling packages
-# install.packages("openxlsx")            # Needed for reading, writing xlsx files
-# install.packages("dplyr")               # Needed for data wrangling
-# install.packages("tibble")              # Needed for advanced data wrangling
-# install.packages("stringr")             # Needed for advanced data wrangling
-
-#******************************************************************************#
 #                           LOAD NECESSARY PACKAGES                            #
 #******************************************************************************#
 
@@ -39,7 +29,7 @@ library("stringr")
 # GSM5199003	B1246-HTO: MIBC_rxn1246
 # .......     ........
 
-results_path <- "C:/Users/KailasammS/Desktop/"
+results_path <- "C:/Users/kailasamms/OneDrive - Cedars-Sinai Health System/Desktop/"
 
 # Name the file "sample_info.txt" and import it.
 # Delete samples you don't want to download from this file.
@@ -49,7 +39,7 @@ sample_info <- utils::read.table(file = paste0(results_path, "sample_info.txt"),
   dplyr::rename("GEO_Accession__exp_" = V1, "Description" = V2)
 
 # Click SRA Run Selector at bottom of page, then download metadata and import it.
-meta_data <- utils::read.table(file = paste0(results_path, "SraRunTable.txt"), 
+meta_data <- utils::read.table(file = paste0(results_path, "SraRunTable.csv"), 
                                header = TRUE,
                                sep = ",") %>%
   dplyr::rename_with(.fn = ~gsub(pattern = "\\.", replacement = "_", x = .x), .cols = everything()) 
@@ -80,7 +70,7 @@ srr <- meta_data %>%
 
 # Save to a txt file.
 utils::write.table(x = srr, 
-                   file = "C:/Users/KailasammS/Desktop/SRR_Acc_List.txt",
+                   file = paste0(results_path, "SRR_Acc_List.txt"),
                    quote = FALSE,
                    col.names = FALSE,
                    row.names = FALSE)

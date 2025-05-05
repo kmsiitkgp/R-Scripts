@@ -1,4 +1,5 @@
 source("C:/Users/kailasamms/OneDrive - Cedars-Sinai Health System/Documents/GitHub/R-Scripts/RNASeq_DESeq2_Functions.R")
+parent_path <- "C:/Users/kailasamms/OneDrive - Cedars-Sinai Health System/Desktop/Collaboration projects data/Mukta/"
 
 #************HPA Fig 4A**********
 
@@ -64,6 +65,7 @@ HPAanalyze::hpaVisPatho(data = data,
        fill = "Expression Level")
 
 ggsave(filename = "Patho.tiff",
+       path = parent_path,
        width = 7,
        height = 7,
        units = c("in"),
@@ -146,8 +148,6 @@ color_palette <- c(color_palette,
                    colorspace::adjust_transparency(col = color_palette, alpha = 0.6))
 variable_x <- "Time"
 variable_y <- "Status"
-parent_path <- "C:/Users/kailasamms/Desktop/Collaboration projects/Mukta/" 
-
 
 # Import read_data
 read_data <- openxlsx::read.xlsx(xlsxFile = paste0(parent_path, "TCGA-PANCAN32-L4.xlsx"))
@@ -177,7 +177,6 @@ normalized_counts <- read_data %>%
 colnames(normalized_counts) <- base::make.names(names = colnames(normalized_counts))
 normalized_counts <- normalized_counts[,intersect(make.names(meta_data$Sample_ID), colnames(normalized_counts))]
 normalized_counts <- normalized_counts[!rowSums(normalized_counts, na.rm=TRUE) == 0,]
-
 
 if (gene_signature == FALSE){
   
@@ -241,13 +240,13 @@ if (gene_signature == FALSE){
       t() %>%
       data.frame()
     
-    # # Save the results
-    # wb <- openxlsx::createWorkbook()
-    # openxlsx::addWorksheet(wb, sheetName = "Summary")
-    # openxlsx::writeData(wb, sheet = "Summary", x = stats_df)
-    # openxlsx::addWorksheet(wb, sheetName = "Classification")
-    # openxlsx::writeData(wb, sheet = "Classification", x = classification_df)
-    # openxlsx::saveWorkbook(wb, file = paste0(parent_path, prefix, "_Individual_gene_stats.xlsx"), overwrite = TRUE)
+    # Save the results
+    wb <- openxlsx::createWorkbook()
+    openxlsx::addWorksheet(wb, sheetName = "Summary")
+    openxlsx::writeData(wb, sheet = "Summary", x = stats_df)
+    openxlsx::addWorksheet(wb, sheetName = "Classification")
+    openxlsx::writeData(wb, sheet = "Classification", x = classification_df)
+    openxlsx::saveWorkbook(wb, file = paste0(parent_path, prefix, "_Individual_gene_stats.xlsx"), overwrite = TRUE)
   }
 }
 
@@ -455,97 +454,26 @@ expr_df <- normalized_counts %>%
   dplyr::inner_join(meta_data, by=c("GEO_ID"="GEO_ID")) %>% 
   dplyr::filter(Time < 2500)
 
-####### Fig 1G t score and plot scatter plot
+############ Fig 1G t score
 
-calc_t_score <- function(data){
-  
-  data_control <- data %>%
-    dplyr::filter(Gene %in% c("none", "safe"))
-  
-  median_ctrl <- median(data_control$LFC)
-  sd_ctrl <- sd(data_control$LFC)
-  
-  data <- data %>%
-    dplyr::mutate(pZ = (LFC-median_ctrl)/sd_ctrl)
-  
-  data_control <- data_control %>%
-    dplyr::mutate(pZ = (LFC-median_ctrl)/sd_ctrl)
-  
-  U_ctrl <- median(data_control$pZ)
-  Var_ctrl <- var(data_control$pZ)
-  N_ctrl <- nrow(data_control)
-  
-  data <- data %>%
-    dplyr::group_by(Gene) %>%
-    dplyr::mutate(U_gene = median(pZ),
-                  Var_gene = var(pZ),
-                  N_gene = n(),
-                  S_gene = (Var_gene*(N_gene-1)) + (Var_ctrl*(N_ctrl-1)),
-                  t_score = abs((U_gene - U_ctrl)/sqrt(S_gene/N_gene + S_gene/N_ctrl)),
-                  U_ctrl = U_ctrl,
-                  Var_ctrl = Var_ctrl,
-                  N_ctrl = N_ctrl) %>%
-    dplyr::select(Gene, U_gene, Var_gene, N_gene, U_ctrl, Var_ctrl, N_ctrl, S_gene, t_score) %>%
-    dplyr::distinct_at("Gene", .keep_all = TRUE)
-  
-  return(data)
-}
-
-plot_scatter <- function(data, file){
-  
-  color_breaks <- c(-20,0,20)
-  p <- ggplot2::ggplot(data = data,
-                       aes(x = U_gene, 
-                           y = t_score,
-                           #size = t_score,
-                           #color = pz,
-                           fill = U_gene)) +
-    # Plot dot plot
-    ggplot2::geom_point(col="black", 
-                        shape=21,
-                        stroke=0.5,
-                        position=position_jitter(h=0.01,w=0.01)) +
-    # Define the theme of plot
-    ggplot2::theme_classic() +
-    ggplot2::labs(fill = "U_gene") +
-    coord_cartesian(xlim = c(-5,3), clip = "off") +
-    scale_x_continuous(breaks = seq(-5, 3, by = 1)) +
-    #scale_y_continuous(breaks = seq(0, 0.5, by = 0.1)) +
-    ggplot2::guides(size = "none",
-                    fill = guide_colourbar(theme = theme(legend.key.width  = unit(0.75, "lines"),
-                                                         legend.key.height = unit(10, "lines"),
-                                                         legend.ticks = element_blank(),
-                                                         legend.frame = element_rect(colour = "Black",
-                                                                                     linewidth = 0.5)))) +
-    # Define the color of the dots
-    ggplot2::scale_fill_viridis_c(option="C", limits =c(-5,5))
-    # scale_fill_gradientn(colors=c("#007ba7", "Black","#FFFF00"), 
-    #                      limits=c(-20, 20), 
-    #                      values=c(0, scales::rescale(color_breaks, from = range(color_breaks)), 1))
-    #scale_fill_gradient2(low="#007ba7", mid="Black", high="Yellow", midpoint = 0, limits=c(-5, 2))
-    
-  #scale_fill_continuous_diverging(palette = "Tofino")
-  
-  ggsave(paste0("C:/Users/kailasamms/OneDrive - Cedars-Sinai Health System/Desktop/", file, ".jpg"))
-  return(p)
-}
+source("C:/Users/kailasamms/OneDrive - Cedars-Sinai Health System/Documents/GitHub/R-Scripts/RNASeq_DESeq2_Functions.R")
+data_path <- "C:/Users/kailasamms/OneDrive - Cedars-Sinai Health System/Desktop/Collaboration projects data/Mukta/"
 
 wb <- openxlsx::createWorkbook()
 for (file in c("2D_Day7vs0.sgrna_summary.txt", "2D_Day14vs0.sgrna_summary.txt",
                "3D_Day7vs0.sgrna_summary.txt", "3D_Day14vs0.sgrna_summary.txt")){
-               #"3D_Day14vs2D_Day14.sgrna_summary.txt")){
   
-  data <- read.table(paste0("C:/Users/kailasamms/OneDrive - Cedars-Sinai Health System/Desktop/", file), header = TRUE) %>%
+  data <- read.table(paste0(data_path, file), header = TRUE) %>%
     dplyr::select(sgrna, Gene, control_mean, treat_mean, LFC)
   
   data <- calc_t_score(data)
-  plot_scatter(data, file)
+  suffix <- gsub(pattern=".sgrna_summary.txt", replacement="", x=file)
+  plot_t_score(data, data_path, suffix)
   
-  t <- gsub(pattern=".sgrna_summary.txt", replacement="", x=file)
-  openxlsx::addWorksheet(wb, sheetName = t)
-  openxlsx::writeData(wb, sheet = t, x = data, rowNames = FALSE)  
+  openxlsx::addWorksheet(wb, sheetName = suffix)
+  openxlsx::writeData(wb, sheet = suffix, x = data, rowNames = FALSE) 
 }
-openxlsx::saveWorkbook(wb, file = paste0("C:/Users/kailasamms/OneDrive - Cedars-Sinai Health System/Desktop/", "t_score.xlsx"), overwrite = TRUE)
+openxlsx::saveWorkbook(wb, file = paste0(data_path, "t_score.xlsx"), overwrite = TRUE)
 
 
 #### Fig 2D Venndiagram vs upset plot
@@ -606,12 +534,10 @@ max_l <- max(lengths(listInput))
 for (i in 1:length(listInput)){
   listInput[[i]] <- c(listInput[[i]], rep(x="",times=max_l - length(listInput[[i]])))
 }
-path <- "C:/Users/kailasamms/OneDrive - Cedars-Sinai Health System/Desktop/"
+
+parent_path <- "C:/Users/kailasamms/OneDrive - Cedars-Sinai Health System/Desktop/Collaboration projects data/Mukta/"
 suffix <- ""
-plot_venn(data.frame(listInput), path, suffix)
-
-
-
+plot_venn(data.frame(listInput), parent_path, suffix)
 
 # scales::show_col(viridis(4))
 "#440154FF", "#31688EFF","#35B779FF","#FDE725FF"
@@ -621,12 +547,13 @@ scales::show_col(plasma(4))
 
 #************************Normalized counts
 
-parent_path <- "C:/Users/KailasammS/Box/Saravana@cedars/10. Ongoing Projects/BBN project/BLCA_Cohorts_correct/"
+parent_path <- "C:/Users/kailasamms/OneDrive - Cedars-Sinai Health System/Desktop/Collaboration projects data/Mukta/"
+input_path <- "C:/Users/KailasammS/Box/Saravana@cedars/10. Ongoing Projects/BBN project/BLCA_Cohorts_correct/"
 
-read_data <- read.xlsx(paste0(parent_path, "TCGA_BLCA_Normalized.xlsx"))
+read_data <- read.xlsx(paste0(input_path, "TCGA_BLCA_Normalized.xlsx"))
 colnames(read_data)[1] <- "SYMBOL"
 
-meta_data <- read.xlsx(paste0(parent_path, "TCGA_BLCA_Metadata.xlsx"))
+meta_data <- read.xlsx(paste0(input_path, "TCGA_BLCA_Metadata.xlsx"))
 genes <- c("CDKL1", "CHRNA9", "DCLK1", "DYRK2", "GABRQ", "GRIK5",
            "HIPK4", "MAP2K2", "MAPK1", "MAPK7", "ROCK1")
 
@@ -664,10 +591,378 @@ openxlsx::addWorksheet(wb, sheetName = "median centered log normalized")
 openxlsx::writeData(wb, sheet = "median centered log normalized", x = df1)
 openxlsx::addWorksheet(wb, sheetName = "normalized")
 openxlsx::writeData(wb, sheet = "normalized", x = df2)
-openxlsx::saveWorkbook(wb, file = paste0("TCGA_counts.xlsx"), overwrite = TRUE)
+openxlsx::saveWorkbook(wb, file = paste0(parent_path, "TCGA_counts.xlsx"), overwrite = TRUE)
 
 
+###########Reviewer comments
+
+#BiocManager::install("GEOquery")
+library(GEOquery)
+library(limma)
+library(umap)
+
+source("C:/Users/kailasamms/OneDrive - Cedars-Sinai Health System/Documents/GitHub/R-Scripts/RNASeq_DESeq2_Functions.R")
+
+parent_path <- "C:/Users/kailasamms/OneDrive - Cedars-Sinai Health System/Desktop/Collaboration projects data/Mukta/"
+dataset <- c("GSE3167") #, "GSE138118")
+
+for (d in dataset){
+  
+  # Extract raw data from CEL files
+  cel_files <- oligoClasses::list.celfiles(paste0(parent_path, "Microarray/", d, "_RAW"), full.names=TRUE, listGzipped=TRUE)
+  raw_data <- oligo::read.celfiles(cel_files)
+  
+  # Perform RMA (background subtraction, quantile normalization, summarization)
+  normalized_data <- oligo::rma(object = raw_data,
+                                background = TRUE,
+                                normalize = TRUE) 
+  
+  # View distribution before and after normalization
+  # oligo::hist(raw_data)
+  # oligo::hist(normalized_data)
+  # oligo::boxplot(x = raw_data, which=c("pm"), transfo=log2)
+  # par(mar=c(0,0,0,0)) # use it to avoid " figure margins too large" error
+  # oligo::boxplot(x = normalized_data, which=c("pm"), transfo=log2)
+  
+  # Extract normalized counts
+  normalized_counts <- exprs(normalized_data)
+  colnames(normalized_counts) <- gsub(pattern="\\..*", replacement="", x= colnames(normalized_counts))
+  colnames(normalized_counts) <- gsub(pattern="_.*", replacement="", x= colnames(normalized_counts))
+  
+  # metadata
+  gene_data <- read.table(paste0(parent_path, "Microarray/", d, "_GENE.txt"), sep="\t", header=TRUE)
+  meta_data <- read.xlsx(paste0(parent_path, "Microarray/", d, "_CLINICAL.xlsx"))
+  
+  #MAPK1
+  probes <- gene_data %>% 
+    dplyr::filter(Gene %in% c("MAPK1", "GABRQ", "CHRNA9", "GRIK5", "DYRK2", 
+                              "MAP2K2", "HIPK4", "MAPK7", "ROCK1", "CDKL1",
+                              "DCLK1")) %>% 
+    dplyr::mutate(Gene = make.names(Gene, unique=TRUE))
+    # dplyr::select(ID) %>% 
+    # unlist(use.names=FALSE)
+  
+  # mapk1_probes <-  gene_data %>% 
+  #   dplyr::filter(Gene %in% c("MAPK1")) %>% 
+  #   dplyr::select(ID) %>% 
+  #   unlist(use.names=FALSE)
+  
+  mapk1 <- normalized_counts[rownames(normalized_counts) %in% probes$ID,] %>%
+    t() %>%
+    data.frame() %>%
+    tibble::rownames_to_column("GSM") %>%
+    dplyr::left_join(meta_data %>% dplyr::select(GSM, Group), by=c("GSM"="GSM"))
+  
+  cols <- c("GSM")
+  for (i in 2:ncol(mapk1)){
+    cols <- c(cols, probes$Gene[which(make.names(probes$ID) == colnames(mapk1)[i])])
+  }
+  cols <- c(cols, "Group")
+  
+  colnames(mapk1) <- cols
+
+  # cols <- c("GSM", "Group")
+  # for (i in 1:nrow(probes)){
+  #   cols <- c(cols, colnames(mapk1)[str_detect(colnames(mapk1), make.names(mapk1_probes[i]))])
+  # }
+
+  # mapk1 <- mapk1 %>%
+  #   dplyr::select(all_of(cols))
+    
+  # Save
+  wb <- openxlsx::createWorkbook()
+  openxlsx::addWorksheet(wb, sheetName = "normalized counts")
+  openxlsx::writeData(wb, sheet = "normalized counts", x = normalized_counts, rowNames = TRUE)
+  openxlsx::addWorksheet(wb, sheetName = "probe-gene mapping")
+  openxlsx::writeData(wb, sheet = "probe-gene mapping", x = gene_data)
+  openxlsx::addWorksheet(wb, sheetName = "sample-group mapping")
+  openxlsx::writeData(wb, sheet = "sample-group mapping", x = meta_data)
+  openxlsx::addWorksheet(wb, sheetName = "MAPK1")
+  openxlsx::writeData(wb, sheet = "MAPK1", x = mapk1)
+  openxlsx::saveWorkbook(wb, file = paste0(parent_path, d, ".xlsx"), overwrite = TRUE)
+}
+
+################## CCLE classification neuroendocrine vs non-neuroendocrine
+
+source("C:/Users/kailasamms/OneDrive - Cedars-Sinai Health System/Documents/GitHub/R-Scripts/RNASeq_DESeq2_Functions.R")
+data_path <- "C:/Users/kailasamms/OneDrive - Cedars-Sinai Health System/Desktop/Collaboration projects data/Mukta/"
+
+# # (DO THIS ONLY ONCE) Generate DESeq2 normalized counts 
+# read_data <- read.xlsx(paste0(data_path, "CCLE_Read_data.xlsx"))
+# 
+# # If there are duplicated genes, keep only data for highest expressing copy
+# read_data <- read_data %>%
+#   dplyr::select(everything(), -Name) %>%
+#   dplyr::rename(SYMBOL = Description) %>%
+#   dplyr::mutate(n = rowSums(.[,-1])) %>%
+#   dplyr::group_by(SYMBOL) %>%
+#   dplyr::slice_max(n) %>%
+#   dplyr::ungroup() %>%
+#   # Duplicated genes with 0 expression in all samples still remain, remove them
+#   dplyr::distinct_at("SYMBOL", .keep_all = TRUE) %>%
+#   dplyr::select(everything(), -n)
+# colnames(read_data) <- gsub(pattern = "_.*", replacement = "", x=colnames(read_data))
+# colnames(read_data) <- make.names(colnames(read_data), unique = TRUE)
+# 
+# meta_data <- read.xlsx(paste0(data_path, "CCLE_Meta_data.xlsx"))
+# meta_data <- meta_data %>%
+#   dplyr::mutate(Sample_ID = gsub(pattern = "_.*", replacement = "", x=meta_data$CCLE_ID)) %>%
+#   dplyr::select(Sample_ID, everything())
+# 
+# # Get annotations
+# species <- "Homo sapiens"
+# annotations <- get_annotations(species)
+# 
+# 
+# Comparisons <- list(Variable =c(NA),
+#                     Target   =c(NA),
+#                     Reference=c(NA)) 
+# meta_data <- prep_metadata(meta_data, read_data)
+# read_data <- prep_readdata(read_data, meta_data)
+# l <- check_data(read_data, meta_data)
+# meta_data <- l[[2]]
+# read_data <- l[[1]]
+# 
+# # Normalize the raw read counts
+# dds <- DESeq2::DESeqDataSetFromMatrix(countData=read_data,
+#                                       colData=meta_data, 
+#                                       design=~ 1)
+# 
+# approach <- ""
+# suffix <- ""
+# deseq2_norm_counts(dds, annotations, approach, suffix, data_path)
+
+# Read normalized counts
+read_data <- read.xlsx(paste0(data_path, "CCLE_Normalized_Counts.xlsx"))
+plot_genes <- c("INSM1", "SYP", "MEIS2", "CHGA", "MKI67", "NCAM1")
+
+# Reformat read data
+normalized_counts <- read_data[, -c(2:5)] %>%
+  dplyr::mutate(SYMBOL = make.names(names = SYMBOL, unique = TRUE)) %>%
+  dplyr::distinct_at("SYMBOL", .keep_all = TRUE) %>%
+  tibble::column_to_rownames(var = "SYMBOL") %>%
+  dplyr::mutate(across(.cols = everything(), .fns = as.numeric))
+colnames(normalized_counts) <- base::make.names(names = colnames(normalized_counts))
+normalized_counts <- normalized_counts[!rowSums(normalized_counts, na.rm=TRUE) == 0,]
+
+normalized_counts <- log(1+normalized_counts, base=2) # log transform the normalized counts so it is not skewed
+t <- base::apply(X=normalized_counts, MARGIN=1, FUN=median, na.rm=TRUE)  # calculate median for each gene across all samples
+normalized_counts <- base::sweep(x=normalized_counts, MARGIN=1, FUN="-", STATS=t) # subtract median of each gene
+
+expr_df <- as.data.frame(advanced_Z(plot_genes, normalized_counts))  # calculate mean of marker genes, subtract mean of all genes
+expr_df <- expr_df %>%
+  dplyr::rename(Score = identity(1)) %>%
+  tibble::rownames_to_column("Sample") %>%
+  dplyr::left_join(normalized_counts %>% 
+                     t() %>% 
+                     data.frame() %>% 
+                     tibble::rownames_to_column("Sample") %>%
+                     dplyr::select(Sample, CDH12),
+                   by=c("Sample"="Sample")) %>%
+  dplyr::left_join(read_data %>%
+                     dplyr::select(everything(), -contains(c("ENTREZ", "ENSEMBL"))) %>%
+                     tibble::column_to_rownames("SYMBOL") %>%
+                     t() %>%
+                     data.frame() %>%
+                     tibble::rownames_to_column("Sample") %>%
+                     dplyr::select(Sample, CDH12),
+                   by=c("Sample"="Sample")) %>%
+  dplyr::rename(log2_CDH12 = identity(3), CDH12 = identity(4))
+
+# Identify cutoffs and group the cell lines in neuro low and neuro high
+pos_controls <- c("SKNAS", "SKNFI", "NCIH727", "TT.1")
+neg_controls <- c("A427","A172","SW480")
+
+low_cutoff <- max(expr_df %>% dplyr::filter(Sample %in% neg_controls) %>% dplyr::select(Score))
+high_cutoff <- min(expr_df %>% dplyr::filter(Sample %in% pos_controls) %>% dplyr::select(Score))
+
+neuro_low <- expr_df %>% dplyr::filter(Score <= low_cutoff) %>% dplyr::select(Sample) %>% unlist(use.names = FALSE)
+neuro_high <- expr_df %>% dplyr::filter(Score >= high_cutoff) %>% dplyr::select(Sample) %>% unlist(use.names = FALSE)
+neuro_mid <- setdiff(setdiff(expr_df$Sample, neuro_low), neuro_high)
+
+neuro_low_df <- expr_df %>% dplyr::filter(Sample %in% neuro_low) 
+neuro_high_df <- expr_df %>% dplyr::filter(Sample %in% neuro_high) 
+neuro_mid_df <- expr_df %>% dplyr::filter(Sample %in% neuro_mid) 
+
+# Save
+wb <- openxlsx::createWorkbook()
+openxlsx::addWorksheet(wb, sheetName = "Neuro Low")
+openxlsx::writeData(wb, sheet = "Neuro Low", x = neuro_low_df, rowNames = FALSE)
+openxlsx::addWorksheet(wb, sheetName = "Neuro High")
+openxlsx::writeData(wb, sheet = "Neuro High", x = neuro_high_df, rowNames = FALSE)
+openxlsx::addWorksheet(wb, sheetName = "Neuro Mid")
+openxlsx::writeData(wb, sheet = "Neuro Mid", x = neuro_mid_df, rowNames = FALSE)
+openxlsx::saveWorkbook(wb, file = paste0(data_path, "CCLE Neuro_Score-CDH12.xlsx"), overwrite = TRUE)
 
 
+# Heatmap of 6 genes + CDH12
+# mat <- read_data %>%
+#   dplyr::select(everything(), -contains(c("ENTREZ", "ENSEMBL"))) %>%
+#   tibble::column_to_rownames("SYMBOL") %>%
+#   t() %>%
+#   data.frame() %>%
+#   dplyr::select(all_of(plot_genes), CDH12)
+# 
+# pheatmap(mat, scale = "column")
+
+row_ann <- neuro_low_df %>% dplyr::mutate(Group = "LOW") %>% dplyr::select(Sample, Group) %>%
+  dplyr::bind_rows(neuro_high_df %>% dplyr::mutate(Group = "HIGH") %>% dplyr::select(Sample, Group)) %>%
+  dplyr::bind_rows(neuro_mid_df %>% dplyr::mutate(Group = "MID") %>% dplyr::select(Sample, Group)) %>%
+  dplyr::mutate(Dummy = 0) %>%
+  tibble::column_to_rownames("Sample")
+row_elements <- unique(row_ann$Group)
+  
+mat <- normalized_counts %>%
+  t() %>%
+  data.frame() %>%
+  dplyr::select(all_of(plot_genes), CDH12)
+
+# Cluster within each group
+row_order <- c()
+for (g in row_elements){
+  temp_mat <- mat[rownames(row_ann)[which(row_ann$Group == g)],]
+  rowclust <- hclust(dist(temp_mat))
+  row_order <- c(row_order, rownames(temp_mat[rowclust$order,]))
+}
+
+mat <- mat[rownames(row_ann), ]
+mat <- mat[row_order, ]
+
+pheatmap(mat, 
+         cluster_cols = TRUE, cluster_rows = FALSE, 
+         annotation_row = row_ann %>% dplyr::select(Group),
+         filename = paste0(data_path, "CCLE Heatmap.tiff"))
 
 
+################## TCGA classification neuroendocrine vs non-neuroendocrine
+
+source("C:/Users/kailasamms/OneDrive - Cedars-Sinai Health System/Documents/GitHub/R-Scripts/RNASeq_DESeq2_Functions.R")
+data_path <- "C:/Users/kailasamms/OneDrive - Cedars-Sinai Health System/Desktop/Collaboration projects data/Mukta/"
+
+#remotes::install_github("cit-bioinfo/consensusMIBC", build_vignettes = TRUE)
+library(consensusMIBC)
+
+# # (DO THIS ONLY ONCE) Generate DESeq2 normalized counts
+# read_data <- read.xlsx(paste0(data_path, "Read_data_TCGA-BLCA.xlsx"))
+# meta_data <- read.xlsx(paste0(data_path, "Meta_data_TCGA-BLCA.xlsx"))
+# 
+# # If there are duplicated genes, keep only data for highest expressing copy
+# read_data <- read_data %>%
+#   dplyr::select(ENSEMBL_ID, make.names(meta_data$Sample_ID)) %>%
+#   dplyr::mutate(n = rowSums(.[,-1])) %>%
+#   dplyr::group_by(ENSEMBL_ID) %>%
+#   dplyr::slice_max(n) %>%
+#   dplyr::ungroup() %>%
+#   # Duplicated genes with 0 expression in all samples still remain, remove them
+#   dplyr::distinct_at("ENSEMBL_ID", .keep_all = TRUE) %>%
+#   dplyr::select(everything(), -n)
+# colnames(read_data) <- gsub(pattern = "_.*", replacement = "", x=colnames(read_data))
+# colnames(read_data) <- make.names(colnames(read_data), unique = TRUE)
+# colnames(read_data)[1] <- "SYMBOL"
+# 
+# # Get annotations
+# species <- "Homo sapiens"
+# annotations <- get_annotations(species)
+# 
+# Comparisons <- list(Variable =c(NA),
+#                     Target   =c(NA),
+#                     Reference=c(NA))
+# meta_data <- prep_metadata(meta_data, read_data)
+# read_data <- prep_readdata(read_data, meta_data)
+# l <- check_data(read_data, meta_data)
+# meta_data <- l[[2]]
+# read_data <- l[[1]]
+# 
+# # Normalize the raw read counts
+# dds <- DESeq2::DESeqDataSetFromMatrix(countData=read_data,
+#                                       colData=meta_data,
+#                                       design=~ 1)
+# 
+# approach <- ""
+# suffix <- ""
+# deseq2_norm_counts(dds, annotations, approach, suffix, data_path)
+
+# CANNOT USE IT on CCLE as it has several non-bladder cell lines 
+normalized_counts <- read.xlsx(paste0(data_path, "Normalized_Counts_TCGA-BLCA.xlsx"))
+#normalized_counts <- read.xlsx(paste0(data_path, "CCLE_Normalized_Counts.xlsx"))
+
+normalized_counts <- normalized_counts[, -c(1,3,4,5)] %>%
+  dplyr::mutate(ENSEMBL_ID = make.names(names = ENSEMBL_ID, unique = TRUE)) %>%
+  dplyr::distinct_at("ENSEMBL_ID", .keep_all = TRUE) %>%
+  tibble::column_to_rownames(var = "ENSEMBL_ID") %>%
+  dplyr::mutate(across(.cols = everything(), .fns = as.numeric))
+colnames(normalized_counts) <- base::make.names(names = colnames(normalized_counts))
+normalized_counts <- normalized_counts[!rowSums(normalized_counts, na.rm=TRUE) == 0,]
+normalized_counts_log <- log(1+normalized_counts, base=2)
+
+res <- getConsensusClass(x=normalized_counts_log, gene_id = "ensembl_gene_id")
+
+consensus_df <- res %>%
+  tibble::rownames_to_column("Sample") %>%
+  dplyr::left_join(normalized_counts_log %>%
+                                 t() %>%
+                                 data.frame() %>%
+                                 tibble::rownames_to_column("Sample") %>%
+                                 dplyr::select(Sample, ENSG00000154162),
+                               by=c("Sample"="Sample")) %>%
+  dplyr::left_join(normalized_counts %>%
+                     t() %>%
+                     data.frame() %>%
+                     tibble::rownames_to_column("Sample") %>%
+                     dplyr::select(Sample, ENSG00000154162),
+                   by=c("Sample"="Sample")) %>%
+  dplyr::rename(log2_CDH12 = identity(11), CDH12 = identity(12))
+
+# Save
+wb <- openxlsx::createWorkbook()
+openxlsx::addWorksheet(wb, sheetName = "TCGA Consensus")
+openxlsx::writeData(wb, sheet = "TCGA Consensus", x = consensus_df, rowNames = FALSE)
+openxlsx::saveWorkbook(wb, file = paste0(data_path, "TCGA Consensus.xlsx"), overwrite = TRUE)
+# openxlsx::addWorksheet(wb, sheetName = "CCLE Consensus")
+# openxlsx::writeData(wb, sheet = "CCLE Consensus", x = consensus_df, rowNames = FALSE)
+# openxlsx::saveWorkbook(wb, file = paste0(data_path, "CCLE Consensus.xlsx"), overwrite = TRUE)
+
+######TCPA CDH12
+
+source("C:/Users/kailasamms/OneDrive - Cedars-Sinai Health System/Documents/GitHub/R-Scripts/RNASeq_DESeq2_Functions.R")
+data_path <- "C:/Users/kailasamms/OneDrive - Cedars-Sinai Health System/Desktop/Collaboration projects data/Mukta/"
+
+markers <- c("P53", "RB", "AKT", "AKT_pS473", "AKT_pT308")
+
+protein_data <- read.xlsx(paste0(data_path, "TCGA-BLCA-L4.xlsx"))
+protein_data <- protein_data[, -c(2:4)] %>%
+  dplyr::mutate(Sample_ID = make.names(Sample_ID)) %>%
+  dplyr::select(Sample_ID, all_of(markers))
+
+read_data <- read.xlsx(paste0(data_path, "Normalized_Counts_TCGA-BLCA.xlsx"))
+normalized_counts <- read_data[, -c(2:5)] %>%
+  dplyr::mutate(SYMBOL = make.names(names = SYMBOL, unique = TRUE)) %>%
+  dplyr::distinct_at("SYMBOL", .keep_all = TRUE) %>%
+  tibble::column_to_rownames(var = "SYMBOL") %>%
+  dplyr::mutate(across(.cols = everything(), .fns = as.numeric))
+colnames(normalized_counts) <- base::make.names(names = colnames(normalized_counts))
+normalized_counts <- normalized_counts[!rowSums(normalized_counts, na.rm=TRUE) == 0,]
+
+normalized_counts <- log(1+normalized_counts, base=2) # log transform the normalized counts so it is not skewed
+t <- base::apply(X=normalized_counts, MARGIN=1, FUN=median, na.rm=TRUE)  # calculate median for each gene across all samples
+normalized_counts <- base::sweep(x=normalized_counts, MARGIN=1, FUN="-", STATS=t) # subtract median of each gene
+rna_data <- normalized_counts %>%
+  t() %>%
+  data.frame() %>%
+  tibble::rownames_to_column("Sample_ID") %>%
+  dplyr::select(Sample_ID, CDH12)
+
+merge_data <- protein_data %>%
+  dplyr::left_join(rna_data, by=c("Sample_ID"="Sample_ID")) %>%
+  tibble::column_to_rownames("Sample_ID")
+
+# Save
+wb <- openxlsx::createWorkbook()
+openxlsx::addWorksheet(wb, sheetName = "TCPA")
+openxlsx::writeData(wb, sheet = "TCPA", x = merge_data, rowNames = TRUE)
+openxlsx::saveWorkbook(wb, file = paste0(data_path, "TCPA.xlsx"), overwrite = TRUE)
+
+breaks <- c(seq(from = -2, to = 0, length.out = 50), seq(from = 2/100, to = 2, length.out = 50))
+pheatmap(merge_data, scale="row", breaks=breaks)
+
+pheatmap(scale(merge_data), scale = "none", breaks=breaks)

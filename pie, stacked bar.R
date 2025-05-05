@@ -33,8 +33,6 @@ for (cell in cells[1:2]){
                                     secreted_class %>% select("Ensembl", "X.Protein.class."),
                                     by=c("Ensembl"="Ensembl"))
   
-  
-  
   # # Plot pie chart for male and female
   # for (direction in c("up", "down")){
   # 
@@ -133,3 +131,4 @@ for (cell in cells[2:2]){
                   y = "Percent composition")
   
 }
+

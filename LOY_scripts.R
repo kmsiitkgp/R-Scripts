@@ -1640,14 +1640,14 @@ y_genes <- c("Ddx3y", "Eif2s3y", "Kdm5d","Uty","Rbmy","Sly","Sry","Uba1y",
 features <- intersect(y_genes, rownames(integrated_seurat@assays$RNA$data))
 
 i <- 1
-celltypes <- unique(integrated_seurat@meta.data$cell_type)
+celltypes <- unique(integrated_seurat@meta.data$seurat_class)
 for (c in celltypes){
   
   x <- paste0("p",i)
   i <- i+1;
   
   seurat_obj <- subset(x=integrated_seurat,
-                       cell_type == c)
+                       seurat_class == c)
   
   # Extract expression inf, keep only Y genes that have expression
   df <- seurat_obj@assays$RNA$data
@@ -1715,14 +1715,14 @@ ggsave(filename = "Y Expression Frequency.pdf",
        bg = "white")
 
 i <- 1
-celltypes <- unique(integrated_seurat@meta.data$cell_type)
+celltypes <- unique(integrated_seurat@meta.data$seurat_class)
 for (c in celltypes){
   
   x <- paste0("p",i)
   i <- i+1;
   
   seurat_obj <- subset(x=integrated_seurat,
-                       cell_type == c)
+                       seurat_class == c)
   seurat_obj <- Seurat::AddModuleScore(obj = seurat_obj,
                                        features = list(features),
                                        assay = "RNA",
@@ -1781,6 +1781,61 @@ ggsave(filename = "Y Score Distribution.pdf",
        bg = "white")
   
 
-  
+######## LOY % in each subtype
 
+proj <- "scRNASeq_Koltsova_sn"
+proj <- "scRNASeq_Koltsova"
+source("/hpc/home/kailasamms/projects/scRNASeq/scRNASeq_Seurat_Functions_Variables.R")
+
+integrated_seurat <- readRDS(paste0(seurat_results, "integrated_seurat_snn.rds"))
+integrated_seurat <- subset(x = integrated_seurat,
+                            subset = Sex == "Male")
+
+y_genes <- c("Ddx3y", "Eif2s3y", "Kdm5d","Uty","Rbmy","Sly","Sry","Uba1y",
+             "Usp9y","Zfy1","Zfy2","H2al2b","H2al2c","Orly","Rbm31y","Srsy",
+             "Ssty1","Ssty2")
+
+features <- intersect(y_genes, rownames(integrated_seurat@assays$RNA$data))
+celltypes <- unique(integrated_seurat@meta.data$cell_type)
+celltypes <- celltypes[!is.na(celltypes)]
+final_df <- data.frame(Sample="",n_gene=0,n=0, Percent=0, celltype="")
+
+for (c in celltypes){
+
+  seurat_obj <- subset(x=integrated_seurat,
+                       cell_type == c)
+  
+  # Extract expression inf, keep only Y genes that have expression
+  df <- seurat_obj@assays$RNA$data
+  df <- df[features,]
+  df <- df[rowSums(df) != 0,]
+  
+  # Convert count matrix to binary format [1=Expressed, 0=Not expressed]
+  #df <- as.data.frame(df) %>% replace(.> 0, 1)
+  df[df>0] <- 1
+  
+  gene_count_per_cell <- data.frame(counts = colSums(df)) %>%
+    tibble::rownames_to_column("Cell") %>%
+    dplyr::mutate(Cell = gsub(pattern= "_.*" , replacement="", x=Cell)) %>%
+    dplyr::group_by(Cell, counts) %>%
+    dplyr::summarise(n = n()) %>%
+    #tidyr::pivot_wider(id_cols=Cell, names_from=counts, values_from=n) %>%
+    dplyr::rename(Sample=Cell, n_gene=counts) %>%
+    dplyr::mutate(Percent = 100*n/sum(n)) %>%
+    dplyr::filter(n_gene == 0) %>%
+    dplyr::mutate(celltype = c)
+  
+  final_df <- dplyr::bind_rows(final_df, gene_count_per_cell)
+}
+
+final_df <- final_df[-1,]
+final_df <- final_df %>% 
+  dplyr::select(Sample, Percent, celltype) %>% 
+  tidyr::pivot_wider(id_cols=celltype, names_from=Sample, values_from=Percent, values_fill = NA)
+
+# Save the clustered matrix
+wb <- openxlsx::createWorkbook()
+openxlsx::addWorksheet(wb, sheetName = "LOY %")
+openxlsx::writeData(wb, sheet = "LOY %", x = final_df, rowNames = FALSE)
+openxlsx::saveWorkbook(wb, file = "LOY Percent1.xlsx", overwrite = TRUE)
 

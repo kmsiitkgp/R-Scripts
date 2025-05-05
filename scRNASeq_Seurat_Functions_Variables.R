@@ -25,27 +25,25 @@
 
 # Data analysis packages
 #library("TCGAbiolinks")         # Needed for TCGA data analysis
-library("ensembldb")            # Needed for annotating genes
+#library("ensembldb")            # Needed for annotating genes
 library("AnnotationHub")        # Needed for annotating genes
 library("org.Hs.eg.db")
 library("org.Mm.eg.db")
-#library("affy")                 # Needed for micro-array analysis
+library("affy")                 # Needed for micro-array analysis
 #library("lumi")                 # Needed for micro-array analysis
-#library("illuminaHumanv4.db")  # Needed for micro-array analysis
-#library("limma")                # Needed for micro-array analysis
+library("illuminaHumanv4.db")  # Needed for micro-array analysis
+library("limma")                # Needed for micro-array analysis
 #library("ChIPQC")               # Needed for ChIP analysis
 library("fgsea")                # Needed for GSEA analysis
 #library("enrichplot")           # Needed for GSEA analysis
 #library("clusterProfiler")      # Needed for GSEA analysis
 #library("pathview")            # Needed for GSEA analysis
-library("msigdbr")              # Needed for GSEA analysis
 library("DESeq2")               # Needed for Differential Expression analysis
 library("progeny")
 library("dorothea")
 library("viper")
 #library("infercnv")
 library("sva")
-library("preprocessCore")
 
 # Data wrangling packages
 library("openxlsx")             # Needed for reading, writing xlsx files
@@ -71,16 +69,16 @@ library("ggridges")             # Needed for making ridgeplots
 library("VennDiagram")          # Needed for making Venn diagram
 library("survival")             # Needed for making survival curves
 #library("survminer")            # Needed for making survival curves, to handle %++% in survival function
-library("scCustomize")          # Needed fro customizing Seurat plots
+#library("scCustomize")          # Needed fro customizing Seurat plots
 
 # Single cell analysis packages
 library("Seurat")               # Needed for single cell analysis
-library("UCell")
-library("SeuratDisk")           # Needed for reading h5ad files
-library("SCopeLoomR")           # Needed for reading loom files
+#library("UCell")
+#library("SeuratDisk")           # Needed for reading h5ad files
+#library("SCopeLoomR")           # Needed for reading loom files
 library("harmony")              # Needed for single cell analysis
 #library("SCENIC")              # Needed for SCENIC analysis
-library("DoubletFinder")        # Needed for identifying doublets
+#library("DoubletFinder")        # Needed for identifying doublets
 #library("Augur")
 #library("ktplots")             # Needed for plotting cellphonedb results
 #library("CellChat")
@@ -93,12 +91,18 @@ library("patchwork")
 
 # Change default limit for allowable object sizes within R 
 options(future.globals.maxSize=30000 * 1024^2)
+options(Seurat.object.assay.version = "v5")
 
 # NOTE: proj variable is henceforth defined within scRNASeq wrapper and will be
 # read by the Rscript calling this file.
 
 # Indicate if data is from human or mice. We will adjust gene names accordingly.
-species <- dplyr::case_when(proj %in% c("scRNASeq_Chen", "scRNASeq_Simon", "visium_GSE171351", "scRNASeq_HRA003620") ~ "Homo sapiens",
+species <- dplyr::case_when(proj %in% c("scRNASeq_Chen", 
+                                        "scRNASeq_Simon", 
+                                        "visium_GSE171351", 
+                                        "scRNASeq_HRA003620", 
+                                        "scRNASeq_GSE222315",
+                                        "scRNASeq_Jyoti") ~ "Homo sapiens",
                             TRUE ~ "Mus musculus")
 
 # Indicate if current data is h5ad file or output of cellranger count
@@ -140,13 +144,6 @@ ref1_value <- NA
 ref2 <-  NA            
 ref2_value <- NA           
 
-# Choose the variables to use in DESeq2
-padj.cutoff <- 0.1
-lfc.cutoff <- 0       # set to 0.58 for more strict analysis
-Variable <- "Sex"
-Target <- "Male"
-Reference <- "Female"
-
 # Choose the variable to subset. 
 # For example, if the seurat object has "BBN" treated samples and "control" 
 # samples but you want to analyze ONLY BBN samples, set those variables here.
@@ -168,7 +165,8 @@ Variable2_value <- "Tumor"
 
 scripts_path <-         "/hpc/home/kailasamms/projects/scRNASeq/"
 parent_path <-          paste0("/hpc/home/kailasamms/scratch/", proj, "/")
-feature_matrix_path <-  paste0(parent_path, "raw_feature_bc_matrix/")
+filt_matrix_path <-     paste0(parent_path, "filt_feature_bc_matrix/")
+raw_matrix_path <-      paste0(parent_path, "raw_feature_bc_matrix/")
 hto_matrix_path <-      paste0(parent_path, "raw_hto_bc_matrix/")
 diagnostics_path <-     paste0(parent_path, "diagnostics/")
 demux_results <-        paste0(parent_path, "results_demux/")
@@ -214,7 +212,14 @@ my_theme <- ggplot2::theme(plot.title=  element_text(family="sans", face="bold",
 # Assign colors for UMAP. The current palette supports up to 33 cell types
 my_palette <- c("#1F77B4", "#FF7F0E", "#2CA02C", "#D62728", "#8C564B", 
                 "#E377C2", "#BCBD22", "#17BECF", "#FFC61E", "#762A83",
-                "#333333", "#FF1F5B", "#B8E80C")
+                "#333333", "#FF1F5B", "#B8E80C", "#9b19f5", "#DC0AB4")
+
+# my_palette <- c("#000000","#D9D9D9","#003C30","#beb9db","#1D91C0","#A6CEE3",
+#                 "#50E991","#A6D854","#74C476","#C7E9B4","#00bfa0","#E5F5F9",
+#                 "#EDBF33","#E6D800","#FFF7BC","#ffee65","#C7EAE5",
+#                 "#67001F","#CB181D","#FD8D3C","#FC9272","#EF3B2C","#F16913",
+#                 ,"#6A51A3","#762A83","#D4B9DA","#0bb4ff",
+#                 "#E60049",,"#AE017E","#DF65B0","#FDCCE5")
 
 my_palette <- c(my_palette, 
                 colorspace::adjust_transparency(col=my_palette, alpha=0.2), 
@@ -1088,7 +1093,7 @@ plot_post_integration <- function(res, reduc, idents, celltype){
 
 # Calculate UCell and Seurat scores based on markers in scRNASeq_Markers.xlsx
 add_module_scores <- function(integrated_seurat, sheetname){
-
+  
   # Set default assay
   DefaultAssay(integrated_seurat) <- "RNA"
   
@@ -1234,25 +1239,25 @@ plot_conserved_modules <- function(res, reduc, celltype, sheetname){
 
 save_data <- function(integrated_seurat, celltype){
   
-saveRDS(integrated_seurat, paste0(seurat_results, "integrated_seurat_snn", 
-                                  dplyr::if_else(is.null(celltype), ".rds", paste0("_", celltype, ".rds"))))
-
+  saveRDS(integrated_seurat, paste0(seurat_results, "integrated_seurat_snn", 
+                                    dplyr::if_else(is.null(celltype), ".rds", paste0("_", celltype, ".rds"))))
+  
 }
 
 #******************************************************************************#
 #                     IDENTIFY ALL MARKERS FOR EACH CLUSTER                    #
 #******************************************************************************#
 
-get_markers <- function(res, reduc, celltype){
+get_markers <- function(integrated_seurat, res, reduc, celltype){
   
-  # Load the integrated seurat object
-  integrated_seurat <- base::readRDS(paste0(seurat_results, "integrated_seurat_snn", 
-                                            dplyr::if_else(is.null(celltype), ".rds", paste0("_", celltype, ".rds"))))
-  
+  # # Load the integrated seurat object
+  # integrated_seurat <- base::readRDS(paste0(seurat_results, "integrated_seurat_snn", 
+  #                                           dplyr::if_else(is.null(celltype), ".rds", paste0("_", celltype, ".rds"))))
+ 
   # Set default assay
   DefaultAssay(integrated_seurat) <- "RNA"
   
-  # Set identity to an existing column in meta data
+  # Change active.ident to harmony at resolution 0.4
   idents <- paste0("cluster.", res, ".", base::tolower(reduc))
   Idents(object=integrated_seurat) <- idents
   
@@ -1391,55 +1396,98 @@ annotate_data_score <- function(integrated_seurat, celltype){
     # you can also use rowwise() instead of using group_by() and ungroup()
     group_by(Cell) %>%  # only 1 row per cell after grouping
     dplyr::mutate(ucell_class = max(B_UCell, Dendritic_UCell, 
-                                   Endothelial_UCell, Epithelial_UCell,
-                                   Fibroblasts_UCell, Granulocytes_UCell,
-                                   Lymphatic.Endothelial_UCell, Macrophages_UCell,
-                                   Mast_UCell, Myofibroblasts_UCell, NK_UCell,
-                                   Plasma_UCell, T_UCell, Neurons_UCell, 
-                                   Erythrocytes_UCell)) %>%
+                                    Endothelial_UCell, Epithelial_UCell,
+                                    Fibroblasts_UCell, Granulocytes_UCell,
+                                    Lymphatic.Endothelial_UCell, Macrophages_UCell,
+                                    Mast_UCell, Myofibroblasts_UCell, NK_UCell,
+                                    Plasma_UCell, T_UCell, Neurons_UCell, 
+                                    Erythrocytes_UCell)) %>%
     dplyr::mutate(seurat_class = max(B1, Dendritic1, Endothelial1, Epithelial1,
-                                    Fibroblasts1, Granulocytes1, 
-                                    Lymphatic.Endothelial1, Macrophages1,
-                                    Mast1, Myofibroblasts1, NK1, Plasma1, T1, 
-                                    Neurons1, Erythrocytes1)) %>%
+                                     Fibroblasts1, Granulocytes1, 
+                                     Lymphatic.Endothelial1, Macrophages1,
+                                     Mast1, Myofibroblasts1, NK1, Plasma1, T1, 
+                                     Neurons1, Erythrocytes1)) %>%
     dplyr::ungroup() %>%
     dplyr::mutate(ucell_class = dplyr::case_when(Epithelial_UCell           == ucell_class & ucell_class > 0 ~ "Epithelial",
-                                                Fibroblasts_UCell           == ucell_class & ucell_class > 0 ~ "Fibroblasts",
-                                                Myofibroblasts_UCell        == ucell_class & ucell_class > 0 ~ "Myofibroblasts",
-                                                Dendritic_UCell             == ucell_class & ucell_class > 0 ~ "Myeloid - DCs",
-                                                Granulocytes_UCell          == ucell_class & ucell_class > 0 ~ "Myeloid - Granulocytes",
-                                                Macrophages_UCell           == ucell_class & ucell_class > 0 ~ "Myeloid - Macrophages", 
-                                                Mast_UCell                  == ucell_class & ucell_class > 0 ~ "Myeloid - Mast", 
-                                                B_UCell                     == ucell_class & ucell_class > 0 ~ "Lymphoid - B", 
-                                                Plasma_UCell                == ucell_class & ucell_class > 0 ~ "Lymphoid - Plasma",
-                                                T_UCell                     == ucell_class & ucell_class > 0 ~ "Lymphoid - T", 
-                                                NK_UCell                    == ucell_class & ucell_class > 0 ~ "Lymphoid - NK",
-                                                Endothelial_UCell           == ucell_class & ucell_class > 0 ~ "Endothelial",
-                                                Lymphatic.Endothelial_UCell == ucell_class & ucell_class > 0 ~ "Endothelial - Lymphatic",
-                                                Neurons_UCell               == ucell_class & ucell_class > 0 ~ "Neurons",
-                                                Erythrocytes_UCell          == ucell_class & ucell_class > 0 ~ "Erythrocytes",
-                                                TRUE ~ "Unclassified")) %>%
-    dplyr::mutate(seurat_class = dplyr::case_when(Epithelial1           == seurat_class & seurat_class > 0 ~ "Epithelial",
-                                                 Fibroblasts1           == seurat_class & seurat_class > 0 ~ "Fibroblasts",
-                                                 Myofibroblasts1        == seurat_class & seurat_class > 0 ~ "Myofibroblasts",
-                                                 Dendritic1             == seurat_class & seurat_class > 0 ~ "Myeloid - DCs",
-                                                 Granulocytes1          == seurat_class & seurat_class > 0 ~ "Myeloid - Granulocytes",
-                                                 Macrophages1           == seurat_class & seurat_class > 0 ~ "Myeloid - Macrophages", 
-                                                 Mast1                  == seurat_class & seurat_class > 0 ~ "Myeloid - Mast", 
-                                                 B1                     == seurat_class & seurat_class > 0 ~ "Lymphoid - B", 
-                                                 Plasma1                == seurat_class & seurat_class > 0 ~ "Lymphoid - Plasma",
-                                                 T1                     == seurat_class & seurat_class > 0 ~ "Lymphoid - T", 
-                                                 NK1                    == seurat_class & seurat_class > 0 ~ "Lymphoid - NK",
-                                                 Endothelial1           == seurat_class & seurat_class > 0 ~ "Endothelial",
-                                                 Lymphatic.Endothelial1 == seurat_class & seurat_class > 0 ~ "Endothelial - Lymphatic",
-                                                 Neurons1               == seurat_class & seurat_class > 0 ~ "Neurons",
-                                                 Erythrocytes1          == seurat_class & seurat_class > 0 ~ "Erythrocytes",
+                                                 Fibroblasts_UCell           == ucell_class & ucell_class > 0 ~ "Fibroblasts",
+                                                 Myofibroblasts_UCell        == ucell_class & ucell_class > 0 ~ "Myofibroblasts",
+                                                 Dendritic_UCell             == ucell_class & ucell_class > 0 ~ "Myeloid - DCs",
+                                                 Granulocytes_UCell          == ucell_class & ucell_class > 0 ~ "Myeloid - Granulocytes",
+                                                 Macrophages_UCell           == ucell_class & ucell_class > 0 ~ "Myeloid - Macrophages", 
+                                                 Mast_UCell                  == ucell_class & ucell_class > 0 ~ "Myeloid - Mast", 
+                                                 B_UCell                     == ucell_class & ucell_class > 0 ~ "Lymphoid - B", 
+                                                 Plasma_UCell                == ucell_class & ucell_class > 0 ~ "Lymphoid - Plasma",
+                                                 T_UCell                     == ucell_class & ucell_class > 0 ~ "Lymphoid - T", 
+                                                 NK_UCell                    == ucell_class & ucell_class > 0 ~ "Lymphoid - NK",
+                                                 Endothelial_UCell           == ucell_class & ucell_class > 0 ~ "Endothelial",
+                                                 Lymphatic.Endothelial_UCell == ucell_class & ucell_class > 0 ~ "Endothelial - Lymphatic",
+                                                 Neurons_UCell               == ucell_class & ucell_class > 0 ~ "Neurons",
+                                                 Erythrocytes_UCell          == ucell_class & ucell_class > 0 ~ "Erythrocytes",
                                                  TRUE ~ "Unclassified")) %>%
+    dplyr::mutate(seurat_class = dplyr::case_when(Epithelial1           == seurat_class & seurat_class > 0 ~ "Epithelial",
+                                                  Fibroblasts1           == seurat_class & seurat_class > 0 ~ "Fibroblasts",
+                                                  Myofibroblasts1        == seurat_class & seurat_class > 0 ~ "Myofibroblasts",
+                                                  Dendritic1             == seurat_class & seurat_class > 0 ~ "Myeloid - DCs",
+                                                  Granulocytes1          == seurat_class & seurat_class > 0 ~ "Myeloid - Granulocytes",
+                                                  Macrophages1           == seurat_class & seurat_class > 0 ~ "Myeloid - Macrophages", 
+                                                  Mast1                  == seurat_class & seurat_class > 0 ~ "Myeloid - Mast", 
+                                                  B1                     == seurat_class & seurat_class > 0 ~ "Lymphoid - B", 
+                                                  Plasma1                == seurat_class & seurat_class > 0 ~ "Lymphoid - Plasma",
+                                                  T1                     == seurat_class & seurat_class > 0 ~ "Lymphoid - T", 
+                                                  NK1                    == seurat_class & seurat_class > 0 ~ "Lymphoid - NK",
+                                                  Endothelial1           == seurat_class & seurat_class > 0 ~ "Endothelial",
+                                                  Lymphatic.Endothelial1 == seurat_class & seurat_class > 0 ~ "Endothelial - Lymphatic",
+                                                  Neurons1               == seurat_class & seurat_class > 0 ~ "Neurons",
+                                                  Erythrocytes1          == seurat_class & seurat_class > 0 ~ "Erythrocytes",
+                                                  TRUE ~ "Unclassified")) %>%
     dplyr::mutate(rnames = Cell) %>%
     tibble::column_to_rownames("rnames")
   
   return(integrated_seurat)
 }
+
+#******************************************************************************#
+#                   REMAP CLUSTERS WITH CELL TYPES                             #
+#******************************************************************************#
+
+# # We annotated cells using AddModuleScore() and saved them in seurat_class
+# df <- table(integrated_seurat@meta.data$seurat_class,
+#             integrated_seurat@meta.data$cluster.0.4.harmony)
+# 
+# # When you convert the table to data.frame(), it automatically calculates frequencies
+# df <- df %>%
+#   data.frame() %>%
+#   dplyr::group_by(Var2) %>%
+#   dplyr::filter(Freq == max(Freq)) %>%
+#   dplyr::ungroup() %>%
+#   dplyr::select(Var1, Var2) %>%
+#   data.frame() %>%
+#   dplyr::rename(cell_type=Var1, cluster.0.4.harmony=Var2)
+# 
+# 
+# # Remap celltypes to cluster.1.4.harmony
+# metadata <- integrated_seurat@meta.data %>%
+#   dplyr::left_join(df,by=("cluster.1.4.harmony"="cluster.1.4.harmony"))
+# 
+# rownames(metadata) <- metadata$Cell
+# integrated_seurat@meta.data <- metadata
+# 
+# # Plot UMAP
+# Seurat::DimPlot(object=integrated_seurat,
+#                 reduction="umap.harmony",
+#                 cols=my_palette,
+#                 label=FALSE,
+#                 group.by="cell_type",
+#                 split.by=NULL, #split,
+#                 shape.by=NULL,
+#                 pt.size=0.2,
+#                 label.size=5,
+#                 repel=FALSE,
+#                 raster=FALSE) +
+#   ggplot2::labs(fill="CLUSTERS",
+#                 x="UMAP_1",
+#                 y="UMAP_2") +
+#   my_theme
 
 #******************************************************************************#
 #                   REMOVE CLUSTERS WITH MULTIPLE CELLTYPES                    #
@@ -1692,16 +1740,16 @@ visualize_UMAP <- function(){
                                             dplyr::if_else(is.null(celltype), ".rds", paste0("_", celltype, ".rds"))))
   
   # Remove unwanted cells and samples
-  plot_object <- subset(x=integrated_seurat,
-                        subset=(cell_class %in% c("Mixed", "Unclassified")),
+  integrated_seurat <- subset(x=integrated_seurat,
+                        subset=(seurat_class %in% c("Mixed", "Unclassified")),
                         invert=TRUE)
   
   gg1 <- Seurat::DimPlot(object=integrated_seurat,
-                         reduction="umap",
+                         reduction="umap.harmony",
                          cols=my_palette,
                          label=FALSE,
-                         group.by="cell_class",
-                         split.by=split,
+                         group.by="seurat_class",
+                         split.by=NULL, #split,
                          shape.by=NULL,
                          pt.size=0.2,
                          label.size=5,
@@ -1712,12 +1760,12 @@ visualize_UMAP <- function(){
                   y="UMAP_2") +
     my_theme
   
-  gg2 <- Seurat::DimPlot(object=plot_object,
-                         reduction="umap",
+  gg2 <- Seurat::DimPlot(object=integrated_seurat,
+                         reduction="umap.harmony",
                          cols=my_palette,
                          label=FALSE,
                          group.by="cell_type",
-                         split.by=split,
+                         split.by=NULL,#split,
                          shape.by=NULL,
                          pt.size=0.2,
                          label.size=5,
@@ -1728,8 +1776,8 @@ visualize_UMAP <- function(){
                   y="UMAP_2") +
     my_theme
   
-  gg3 <- Seurat::DimPlot(object=plot_object,
-                         reduction="umap",
+  gg3 <- Seurat::DimPlot(object=integrated_seurat,
+                         reduction="umap.harmony",
                          cols=my_palette,
                          label=FALSE,
                          group.by="sub_type",
@@ -2228,17 +2276,17 @@ plot_genes <- function(res, reduc, celltype, sheetname){
   }
   
   # Plot UMAPs
-  for (n in 1:ceiling((length(features)/12))){
-    j <- 12*n-11
-    k <- 12*n
+  for (n in 1:ceiling((length(features)/10))){
+    j <- 10*n-9
+    k <- 10*n
     vec <- features[j:k]
     purrr::map(.x=vec[!is.na(vec)], 
                .f=feature_plot) %>%
       cowplot::plot_grid(plotlist=.,
                          align="hv",
                          axis="tblr",
-                         nrow=4,
-                         ncol=3,
+                         nrow=2,
+                         ncol=5,
                          rel_widths=1,
                          rel_heights=1,
                          greedy=TRUE,
@@ -2617,7 +2665,7 @@ ident_good_markers <- function(){
   
   features <- read.xlsx(paste0(seurat_results, "Markers_for_major_clusters_", celltype, ".xlsx"), sheet="Top_Markers")
   features <- feature$gene
-  features <- intersect(features, rownames(integrated_seurat@assays$RNA@data))
+  features <- intersect(features, rownames(integrated_seurat@assays$RNA$data))
   length(features)
   
   for(i in 1:ceiling(length(features)/10)){
@@ -2628,12 +2676,15 @@ ident_good_markers <- function(){
                         pt.size=0.4,
                         order=TRUE,
                         min.cutoff='q10',
-                        reduction="umap",
+                        reduction="umap.harmony",
+                        # cols can handle only upto 3 colors.
+                        #cols = rev(brewer.pal(n=11, name="RdBu"))[5:11],
                         cols= c("grey", viridis(n=10, option="C", direction=-1)),
                         ncol =5,
                         label=FALSE,
                         combine=TRUE,
-                        raster=FALSE)
+                        raster=FALSE) +
+      scale_colour_gradientn(colours=rev(brewer.pal(n=11, name="RdBu"))[5:11])
     
     ggplot2::ggsave(filename=paste0(i,".jpg"),
                     plot=last_plot(),
@@ -2656,84 +2707,80 @@ ident_good_markers <- function(){
 # This function reads a seurat object and generates read_data, meta_data, file_suffix
 # for use by analyze_DESeq2(). It automatically calls analyze_DESeq2() too.
 
-prep_DESeq2 <- function(celltype){ 
-  
-  cat("\n**********************", celltype, "Analysis**********************\n")
-  
-  # Load the integrated seurat object
-  integrated_seurat <- base::readRDS(paste0(seurat_results, "integrated_seurat_snn", 
-                                            dplyr::if_else(is.null(celltype), ".rds", paste0("_", celltype, ".rds"))))
-  
-  #******************************IMPORT META DATA******************************#
-  
-  integrated_seurat <- subset(x=integrated_seurat,
-                              subset=cell_class %in% c("Mixed", "Unclassified"),
-                              invert=TRUE)
-  
-  integrated_seurat <- subset(x=integrated_seurat,
-                              subset=cell_type %in% celltype)
-                             
-  
-  # Perform analysis on cell types like T cell, B cell rather than Myeloid, Lymphoid
-  
-  subtypes <- integrated_seurat@meta.data %>% 
-    dplyr::select(cell_type) %>% 
-    unlist(use.names=FALSE) %>%
-    unique()
-  
-  for (subtype in subtypes){
-    
-    subset_seurat <- subset(x=integrated_seurat,
-                            subset=cell_type == subtype)
-    
-    # Subset metadata
-    meta_data <- subset_seurat@meta.data %>%
-      dplyr::distinct(Sample, .keep_all=TRUE) %>%
-      dplyr::mutate(Batch=1)
-    
-    #******************************IMPORT READ DATA******************************#                                           
-    
-    # The read data will have "the reads of all cells belonging to a single 
-    # sample" merged together in each column. First, create a list of samples
-    samples <- subset_seurat@meta.data %>% 
-      dplyr::select(Sample) %>% 
-      unlist(., use.names=FALSE) %>% 
-      unique()
-    
-    # Second, create an empty dataframe with rows=genes and columns=samples
-    read_data <- data.frame(matrix(NA, nrow=nrow(subset_seurat@assays$RNA$counts), ncol=nrow(meta_data)))
-    rownames(read_data) <- rownames(subset_seurat@assays$RNA$counts)
-    colnames(read_data) <- samples
-    
-    # Thirdly, we will add row-wise, the counts of each gene for each sample
-    for(i in samples){
-      
-      # Create a list of cells for each sample
-      cells_subset <- rownames(subset_seurat@meta.data %>% dplyr::filter(Sample == i))
-      
-      # Use data.frame to convert "." in sparse matrix to "0"
-      subset <- data.frame(subset_seurat@assays$RNA$counts[,cells_subset])
-      read_data[,i]  <- rowSums(subset)
-    }
-    
-    read_data <- read_data %>% 
-      tibble::rownames_to_column("SYMBOL")
-    
-    file_suffix <- subtype
-    #analyze_DESeq2(meta_data, read_data, file_suffix)
-    
-    annotations <- get_annotations(species)
-    meta_data <- prep_metadata(meta_data, Variable)
-    read_data <- prep_readdata(read_data, meta_data)
-    l <- check_data(read_data, meta_data)
-    meta_data <- l[[2]]
-    read_data <- l[[1]]
-  }
-}
-
-
-
-
+# prep_DESeq2 <- function(celltype){ 
+#   
+#   cat("\n**********************", celltype, "Analysis**********************\n")
+#   
+#   # Load the integrated seurat object
+#   integrated_seurat <- base::readRDS(paste0(seurat_results, "integrated_seurat_snn", 
+#                                             dplyr::if_else(is.null(celltype), ".rds", paste0("_", celltype, ".rds"))))
+#   
+#   #******************************IMPORT META DATA******************************#
+#   
+#   integrated_seurat <- subset(x=integrated_seurat,
+#                               subset=cell_class %in% c("Mixed", "Unclassified"),
+#                               invert=TRUE)
+#   
+#   integrated_seurat <- subset(x=integrated_seurat,
+#                               subset=cell_type %in% celltype)
+#   
+#   
+#   # Perform analysis on cell types like T cell, B cell rather than Myeloid, Lymphoid
+#   
+#   subtypes <- integrated_seurat@meta.data %>% 
+#     dplyr::select(cell_type) %>% 
+#     unlist(use.names=FALSE) %>%
+#     unique()
+#   
+#   for (subtype in subtypes){
+#     
+#     subset_seurat <- subset(x=integrated_seurat,
+#                             subset=cell_type == subtype)
+#     
+#     # Subset metadata
+#     meta_data <- subset_seurat@meta.data %>%
+#       dplyr::distinct(Sample, .keep_all=TRUE) %>%
+#       dplyr::mutate(Batch=1)
+#     
+#     #******************************IMPORT READ DATA******************************#                                           
+#     
+#     # The read data will have "the reads of all cells belonging to a single 
+#     # sample" merged together in each column. First, create a list of samples
+#     samples <- subset_seurat@meta.data %>% 
+#       dplyr::select(Sample) %>% 
+#       unlist(., use.names=FALSE) %>% 
+#       unique()
+#     
+#     # Second, create an empty dataframe with rows=genes and columns=samples
+#     read_data <- data.frame(matrix(NA, nrow=nrow(subset_seurat@assays$RNA$counts), ncol=nrow(meta_data)))
+#     rownames(read_data) <- rownames(subset_seurat@assays$RNA$counts)
+#     colnames(read_data) <- samples
+#     
+#     # Thirdly, we will add row-wise, the counts of each gene for each sample
+#     for(i in samples){
+#       
+#       # Create a list of cells for each sample
+#       cells_subset <- rownames(subset_seurat@meta.data %>% dplyr::filter(Sample == i))
+#       
+#       # Use data.frame to convert "." in sparse matrix to "0"
+#       subset <- data.frame(subset_seurat@assays$RNA$counts[,cells_subset])
+#       read_data[,i]  <- rowSums(subset)
+#     }
+#     
+#     read_data <- read_data %>% 
+#       tibble::rownames_to_column("SYMBOL")
+#     
+#     file_suffix <- subtype
+#     #analyze_DESeq2(meta_data, read_data, file_suffix)
+#     
+#     annotations <- get_annotations(species)
+#     meta_data <- prep_metadata(meta_data, Variable)
+#     read_data <- prep_readdata(read_data, meta_data)
+#     l <- check_data(read_data, meta_data)
+#     meta_data <- l[[2]]
+#     read_data <- l[[1]]
+#   }
+# }
 
 #*********************************CLEAR MEMORY*********************************#
 

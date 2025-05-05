@@ -14,12 +14,6 @@ library(ggfortify)
 iris.pca.plot <- autoplot(iris.pca, label=TRUE)
 
 
-
-
-
-
-
-
 # This R file contains all the user defined functions which can be imported
 # to analyze bulk RNA Seq, single cell RNA Seq, plot graphs etc
 

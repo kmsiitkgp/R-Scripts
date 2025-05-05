@@ -594,4 +594,125 @@ class %>%
   dplyr::count(class) %>%
   dplyr::mutate(percent_n = 100*n/sum(n))
 
+################# NG expression in GSE124312
 
+source("C:/Users/kailasamms/OneDrive - Cedars-Sinai Health System/Documents/GitHub/R-Scripts/RNASeq_DESeq2_Functions.R")
+
+anno <- read.table(file = "C:/Users/kailasamms/OneDrive - Cedars-Sinai Health System/Desktop/GSE124312/GSE124312_Vagus_AnnotationTable.txt",
+                   header=TRUE, fill=TRUE, row.names=NULL)
+
+# Use fill=FALSE. If some rows have missing data, then error will be thrown.
+expr <-  read.table(file = "C:/Users/kailasamms/OneDrive - Cedars-Sinai Health System/Desktop/GSE124312/GSE124312_Vagus_ExpressionTable.txt",
+                    header=TRUE, fill=FALSE, row.names=NULL)
+
+anno <- anno %>% dplyr::filter(!is.na(nGene))
+colnames(anno)[1] <- "Cell"
+colnames(expr)[1] <- "SYMBOL"
+colnames(expr) <- gsub(pattern="X0", replacement="0", x=colnames(expr))
+
+putative_efferent <- c("Chat", "Mnx1", "Neurog2", "Trpv1", "Chrm1", "Chrm2",
+                       "Chrm3", "Chrm4", "Chrm5", "Chrna1", "Chrna10", "Chrna2",
+                       "Crna3", "Chrna4", "Chrna5", "Chrna6", "Chrna7", "Chrnb1",
+                       "Chrnb2", "Chrnb3", "Chrnb4", "Chrne", "Chrng")
+
+expr <- expr %>% 
+  dplyr::filter(SYMBOL %in% putative_efferent) %>%
+  tibble::column_to_rownames("SYMBOL") %>%
+  t() %>%
+  data.frame() %>%
+  tibble::rownames_to_column("Cell") %>%
+  dplyr::left_join(anno, by=c("Cell"="Cell")) %>%
+  dplyr::select(Cell, Sample, Cluster, everything(), -c(nGene, nUMI, percent.mito))
+
+# For single cell GSE145216
+# plot_object <- subset(integrated_seurat, seurat_class=="Neurons")
+# anno <- plot_object@meta.data %>% dplyr::select(Cell, Sample)
+# expr <- plot_object@assays$RNA$data
+# expr <- expr %>%
+#   data.frame() %>%
+#   tibble::rownames_to_column("SYMBOL") %>%
+#   dplyr::filter(SYMBOL %in% putative_efferent) %>%
+#   tibble::column_to_rownames("SYMBOL") %>%
+#   t() %>%
+#   data.frame() %>%
+#   tibble::rownames_to_column("Cell") %>%
+#   dplyr::left_join(anno, by=c("Cell"="Cell"))
+
+mat <- expr %>%
+  tibble::column_to_rownames("Cell") %>%
+  dplyr::select(everything(), -c(Sample, Cluster))
+
+my_palette <- colorRampPalette(rev(brewer.pal(n = 11, name = "RdBu")))(100)
+
+if(max(mat) == 0){
+  breaks <- c(seq(from = min(mat), to = 0, length.out = 100))
+  my_palette <- my_palette[1:50]
+} else if (min(mat) == 0){
+  breaks <- c(seq(from = 0, to = max(mat), length.out = 100))
+  my_palette <- my_palette[50:100]
+} else if(min(mat) < -3 | max(mat) > 3){
+  breaks <- c(seq(-1.5, 0, length.out = 50), seq(1.5/100, 1.5, length.out = 50))
+} else{
+  breaks <- c(seq(from = min(mat), to = 0, length.out = 50), seq(from = max(mat)/100, to = max(mat), length.out = 50))
+}
+
+mat <- mat[,sort(colnames(mat))]
+pheatmap(mat, 
+         scale="column", 
+         breaks=breaks, show_rownames = FALSE, cluster_cols = FALSE, 
+         filename = "C:/Users/kailasamms/OneDrive - Cedars-Sinai Health System/Desktop/GSE124312_Heatmap.tiff")
+
+# Save the results
+wb <- openxlsx::createWorkbook()
+openxlsx::addWorksheet(wb, sheetName = "Expr")
+openxlsx::writeData(wb, sheet = "Expr", x = mat, rowNames = TRUE)
+openxlsx::saveWorkbook(wb, file = "C:/Users/kailasamms/OneDrive - Cedars-Sinai Health System/Desktop/GSE124312_Heatmap.xlsx", overwrite = TRUE)
+
+################# DRG expression in GSE249746 
+
+expr <-  read.csv(file = "C:/Users/kailasamms/OneDrive - Cedars-Sinai Health System/Desktop/GSE249746.csv",
+                  header=TRUE, fill=FALSE, row.names=NULL)
+
+colnames(expr)[1] <- "SYMBOL"
+colnames(expr) <- gsub(pattern="X0", replacement="0", x=colnames(expr))
+
+expr <- expr %>% 
+  tibble::column_to_rownames("SYMBOL")
+
+# Normalize for seq depth and log1p
+expr <- sweep(x=expr, MARGIN=2, STATS=colSums(expr), FUN = "/")
+expr <- expr*10000
+expr <- log1p(expr)
+
+
+mat <- expr %>% 
+  tibble::rownames_to_column("SYMBOL") %>%
+  dplyr::filter(SYMBOL %in% toupper(putative_efferent)) %>%
+  tibble::column_to_rownames("SYMBOL") %>%
+  t()
+
+my_palette <- colorRampPalette(rev(brewer.pal(n = 11, name = "RdBu")))(100)
+
+if(max(mat) == 0){
+  breaks <- c(seq(from = min(mat), to = 0, length.out = 100))
+  my_palette <- my_palette[1:50]
+} else if (min(mat) == 0){
+  breaks <- c(seq(from = 0, to = max(mat), length.out = 100))
+  my_palette <- my_palette[50:100]
+} else if(min(mat) < -3 | max(mat) > 3){
+  breaks <- c(seq(-1.5, 0, length.out = 50), seq(1.5/100, 1.5, length.out = 50))
+} else{
+  breaks <- c(seq(from = min(mat), to = 0, length.out = 50), seq(from = max(mat)/100, to = max(mat), length.out = 50))
+}
+
+mat <- mat[,sort(colnames(mat))]
+pheatmap(mat, 
+         scale="column", 
+         breaks=breaks, show_rownames = FALSE, cluster_cols = FALSE, 
+         filename = "C:/Users/kailasamms/OneDrive - Cedars-Sinai Health System/Desktop/GSE249746_Heatmap.tiff")
+
+# Save the results
+wb <- openxlsx::createWorkbook()
+openxlsx::addWorksheet(wb, sheetName = "Expr")
+openxlsx::writeData(wb, sheet = "Expr", x = mat, rowNames = TRUE)
+openxlsx::saveWorkbook(wb, file = "C:/Users/kailasamms/OneDrive - Cedars-Sinai Health System/Desktop/GSE249746_Heatmap.xlsx", overwrite = TRUE)

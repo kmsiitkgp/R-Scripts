@@ -2,6 +2,11 @@
 
 library(RColorBrewer)
 library(colorspace)
+library(ggplot2)
+
+show_col(viridis(6))
+show_col(inferno(6))
+show_col(turbo(6))
 
 # Extract the default ggplot2 color scheme
 ggplotColours <- function(n = 6, h = c(0, 360) + 15){
@@ -28,8 +33,8 @@ pie(rep(1,length(palette)), col=palette)
 library(RColorBrewer)
 n <- 25
 #qual_col_pals = brewer.pal.info[brewer.pal.info$category == 'div',]
-qual_col_pals = brewer.pal.info[brewer.pal.info$category == 'seq',]
-col_vector = unlist(mapply(brewer.pal, qual_col_pals$maxcolors, rownames(qual_col_pals)))
+qual_col_pals <- brewer.pal.info[brewer.pal.info$category == 'seq',]
+col_vector <- unlist(mapply(brewer.pal, qual_col_pals$maxcolors, rownames(qual_col_pals)))
 pie(rep(1,n), col=sample(col_vector, n))
 
 

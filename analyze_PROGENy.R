@@ -5,32 +5,6 @@
 chooseCRANmirror(ind=1)
 
 #******************************************************************************#
-#                          INSTALL NECESSARY PACKAGES                          #
-#******************************************************************************#
-
-# # Data analysis packages
-# install.packages("progeny")
-# 
-# # Data wrangling packages
-# install.packages("openxlsx")            # Needed for reading, writing xlsx files
-# install.packages("dplyr")               # Needed for data wrangling
-# install.packages("tibble")              # Needed for advanced data wrangling
-# install.packages("stringr")             # Needed for advanced data wrangling
-# 
-# 
-# # Graph plotting packages
-# install.packages("ggplot2")             # Needed for making graphs
-# install.packages("cowplot")             # Needed for merging multiple graphs
-# install.packages("viridis")             # Needed for nice graph coloring
-# install.packages("RColorBrewer")        # Needed for nice graph coloring
-# 
-# # Specialized Graph plotting packages
-# install.packages("pheatmap")            # Needed for making heatmap
-# 
-# # Single cell analysis packages
-# install.packages("Seurat")              # Needed for single cell analysis
-
-#******************************************************************************#
 #                           LOAD NECESSARY PACKAGES                            #
 #******************************************************************************#
 

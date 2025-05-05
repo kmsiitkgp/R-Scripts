@@ -1,8 +1,3 @@
-BiocManager::install("oligo")
-BiocManager::install("oligoData")
-BiocManager::install("illuminaHumanv4.db")
-BiocManager::install("GEOquery")
-
 #******************************************************************************#
 #                           LOAD NECESSARY PACKAGES                            #
 #******************************************************************************#
@@ -11,12 +6,12 @@ BiocManager::install("GEOquery")
 library("ensembldb")
 library("AnnotationHub")
 library("GEOquery")
-#library("affy")
-#library("lumi")
+library("affy")
+library("lumi")
 library("oligo")
 library("oligoData")
 library("illuminaHumanv4.db")
-#library("hgu133plus2.db")
+library("hgu133plus2.db")
 
 # Data wrangling packages     
 library("openxlsx")
@@ -160,7 +155,7 @@ if (excel_files == "TRUE"){
   # NOTE: GEO cautions that values in series matrix files may not be comparable 
   # across samples. Moreover, the values in series matrix files are sometimes
   # normalized, sometimes normalized and median centered etc which complicates
-  # the implementatio nof an universal code.
+  # the implementation of an universal code.
   # gset <- getGEO(gse)
   # gset <- gset[[1]]
   # raw_data <- exprs(gset) 

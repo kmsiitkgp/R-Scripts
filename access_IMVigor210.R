@@ -12,12 +12,6 @@ install.packages(c("lsmeans", "spatstat"))
 install.packages("https://www.bioconductor.org/packages//2.10/bioc/src/contrib/DESeq_1.8.3.tar.gz", repos = NULL)
 install.packages("https://github.com/SiYangming/IMvigor210CoreBiologies/releases/download/v2.0.0/IMvigor210CoreBiologies_2.0.0.tar.gz", repos = NULL)
 
-
-# Data wrangling packages
-install.packages("openxlsx")            # Needed for reading, writing xlsx files
-install.packages("dplyr")               # Needed for data wrangling
-install.packages("tibble")              # Needed for advanced data wrangling
-
 #******************************************************************************#
 #                           LOAD NECESSARY PACKAGES                            #
 #******************************************************************************#
