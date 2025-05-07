@@ -2426,6 +2426,8 @@ plot_survival <- function(expr_df, gene, survival_params, prefix, output_path){
   # Create a list of groups for multiple_cutoff calculation 
   if (survival_params$multiple_cutoff == TRUE & !is.na(survival_params$split_by)){
     groups <- expr_df %>% 
+      dplyr::add_count(get(survival_params$split_by)) %>%
+      dplyr::filter(n>2) %>%
       dplyr::select(all_of(survival_params$split_by)) %>% 
       unlist(use.names=FALSE) %>% 
       unique()
@@ -2663,8 +2665,8 @@ plot_heatmap <- function(norm_counts, metadata_column, metadata_row, heatmap_par
   #                    Row_Groups = c(`Pro-tumor Immune infiltrate` = "white", `Anti-tumor Immune infiltrate` = "white"))
   
   ann_colors <- list()
-  colors <- c("#BF812D", "#35978F", "#C51B7D", "#7FBC41", "#762A83",
-              "#E08214", "#542788", "#D6604D", "#4393C3", "#878787",
+  colors <- c("#E08214", "#762A83", "#C51B7D", "#7FBC41", "#35978F",
+              "#BF812D", "#542788", "#D6604D", "#4393C3", "#878787",
               "#E41A1C", "#F781BF", "#4DAF4A", "#FFFFBF", "#377EB8",
               "#984EA3", "#FF7F00", "#FFFF33", "#A65628", "#999999",
               "#66C2A5", "#FC8D62", "#000000", "#9E0142", "#1A1A1A",
@@ -2680,12 +2682,14 @@ plot_heatmap <- function(norm_counts, metadata_column, metadata_row, heatmap_par
   
   # Go through each variable and specify colors for each element within variable
   if (ann_total > 1){
+    start_n <- 1
+    end_n <- 0
     for (i in 1:ann_total){
       
       elements <- ann_list[[i]]
       palette_n <- length(elements)
       
-      if (palette_n > 1){
+      if (palette_n > 1 & heatmap_params$discrete_panel == FALSE){
         # Create a vector of transparency values.
         alphas <- base::seq(from=0, to=1, by=1/palette_n)
         
@@ -2698,8 +2702,12 @@ plot_heatmap <- function(norm_counts, metadata_column, metadata_row, heatmap_par
           palette_colors <- c(palette_colors,
                               colorspace::adjust_transparency(col = colors[i], alpha = alphas[n]))
         }
-      } else{
+      } else if (palette_n == 1 & heatmap_params$discrete_panel == FALSE) {
         palette_colors <- colorspace::adjust_transparency(col = colors[i], alpha = alphas[1])
+      } else{
+        end_n <- start_n + palette_n - 1
+        palette_colors <- colors[start_n:end_n]
+        start_n <- end_n+1
       }
       # Sort the elements within each variable
       names(palette_colors) <- sort(elements)

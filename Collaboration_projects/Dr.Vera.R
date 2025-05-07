@@ -278,6 +278,7 @@ heatmap_params <- list(anno.row       = NULL,        # NULL, c("Group")
                        col.split      = c("Treatment"),
                        row.cluster    = c("all"),           # c("alphabetical", "group", "all")
                        col.cluster    = c("alphabetical"),  # c("alphabetical", "group", "all")
+                       discrete_panel = FALSE, 
                        log.transform  = TRUE,
                        scale          = TRUE,
                        border_color   = "white",

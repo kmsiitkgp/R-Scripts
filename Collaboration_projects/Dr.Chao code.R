@@ -54,6 +54,7 @@ cam_genes <- c("CDH2", "CDH12", "LRFN1", "DAG1", "NLGN1", "NLGN2", "NLGN3",
                "ADGRB1", "ADGRB3") #"NRXN1", "NRXN2", "NRXN3",
 
 cam_scaffold_genes <- c(cam_genes, scaffold_genes)
+combo <- cam_scaffold_genes
 
 ampa <- c("GRIA1", "GRIA2", "GRIA3", "GRIA4")
 muscarinergic <- c("CHRM1", "CHRM2", "CHRM3", "CHRM4", "CHRM5")
@@ -716,3 +717,136 @@ wb <- openxlsx::createWorkbook()
 openxlsx::addWorksheet(wb, sheetName = "Expr")
 openxlsx::writeData(wb, sheet = "Expr", x = mat, rowNames = TRUE)
 openxlsx::saveWorkbook(wb, file = "C:/Users/kailasamms/OneDrive - Cedars-Sinai Health System/Desktop/GSE249746_Heatmap.xlsx", overwrite = TRUE)
+
+######Reviewer 4 Heatmap
+
+source("C:/Users/kailasamms/OneDrive - Cedars-Sinai Health System/Documents/GitHub/R-Scripts/RNASeq_DESeq2_Functions.R")
+
+heatmap_params <- list(anno.row       = c("Class"),        # NULL, c("Group")
+                       anno.column    = c("ajcc_pathologic_stage"),
+                       row.split      = c("Class"),     
+                       col.split      = NA, #c("ajcc_pathologic_stage"),
+                       row.cluster    = c("alphabetical"),           # c("alphabetical", "group", "all")
+                       col.cluster    = c("all"),           # c("alphabetical", "group", "all")
+                       discrete_panel = TRUE,
+                       log.transform  = TRUE,
+                       scale          = TRUE,
+                       border_color   = "white",
+                       bar_width      = NA,              # NA , 5
+                       bar_height     = NA,              # NA , 5
+                       width          = 7,               # NA
+                       height         = 7,               # NA 
+                       matrix_color   = "rdbu",          # c("vrds", "rdbu")
+                       expr_legend    = TRUE,  # set FALSE if it overlaps with annotation legends
+                       file_format    = "tiff")
+
+plot_genes <- c(cam_genes, scaffold_genes)
+disp_genes <- plot_genes
+output_path <- "C:/Users/kailasamms/OneDrive - Cedars-Sinai Health System/Desktop/"
+
+metadata_row <- data.frame(plot_genes) %>%
+  dplyr::mutate(Class = dplyr::case_when(plot_genes %in% cam_genes ~ "SynCAM",
+                                         TRUE ~ "Scaffold")) %>%
+  dplyr::rename(SYMBOL = plot_genes)
+
+# Import TCGA BLCA metadata
+parent_path <- "C:/Users/kailasamms/OneDrive - Cedars-Sinai Health System/FromBox/Dr.Chao project/"
+metadata_column <- openxlsx::read.xlsx(paste0(parent_path,"!TCGA_BLCA_Metadata.xlsx"))
+
+metadata_column <- metadata_column %>% 
+  dplyr::mutate(Sample_ID = make.names(names = Sample_id)) %>%
+  dplyr::mutate(Time = as.numeric(Time)) %>%
+  dplyr::filter(Time > 0 & !is.na(Time)) %>%
+  dplyr::distinct_at("GEO_ID", .keep_all = TRUE) %>%
+  dplyr::filter(!is.na(get(heatmap_params$anno.column)))
+
+# Import TCGA BLCA normalized counts
+normalized_counts <- read.xlsx(paste0(parent_path, "!TCGA_BLCA_Normalized_Counts.xlsx"))
+normalized_counts <- normalized_counts[, -c(2,3,4)]
+
+plot_heatmap(normalized_counts, metadata_column, metadata_row, heatmap_params,
+             plot_genes, disp_genes, "TCGA.Stage", output_path)
+
+######Reviewer 4 stage adjusted survival curves
+
+source("C:/Users/kailasamms/OneDrive - Cedars-Sinai Health System/Documents/GitHub/R-Scripts/RNASeq_DESeq2_Functions.R")
+output_path <- "C:/Users/kailasamms/OneDrive - Cedars-Sinai Health System/Desktop/"
+parent_path <- "C:/Users/kailasamms/OneDrive - Cedars-Sinai Health System/FromBox/Dr.Chao project/"
+
+survival_params <- list(plot_by             = c(NA), 
+                        split_by            = c("ajcc_pathologic_stage"),
+                        split_plot          = TRUE,
+                        multiple_cutoff     = TRUE,
+                        stratify_criteria   = c("o"),
+                        reference           = c("LOW"),
+                        conf_interval       = FALSE,
+                        plot_curve          = TRUE,
+                        plot_risk_table     = TRUE,
+                        legend_title        = "Expression",
+                        legend_label        = c("High", "Low"),
+                        color_palette       = c("#d73027","#0c2c84"),
+                        plot_all_bins       = FALSE,
+                        plot_all_quartiles  = FALSE,
+                        gene_sig_score      = TRUE)
+
+meta_data <- openxlsx::read.xlsx(paste0(parent_path,"!TCGA_BLCA_Metadata.xlsx"))
+read_data <- read.xlsx(paste0(parent_path, "!TCGA_BLCA_Normalized_Counts.xlsx"))
+read_data <- read_data[, -c(2,3,4)]
+
+# Reformat metadata 
+meta_data <- meta_data %>% 
+  dplyr::mutate(Sample_ID = make.names(names = Sample_id)) %>%
+  dplyr::mutate(Time = as.numeric(Time)) %>%
+  dplyr::filter(Time > 0 & !is.na(Time)) %>%
+  dplyr::distinct_at("Sample_ID", .keep_all = TRUE)
+
+# Reformat read data
+norm_counts <- read_data %>%
+  dplyr::mutate(SYMBOL = make.names(names = SYMBOL, unique = TRUE)) %>%
+  dplyr::distinct_at("SYMBOL", .keep_all = TRUE) %>%
+  tibble::column_to_rownames(var = "SYMBOL") %>%
+  dplyr::mutate(across(.cols = everything(), .fns = as.numeric))
+colnames(norm_counts) <- base::make.names(names = colnames(norm_counts))
+norm_counts <- norm_counts[,intersect(make.names(meta_data$Sample_ID), colnames(norm_counts))]
+norm_counts <- norm_counts[!rowSums(norm_counts, na.rm=TRUE) == 0,]
+
+log_norm_counts <- log(1+norm_counts, base=2)
+t <- base::apply(X=log_norm_counts, MARGIN=1, FUN=median, na.rm=TRUE)
+log_norm_counts <- base::sweep(x=log_norm_counts, MARGIN=1, FUN="-", STATS=t)
+
+for (p in c("cam_genes", "scaffold_genes", "combo")){
+  
+  plot_genes <- get(p)
+  
+  # Generate expr_df
+  expr_df <- prep_expr_df(log_norm_counts, meta_data, plot_genes, survival_params)
+  
+  # Create a list to store survminer cutoffs, coxph stats, etc..
+  stats <- list("gene" = c(),
+                "group" = c(),
+                "lower_cutoff" = c(),
+                "middle_cutoff" = c(),
+                "upper_cutoff" = c(),
+                "HR" = c(),
+                "CI_lower" = c(),
+                "CI_upper" = c(),
+                "logrank" = c(),  
+                "reg_logrank.late" = c(),
+                "Gehan_Breslow.early" = c(),
+                "Tarone_Ware.early"  = c(),
+                "Peto_Peto.early" = c(),
+                "modified_Peto_Peto"  = c(),
+                "Fleming_Harrington" = c())
+  
+  # Create a dataframe to classification info
+  classification_df <- expr_df %>% 
+    dplyr::select(Sample_ID) %>%
+    dplyr::mutate(Dummy_col = 0)
+  
+  if (survival_params$gene_sig_score == TRUE){
+    
+    gene <- "combined.exp"
+    prefix <- p
+  plot_survival(expr_df, gene, survival_params, prefix, output_path)
+  }
+}
