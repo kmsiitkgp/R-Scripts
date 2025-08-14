@@ -1,0 +1,253 @@
+[2025-07-29 13:45:57] [INFO]    [OmnipathR] Setting up new cache directory `C:\Users\KAILAS~1\AppData\Local\Cache\OmnipathR`.
+[2025-07-29 13:45:57] [TRACE]   [OmnipathR] Reading JSON from `C:\Users\KAILAS~1\AppData\Local\Cache\OmnipathR/cache.json` (encoding: UTF-8).
+[2025-07-29 13:45:57] [TRACE]   [OmnipathR] JSON validation successful: TRUE
+[2025-07-29 13:45:57] [INFO]    [OmnipathR] Initialized cache: `C:\Users\KAILAS~1\AppData\Local\Cache\OmnipathR`.
+[2025-07-29 13:45:57] [INFO]    [OmnipathR] Package `OmnipathR` packaged: 2025-04-16 02:45:43 UTC; biocbuild
+[2025-07-29 13:45:57] [INFO]    [OmnipathR] Package `OmnipathR` date/publication: 2025-04-15
+[2025-07-29 13:45:57] [INFO]    [OmnipathR] Package `OmnipathR` built: R 4.5.0; ; 2025-04-16 15:04:46 UTC; windows
+[2025-07-29 13:45:57] [INFO]    [OmnipathR] Package `OmnipathR` version: 3.16.0
+[2025-07-29 13:45:57] [INFO]    [OmnipathR] Package `OmnipathR` repository: Bioconductor 3.21
+[2025-07-29 13:46:19] [INFO]    [OmnipathR] Session info: [version=R version 4.5.1 (2025-06-13 ucrt); os=Windows 11 x64 (build 22631); system=x86_64, mingw32; ui=RStudio; language=(EN); collate=English_United States.utf8; ctype=English_United States.utf8; tz=America/Los_Angeles; date=2025-07-29; rstudio=2025.05.1+513 Mariposa Orchid (desktop); pandoc=3.4 @ C:/Program Files/RStudio/resources/app/bin/quarto/bin/tools/ (via rmarkdown); quarto=ERROR: Unknown command "TMPDIR=C:/Users/kailasamms/AppData/Local/Temp/RtmpATz88B/file3e6421d12535". Did you mean command "install"? @ C:\PROGRA~1\RStudio\RESOUR~1\app\bin\quarto\bin\quarto.exe]
+[2025-07-29 13:46:20] [INFO]    [OmnipathR] External libraries: [cairo=1.18.4; cairoFT=; pango=; png=1.6.48; jpeg=9.6; tiff=LIBTIFF, Version 4.7.0; tcl=8.6.16; curl=8.13.0; zlib=1.3.1; bzlib=1.0.8, 13-Jul-2019; xz=5.8.1; deflate=1.24; PCRE=10.45 2025-02-05; ICU=77.1; TRE=TRE 0.8.0 R_fixes (BSD); iconv=win_iconv; readline=; BLAS=; lapack=; lapack_version=3.12.1]
+[2025-07-29 13:46:21] [INFO]    [OmnipathR] Loaded packages: backports 1.5.0(2024-05-23); BiocManager 1.30.26(2025-06-05); BiocParallel 1.42.1(2025-05-29); bit 4.6.0(2025-03-06); bit64 4.6.0-1(2025-01-16); blob 1.2.4(2023-03-17); cachem 1.1.0(2024-05-16); cellranger 1.1.0(2016-07-27); checkmate 2.3.2(2024-07-29); cli 3.6.5(2025-04-23); codetools 0.2-20(2024-03-31); colorspace 2.1-1(2024-07-26); crayon 1.5.3(2024-06-20); curl 6.4.0(2025-06-22); DBI 1.2.3(2024-06-02); decoupleR 2.9.7(2025-07-29); digest 0.6.37(2024-08-19); dplyr 1.1.4(2023-11-17); evaluate 1.0.4(2025-06-18); farver 2.1.2(2024-05-13); fastmap 1.2.0(2024-05-15); fs 1.6.6(2025-04-12); generics 0.1.4(2025-05-09); ggplot2 3.5.2(2025-04-09); ggrepel 0.9.6(2024-09-07); glue 1.8.0(2024-09-30); gridExtra 2.3(2017-09-09); gtable 0.3.6(2024-10-25); highr 0.11(2024-05-26); hms 1.1.3(2023-03-21); htmltools 0.5.8.1(2024-04-04); httr 1.4.7(2023-08-15); httr2 1.2.1(2025-07-22); igraph 2.1.4(2025-01-23); jsonlite 2.0.0(2025-03-27); knitr 1.50(2025-03-16); labeling 0.4.3(2023-08-29); later 1.4.2(2025-04-08); lattice 0.22-7(2025-04-02); lifecycle 1.0.4(2023-11-07); logger 0.4.0(2024-10-22); lubridate 1.9.4(2024-12-08); magrittr 2.0.3(2022-03-30); Matrix 1.7-3(2025-03-11); memoise 2.0.1(2021-11-26); OmnipathR 3.16.0(2025-04-15); parallelly 1.45.0(2025-06-02); pillar 1.11.0(2025-07-04); pkgconfig 2.0.3(2019-09-22); plyr 1.8.9(2023-10-02); Polychrome 1.5.4(2025-04-06); prettyunits 1.2.0(2023-09-24); progeny 1.30.0(2025-04-15); progress 1.2.3(2023-12-06); purrr 1.1.0(2025-07-10); R.methodsS3 1.8.2(2022-06-13); R.oo 1.27.1(2025-05-02); R.utils 2.13.0(2025-02-24); R6 2.6.1(2025-02-15); rappdirs 0.3.3(2021-01-31); RColorBrewer 1.1-3(2022-04-03); Rcpp 1.1.0(2025-07-02); readr 2.1.5(2024-01-10); readxl 1.4.5(2025-03-07); remotes 2.5.0(2024-03-17); reshape2 1.4.4(2020-04-09); rlang 1.1.6(2025-04-11); rmarkdown 2.29(2024-11-04); RSQLite 2.4.2(2025-07-18); rvest 1.0.4(2024-02-12); scales 1.4.0(2025-04-24); scatterplot3d 0.3-44(2023-05-05); scico 1.5.0(2023-08-14); sessioninfo 1.2.3(2025-02-05); stringi 1.8.7(2025-03-27); stringr 1.5.1(2023-11-14); tibble 3.3.0(2025-06-08); tidyr 1.3.1(2024-01-24); tidyselect 1.2.1(2024-03-11); timechange 0.3.0(2024-01-18); tzdb 0.5.0(2025-03-15); vctrs 0.6.5(2023-12-01); viridisLite 0.4.2(2023-05-02); withr 3.0.2(2024-10-28); xfun 0.52(2025-04-02); XML 3.99-0.18(2025-01-01); xml2 1.3.8(2025-03-14); yaml 2.3.10(2024-07-26); zip 2.3.3(2025-05-13)
+[2025-07-29 13:46:21] [INFO]    [OmnipathR] CURL: version: 8.14.1; headers: 8.14.1; ssl_version: (OpenSSL/3.5.0) Schannel; libz_version: 1.3; libssh_version: libssh2/1.11.0; libidn_version: NA; host: x86_64-w64-mingw32; protocols: dict, file, ftp, ftps, gopher, gophers, http, https, imap, imaps, ldap, ldaps, mqtt, pop3, pop3s, rtsp, scp, sftp, smb, smbs, smtp, smtps, telnet, tftp, ws, wss; ipv6: TRUE; http2: TRUE; idn: TRUE; url_parser: TRUE
+[2025-07-29 13:46:21] [TRACE]   [OmnipathR] Reading JSON from `C:/Users/kailasamms/AppData/Local/R/win-library/4.5/OmnipathR/db/db_def.json` (encoding: UTF-8).
+[2025-07-29 13:46:21] [TRACE]   [OmnipathR] JSON validation successful: TRUE
+[2025-07-29 13:46:21] [TRACE]   [OmnipathR] Reading JSON from `C:/Users/kailasamms/AppData/Local/R/win-library/4.5/OmnipathR/internal/magic_bytes.json` (encoding: UTF-8).
+[2025-07-29 13:46:21] [TRACE]   [OmnipathR] JSON validation successful: TRUE
+[2025-07-29 13:46:21] [TRACE]   [OmnipathR] Reading JSON from `C:/Users/kailasamms/AppData/Local/R/win-library/4.5/OmnipathR/internal/urls.json` (encoding: UTF-8).
+[2025-07-29 13:46:21] [TRACE]   [OmnipathR] JSON validation successful: TRUE
+[2025-07-29 13:46:21] [TRACE]   [OmnipathR] Reading JSON from `C:/Users/kailasamms/AppData/Local/R/win-library/4.5/OmnipathR/internal/id_types.json` (encoding: UTF-8).
+[2025-07-29 13:46:21] [TRACE]   [OmnipathR] JSON validation successful: TRUE
+[2025-07-29 13:46:21] [INFO]    [OmnipathR] Loading database `Ensembl and OMA organism names`.
+[2025-07-29 13:46:21] [TRACE]   [OmnipathR] Reading JSON from `C:\Users\KAILAS~1\AppData\Local\Cache\OmnipathR/cache.json` (encoding: UTF-8).
+[2025-07-29 13:46:21] [TRACE]   [OmnipathR] JSON validation successful: TRUE
+[2025-07-29 13:46:21] [INFO]    [OmnipathR] Looking up in cache `https://www.ensembl.org/info/about/species.html`: key=7332486db7400730697234bad76ca0c8e4d00799, no version available.
+[2025-07-29 13:46:21] [TRACE]   [OmnipathR] Reading JSON from `C:\Users\KAILAS~1\AppData\Local\Cache\OmnipathR/cache.json` (encoding: UTF-8).
+[2025-07-29 13:46:21] [TRACE]   [OmnipathR] JSON validation successful: TRUE
+[2025-07-29 13:46:21] [INFO]    [OmnipathR] Created new version for cache record 7332486db7400730697234bad76ca0c8e4d00799: version 1.
+[2025-07-29 13:46:21] [TRACE]   [OmnipathR] Cache file path: C:\Users\KAILAS~1\AppData\Local\Cache\OmnipathR/7332486db7400730697234bad76ca0c8e4d00799-1.html
+[2025-07-29 13:46:21] [INFO]    [OmnipathR] Retrieving URL: `https://www.ensembl.org/info/about/species.html`
+[2025-07-29 13:46:21] [TRACE]   [OmnipathR] Downloading by `httr2` in `download_base`.
+[2025-07-29 13:46:21] [TRACE]   [OmnipathR] Attempt 1/3: `https://www.ensembl.org/info/about/species.html`
+[2025-07-29 13:46:21] [TRACE]   [OmnipathR] Preparing httr2 request to URL `https://www.ensembl.org/info/about/species.html`.
+[2025-07-29 13:46:21] [TRACE]   [OmnipathR] HTTP headers: [User-Agent=Mozilla/5.0 (X11; Linux x86_64; rv:134.0) Gecko/20100101 Firefox/134.0]
+[2025-07-29 13:46:21] [TRACE]   [OmnipathR] Curl options: [connecttimeout=10,timeout=300,debugfunction=<function>,verbose=FALSE,tcp_keepalive=TRUE,tcp_keepintvl=10,tcp_keepidle=10,tcp_keepcnt=13,upkeep_interval_ms=30000,ssl_verifypeer=1,ssl_verifyhost=2]
+[2025-07-29 13:46:21] [TRACE]   [OmnipathR] HTTP headers: [User-Agent=Mozilla/5.0 (X11; Linux x86_64; rv:134.0) Gecko/20100101 Firefox/134.0]
+[2025-07-29 13:46:21] [TRACE]   [OmnipathR] Sending HTTP request.
+[2025-07-29 13:46:22] [TRACE]   [OmnipathR] HTTP 200 (OK)
+[2025-07-29 13:46:22] [TRACE]   [OmnipathR] HTTP v2 GET: status 200.
+[2025-07-29 13:46:22] [TRACE]   [OmnipathR] Downloaded 31.2 Kb in 1.293352s from www.ensembl.org (24.1 Kb/s); Redirect: 0.99279s, DNS look up: 0.146305s, Connection: 0.349535s, Pretransfer: 0.780232s, First byte at: 1.289672s
+[2025-07-29 13:46:22] [TRACE]   [OmnipathR] HTTP headers: HTTP/1.1 302 Found; Date: Tue, 29 Jul 2025 20:46:22 GMT; Content-Type: text/html; charset=iso-8859-1; Content-Length: 288; Connection: keep-alive; Server: Apache; Set-cookie: redirect_mirror=; path=/; expires=Mon, 01-Jan-2001 00:00:01 GMT; Location: //useast.ensembl.org/info/about/species.html?redirectsrc=//www.ensembl.org%2Finfo%2Fabout%2Fspecies.html; X-NGINX-MACHINE: wp-p1m2-33.ebi.ac.uk; HTTP/2 302 ; date: Tue, 29 Jul 2025 20:46:22 GMT; content-type: text/html; charset=iso-8859-1; content-length: 208; server: Apache; set-cookie: redirected_from_url=%2F%2Fwww.ensembl.org%252Finfo%252Fabout%252Fspecies.html; path=/; expires=Thu, 31-Dec-2037 23:59:59 GMT; location: /info/about/species.html; x-nginx-machine: ip-10-25-25-73.us-east-2.compute.internal; HTTP/2 200 ; date: Tue, 29 Jul 2025 20:46:22 GMT; content-type: text/html; charset=utf-8; content-length: 31952; server: Apache; set-cookie: redirect_mirror=; path=/; expires=Mon, 01-Jan-2001 00:00:01 GMT; set-cookie: redirect_mirror=no; path=/; expires=Wed, 30 Jul 2025 20:39:46 GMT; set-cookie: ENSEMBL_WWW_SESSION=87e2d90a5438b36709074c7d68d84b9205c278a35e729884215d6f82; path=/; expires=Thu, 31-Dec-2037 23:59:59 GMT; HttpOnly; set-cookie: redirect_mirror=; path=/; expires=Mon, 01-Jan-2001 00:00:01 GMT; set-cookie: redirect_mirror=no; path=/; expires=Wed, 30 Jul 2025 20:39:46 GMT; set-cookie: ENSEMBL_WWW_SESSION=87e2d90a5438b36709074c7d68d84b9205c278a35e729884215d6f82; path=/; expires=Thu, 31-Dec-2037 23:59:59 GMT; HttpOnly; vary: Accept-Encoding; content-encoding: gzip; x-frame-options: SAMEORIGIN; content-security-policy: frame-ancestors 'self'; x-nginx-machine: ip-10-25-25-86.us-east-2.compute.internal
+[2025-07-29 13:46:22] [TRACE]   [OmnipathR] Response headers: [date=Tue, 29 Jul 2025 20:46:22 GMT,content-type=text/html; charset=utf-8,content-length=31952,server=Apache,set-cookie=redirect_mirror=; path=/; expires=Mon, 01-Jan-2001 00:00:01 GMT,set-cookie=redirect_mirror=no; path=/; expires=Wed, 30 Jul 2025 20:39:46 GMT,set-cookie=ENSEMBL_WWW_SESSION=87e2d90a5438b36709074c7d68d84b9205c278a35e729884215d6f82; path=/; expires=Thu, 31-Dec-2037 23:59:59 GMT; HttpOnly,set-cookie=redirect_mirror=; path=/; expires=Mon, 01-Jan-2001 00:00:01 GMT,set-cookie=redirect_mirror=no; path=/; expires=Wed, 30 Jul 2025 20:39:46 GMT,set-cookie=ENSEMBL_WWW_SESSION=87e2d90a5438b36709074c7d68d84b9205c278a35e729884215d6f82; path=/; expires=Thu, 31-Dec-2037 23:59:59 GMT; HttpOnly,vary=Accept-Encoding,content-encoding=gzip,x-frame-options=SAMEORIGIN,content-security-policy=frame-ancestors 'self',x-nginx-machine=ip-10-25-25-86.us-east-2.compute.internal]
+[2025-07-29 13:46:22] [INFO]    [OmnipathR] Download ready [key=7332486db7400730697234bad76ca0c8e4d00799, version=1]
+[2025-07-29 13:46:22] [TRACE]   [OmnipathR] Reading JSON from `C:\Users\KAILAS~1\AppData\Local\Cache\OmnipathR/cache.json` (encoding: UTF-8).
+[2025-07-29 13:46:22] [TRACE]   [OmnipathR] JSON validation successful: TRUE
+[2025-07-29 13:46:22] [INFO]    [OmnipathR] Cache item `7332486db7400730697234bad76ca0c8e4d00799` version 1: status changed from `unknown` to `ready`.
+[2025-07-29 13:46:22] [TRACE]   [OmnipathR] Downloading by `generic_downloader`.
+[2025-07-29 13:46:23] [TRACE]   [OmnipathR] Looking up in cache: `https://omabrowser.org/All/oma-species.txt`.
+[2025-07-29 13:46:23] [INFO]    [OmnipathR] Cache record does not exist: `https://omabrowser.org/All/oma-species.txt`
+[2025-07-29 13:46:23] [TRACE]   [OmnipathR] Could not find in cache, initiating download: `https://omabrowser.org/All/oma-species.txt`.
+[2025-07-29 13:46:23] [TRACE]   [OmnipathR] Reading JSON from `C:\Users\KAILAS~1\AppData\Local\Cache\OmnipathR/cache.json` (encoding: UTF-8).
+[2025-07-29 13:46:23] [TRACE]   [OmnipathR] JSON validation successful: TRUE
+[2025-07-29 13:46:23] [TRACE]   [OmnipathR] Reading JSON from `C:\Users\KAILAS~1\AppData\Local\Cache\OmnipathR/cache.json` (encoding: UTF-8).
+[2025-07-29 13:46:23] [TRACE]   [OmnipathR] JSON validation successful: TRUE
+[2025-07-29 13:46:23] [INFO]    [OmnipathR] Cache item `30e690cbb55dfc63b5903ab337f34ffc2f4be397` version 1: status changed from `unknown` to `started`.
+[2025-07-29 13:46:23] [TRACE]   [OmnipathR] Exporting object to RDS: `C:\Users\KAILAS~1\AppData\Local\Cache\OmnipathR/30e690cbb55dfc63b5903ab337f34ffc2f4be397-1.rds`.
+[2025-07-29 13:46:23] [INFO]    [OmnipathR] Retrieving URL: `https://omabrowser.org/All/oma-species.txt`
+[2025-07-29 13:46:23] [TRACE]   [OmnipathR] Attempt 1/3: `https://omabrowser.org/All/oma-species.txt`
+[2025-07-29 13:46:23] [TRACE]   [OmnipathR] HTTP request by `omnipath_curl`.
+[2025-07-29 13:46:23] [TRACE]   [OmnipathR] Curl options: [connecttimeout=10,timeout=300,debugfunction=<function>,verbose=FALSE,tcp_keepalive=TRUE,tcp_keepintvl=10,tcp_keepidle=10,tcp_keepcnt=13,upkeep_interval_ms=30000,ssl_verifypeer=1,ssl_verifyhost=2]
+[2025-07-29 13:46:24] [TRACE]   [OmnipathR] HTTP v2 GET: status 200.
+[2025-07-29 13:46:24] [TRACE]   [OmnipathR] Downloaded 8.7 Kb in 0.9506s from omabrowser.org (9.1 Kb/s); Redirect: 0s, DNS look up: 0.059751s, Connection: 0.219563s, Pretransfer: 0.787627s, First byte at: 0.950012s
+[2025-07-29 13:46:24] [TRACE]   [OmnipathR] HTTP headers: HTTP/2 200 ; date: Tue, 29 Jul 2025 20:46:24 GMT; server: nginx; strict-transport-security: max-age=31536000; includeSubDomains; content-type: text/plain; charset=UTF-8; last-modified: Wed, 20 Nov 2024 10:20:02 GMT; etag: W/"673db7d2-6517f"; access-control-allow-origin: *; content-encoding: gzip
+[2025-07-29 13:46:25] [TRACE]   [OmnipathR] Exported RDS to `C:\Users\KAILAS~1\AppData\Local\Cache\OmnipathR/30e690cbb55dfc63b5903ab337f34ffc2f4be397-1.rds`.
+[2025-07-29 13:46:25] [INFO]    [OmnipathR] Download ready [key=30e690cbb55dfc63b5903ab337f34ffc2f4be397, version=1]
+[2025-07-29 13:46:25] [TRACE]   [OmnipathR] Reading JSON from `C:\Users\KAILAS~1\AppData\Local\Cache\OmnipathR/cache.json` (encoding: UTF-8).
+[2025-07-29 13:46:25] [TRACE]   [OmnipathR] JSON validation successful: TRUE
+[2025-07-29 13:46:25] [INFO]    [OmnipathR] Cache item `30e690cbb55dfc63b5903ab337f34ffc2f4be397` version 1: status changed from `started` to `ready`.
+[2025-07-29 13:46:25] [INFO]    [OmnipathR] Loaded database `Ensembl and OMA organism names`.
+[2025-07-29 13:46:25] [TRACE]   [OmnipathR] Processing args for OmniPath query
+[2025-07-29 13:46:25] [TRACE]   [OmnipathR] Arguments for OmniPath query: [dorothea_levels=[A,B,C,D],genesymbols=TRUE,organisms=9606,query_type=interactions,datasets=dorothea]
+[2025-07-29 13:46:25] [TRACE]   [OmnipathR] Organism(s): 9606
+[2025-07-29 13:46:25] [TRACE]   [OmnipathR] Orthology targets: 
+[2025-07-29 13:46:25] [TRACE]   [OmnipathR] Looking up in cache: `https://omnipathdb.org/interactions?genesymbols=yes&datasets=dorothea&organisms=9606&dorothea_levels=A,B,C,D&fields=sources,references,curation_effort,dorothea_level&license=academic`
+[2025-07-29 13:46:25] [INFO]    [OmnipathR] Cache record does not exist: `https://omnipathdb.org/interactions?genesymbols=yes&datasets=dorothea&organisms=9606&dorothea_levels=A,B,C,D&fields=sources,references,curation_effort,dorothea_level&license=academic`
+[2025-07-29 13:46:25] [TRACE]   [OmnipathR] Looking up in cache: `http://no-tls.omnipathdb.org/interactions?genesymbols=yes&datasets=dorothea&organisms=9606&dorothea_levels=A,B,C,D&fields=sources,references,curation_effort,dorothea_level&license=academic`
+[2025-07-29 13:46:25] [INFO]    [OmnipathR] Cache record does not exist: `http://no-tls.omnipathdb.org/interactions?genesymbols=yes&datasets=dorothea&organisms=9606&dorothea_levels=A,B,C,D&fields=sources,references,curation_effort,dorothea_level&license=academic`
+[2025-07-29 13:46:25] [TRACE]   [OmnipathR] Attempting `https://omnipathdb.org/interactions?genesymbols=yes&datasets=dorothea&organisms=9606&dorothea_levels=A,B,C,D&fields=sources,references,curation_effort,dorothea_level&license=academic`
+[2025-07-29 13:46:25] [INFO]    [OmnipathR] Retrieving URL: `https://omnipathdb.org/interactions?genesymbols=yes&datasets=dorothea&organisms=9606&dorothea_levels=A,B,C,D&fields=sources,references,curation_effort,dorothea_level&license=academic`
+[2025-07-29 13:46:25] [TRACE]   [OmnipathR] Attempt 1/3: `https://omnipathdb.org/interactions?genesymbols=yes&datasets=dorothea&organisms=9606&dorothea_levels=A,B,C,D&fields=sources,references,curation_effort,dorothea_level&license=academic`
+[2025-07-29 13:46:25] [TRACE]   [OmnipathR] HTTP request by `omnipath_curl`.
+[2025-07-29 13:46:25] [TRACE]   [OmnipathR] Curl options: [connecttimeout=10,timeout=300,debugfunction=<function>,verbose=FALSE,tcp_keepalive=TRUE,tcp_keepintvl=10,tcp_keepidle=10,tcp_keepcnt=13,upkeep_interval_ms=30000,ssl_verifypeer=1,ssl_verifyhost=2]
+[2025-07-29 13:46:26] [TRACE]   [OmnipathR] HTTP v1 GET: status 200.
+[2025-07-29 13:46:26] [TRACE]   [OmnipathR] Downloaded 15.7 Kb in 1.053563s from omnipathdb.org (14.9 Kb/s); Redirect: 0s, DNS look up: 0.07077s, Connection: 0.215111s, Pretransfer: 0.767793s, First byte at: 1.052674s
+[2025-07-29 13:46:26] [TRACE]   [OmnipathR] HTTP headers: HTTP/1.1 200 OK; Server: nginx; Date: Tue, 29 Jul 2025 20:46:26 GMT; Content-Type: text/plain; charset=utf-8; Transfer-Encoding: chunked; Connection: keep-alive; Cache-Control: max-age=3600; Access-Control-Allow-Origin: *; Expires: Tue, 29 Jul 2025 21:46:26 GMT; Cache-Control: public; X-Frame-Options: DENY; Content-Encoding: gzip
+[2025-07-29 13:46:28] [INFO]    [OmnipathR] Successfully retrieved: `https://omnipathdb.org/interactions?genesymbols=yes&datasets=dorothea&organisms=9606&dorothea_levels=A,B,C,D&fields=sources,references,curation_effort,dorothea_level&license=academic`
+[2025-07-29 13:46:28] [TRACE]   [OmnipathR] Reading JSON from `C:\Users\KAILAS~1\AppData\Local\Cache\OmnipathR/cache.json` (encoding: UTF-8).
+[2025-07-29 13:46:28] [TRACE]   [OmnipathR] JSON validation successful: TRUE
+[2025-07-29 13:46:28] [TRACE]   [OmnipathR] Reading JSON from `C:\Users\KAILAS~1\AppData\Local\Cache\OmnipathR/cache.json` (encoding: UTF-8).
+[2025-07-29 13:46:28] [TRACE]   [OmnipathR] JSON validation successful: TRUE
+[2025-07-29 13:46:28] [INFO]    [OmnipathR] Cache item `46d37339bbc3f9a05bb89ccb79278cf1233f5cdf` version 1: status changed from `unknown` to `started`.
+[2025-07-29 13:46:28] [TRACE]   [OmnipathR] Exporting object to RDS: `C:\Users\KAILAS~1\AppData\Local\Cache\OmnipathR/46d37339bbc3f9a05bb89ccb79278cf1233f5cdf-1.rds`.
+[2025-07-29 13:46:28] [TRACE]   [OmnipathR] Exported RDS to `C:\Users\KAILAS~1\AppData\Local\Cache\OmnipathR/46d37339bbc3f9a05bb89ccb79278cf1233f5cdf-1.rds`.
+[2025-07-29 13:46:28] [INFO]    [OmnipathR] Download ready [key=46d37339bbc3f9a05bb89ccb79278cf1233f5cdf, version=1]
+[2025-07-29 13:46:28] [TRACE]   [OmnipathR] Reading JSON from `C:\Users\KAILAS~1\AppData\Local\Cache\OmnipathR/cache.json` (encoding: UTF-8).
+[2025-07-29 13:46:28] [TRACE]   [OmnipathR] JSON validation successful: TRUE
+[2025-07-29 13:46:28] [INFO]    [OmnipathR] Cache item `46d37339bbc3f9a05bb89ccb79278cf1233f5cdf` version 1: status changed from `started` to `ready`.
+[2025-07-29 13:46:32] [SUCCESS] [OmnipathR] Downloaded 278830 interactions.
+[2025-07-29 13:52:31] [TRACE]   [OmnipathR] Processing args for OmniPath query
+[2025-07-29 13:52:31] [TRACE]   [OmnipathR] Arguments for OmniPath query: [dorothea_levels=[A,B,C,D],genesymbols=TRUE,organisms=9606,query_type=interactions,datasets=dorothea]
+[2025-07-29 13:52:31] [TRACE]   [OmnipathR] Organism(s): 9606
+[2025-07-29 13:52:31] [TRACE]   [OmnipathR] Orthology targets: 
+[2025-07-29 13:52:31] [TRACE]   [OmnipathR] Looking up in cache: `https://omnipathdb.org/interactions?genesymbols=yes&datasets=dorothea&organisms=9606&dorothea_levels=A,B,C,D&fields=sources,references,curation_effort,dorothea_level&license=academic`
+[2025-07-29 13:52:31] [TRACE]   [OmnipathR] Loaded data from RDS `C:\Users\KAILAS~1\AppData\Local\Cache\OmnipathR/46d37339bbc3f9a05bb89ccb79278cf1233f5cdf-1.rds`.
+[2025-07-29 13:52:31] [INFO]    [OmnipathR] Loaded from cache: `https://omnipathdb.org/interactions?genesymbols=yes&datasets=dorothea&organisms=9606&dorothea_levels=A,B,C,D&fields=sources,references,curation_effort,dorothea_level&license=academic`
+[2025-07-29 13:52:35] [SUCCESS] [OmnipathR] Loaded 278830 interactions from cache.
+[2025-07-29 14:06:54] [TRACE]   [OmnipathR] Processing args for OmniPath query
+[2025-07-29 14:06:54] [TRACE]   [OmnipathR] Arguments for OmniPath query: [loops=TRUE,extra_attrs=TRUE,levels=[A,B,C],organisms=9606,genesymbols=TRUE,query_type=interactions,datasets=collectri]
+[2025-07-29 14:06:54] [TRACE]   [OmnipathR] Organism(s): 9606
+[2025-07-29 14:06:54] [TRACE]   [OmnipathR] Orthology targets: 
+[2025-07-29 14:06:54] [WARN]    [OmnipathR] Unknown parameter: `levels`.
+[2025-07-29 14:06:54] [WARN]    [OmnipathR] Unknown parameter: `levels`.
+[2025-07-29 14:06:54] [TRACE]   [OmnipathR] Looking up in cache: `https://omnipathdb.org/interactions?genesymbols=yes&datasets=collectri&organisms=9606&fields=extra_attrs,sources,references,curation_effort&loops=yes&license=academic`
+[2025-07-29 14:06:54] [INFO]    [OmnipathR] Cache record does not exist: `https://omnipathdb.org/interactions?genesymbols=yes&datasets=collectri&organisms=9606&fields=extra_attrs,sources,references,curation_effort&loops=yes&license=academic`
+[2025-07-29 14:06:54] [TRACE]   [OmnipathR] Looking up in cache: `http://no-tls.omnipathdb.org/interactions?genesymbols=yes&datasets=collectri&organisms=9606&fields=extra_attrs,sources,references,curation_effort&loops=yes&license=academic`
+[2025-07-29 14:06:54] [INFO]    [OmnipathR] Cache record does not exist: `http://no-tls.omnipathdb.org/interactions?genesymbols=yes&datasets=collectri&organisms=9606&fields=extra_attrs,sources,references,curation_effort&loops=yes&license=academic`
+[2025-07-29 14:06:54] [TRACE]   [OmnipathR] Attempting `https://omnipathdb.org/interactions?genesymbols=yes&datasets=collectri&organisms=9606&fields=extra_attrs,sources,references,curation_effort&loops=yes&license=academic`
+[2025-07-29 14:06:54] [INFO]    [OmnipathR] Retrieving URL: `https://omnipathdb.org/interactions?genesymbols=yes&datasets=collectri&organisms=9606&fields=extra_attrs,sources,references,curation_effort&loops=yes&license=academic`
+[2025-07-29 14:06:54] [TRACE]   [OmnipathR] Attempt 1/3: `https://omnipathdb.org/interactions?genesymbols=yes&datasets=collectri&organisms=9606&fields=extra_attrs,sources,references,curation_effort&loops=yes&license=academic`
+[2025-07-29 14:06:54] [TRACE]   [OmnipathR] HTTP request by `omnipath_curl`.
+[2025-07-29 14:06:54] [TRACE]   [OmnipathR] Curl options: [connecttimeout=10,timeout=300,debugfunction=<function>,verbose=FALSE,tcp_keepalive=TRUE,tcp_keepintvl=10,tcp_keepidle=10,tcp_keepcnt=13,upkeep_interval_ms=30000,ssl_verifypeer=1,ssl_verifyhost=2]
+[2025-07-29 14:06:56] [TRACE]   [OmnipathR] HTTP v1 GET: status 200.
+[2025-07-29 14:06:57] [TRACE]   [OmnipathR] Downloaded 31.7 Kb in 2.324014s from omnipathdb.org (13.6 Kb/s); Redirect: 0s, DNS look up: 0.058834s, Connection: 0.201594s, Pretransfer: 0.354353s, First byte at: 2.321094s
+[2025-07-29 14:06:57] [TRACE]   [OmnipathR] HTTP headers: HTTP/1.1 200 OK; Server: nginx; Date: Tue, 29 Jul 2025 21:06:57 GMT; Content-Type: text/plain; charset=utf-8; Transfer-Encoding: chunked; Connection: keep-alive; Cache-Control: max-age=3600; Access-Control-Allow-Origin: *; Expires: Tue, 29 Jul 2025 22:06:57 GMT; Cache-Control: public; X-Frame-Options: DENY; Content-Encoding: gzip
+[2025-07-29 14:06:58] [INFO]    [OmnipathR] Successfully retrieved: `https://omnipathdb.org/interactions?genesymbols=yes&datasets=collectri&organisms=9606&fields=extra_attrs,sources,references,curation_effort&loops=yes&license=academic`
+[2025-07-29 14:06:58] [TRACE]   [OmnipathR] Reading JSON from `C:\Users\KAILAS~1\AppData\Local\Cache\OmnipathR/cache.json` (encoding: UTF-8).
+[2025-07-29 14:06:58] [TRACE]   [OmnipathR] JSON validation successful: TRUE
+[2025-07-29 14:06:58] [TRACE]   [OmnipathR] Reading JSON from `C:\Users\KAILAS~1\AppData\Local\Cache\OmnipathR/cache.json` (encoding: UTF-8).
+[2025-07-29 14:06:58] [TRACE]   [OmnipathR] JSON validation successful: TRUE
+[2025-07-29 14:06:58] [INFO]    [OmnipathR] Cache item `76e3673f92890910194d45678b3125a5674920d6` version 1: status changed from `unknown` to `started`.
+[2025-07-29 14:06:58] [TRACE]   [OmnipathR] Exporting object to RDS: `C:\Users\KAILAS~1\AppData\Local\Cache\OmnipathR/76e3673f92890910194d45678b3125a5674920d6-1.rds`.
+[2025-07-29 14:06:58] [TRACE]   [OmnipathR] Exported RDS to `C:\Users\KAILAS~1\AppData\Local\Cache\OmnipathR/76e3673f92890910194d45678b3125a5674920d6-1.rds`.
+[2025-07-29 14:06:58] [INFO]    [OmnipathR] Download ready [key=76e3673f92890910194d45678b3125a5674920d6, version=1]
+[2025-07-29 14:06:58] [TRACE]   [OmnipathR] Reading JSON from `C:\Users\KAILAS~1\AppData\Local\Cache\OmnipathR/cache.json` (encoding: UTF-8).
+[2025-07-29 14:06:58] [TRACE]   [OmnipathR] JSON validation successful: TRUE
+[2025-07-29 14:06:58] [INFO]    [OmnipathR] Cache item `76e3673f92890910194d45678b3125a5674920d6` version 1: status changed from `started` to `ready`.
+[2025-07-29 14:06:58] [TRACE]   [OmnipathR] Converting JSON column `extra_attrs` to list.
+[2025-07-29 14:07:00] [SUCCESS] [OmnipathR] Downloaded 64958 interactions.
+[2025-07-29 14:07:00] [TRACE]   [OmnipathR] Processing args for OmniPath query
+[2025-07-29 14:07:00] [TRACE]   [OmnipathR] Arguments for OmniPath query: [genesymbols=TRUE,resources=CollecTRI,strict_evidences=TRUE,extra_attrs=TRUE,query_type=interactions,datasets=tf_mirna]
+[2025-07-29 14:07:00] [TRACE]   [OmnipathR] Organism(s): 9606
+[2025-07-29 14:07:00] [TRACE]   [OmnipathR] Orthology targets: 
+[2025-07-29 14:07:00] [TRACE]   [OmnipathR] Reading JSON from `https://omnipathdb.org/resources` (encoding: UTF-8).
+[2025-07-29 14:07:00] [TRACE]   [OmnipathR] JSON validation successful: TRUE
+[2025-07-29 14:07:01] [TRACE]   [OmnipathR] Looking up in cache: `https://omnipathdb.org/interactions?genesymbols=yes&resources=CollecTRI&datasets=tf_mirna&organisms=9606&fields=extra_attrs,evidences,sources,references,curation_effort&license=academic`
+[2025-07-29 14:07:01] [INFO]    [OmnipathR] Cache record does not exist: `https://omnipathdb.org/interactions?genesymbols=yes&resources=CollecTRI&datasets=tf_mirna&organisms=9606&fields=extra_attrs,evidences,sources,references,curation_effort&license=academic`
+[2025-07-29 14:07:01] [TRACE]   [OmnipathR] Looking up in cache: `http://no-tls.omnipathdb.org/interactions?genesymbols=yes&resources=CollecTRI&datasets=tf_mirna&organisms=9606&fields=extra_attrs,evidences,sources,references,curation_effort&license=academic`
+[2025-07-29 14:07:01] [INFO]    [OmnipathR] Cache record does not exist: `http://no-tls.omnipathdb.org/interactions?genesymbols=yes&resources=CollecTRI&datasets=tf_mirna&organisms=9606&fields=extra_attrs,evidences,sources,references,curation_effort&license=academic`
+[2025-07-29 14:07:01] [TRACE]   [OmnipathR] Attempting `https://omnipathdb.org/interactions?genesymbols=yes&resources=CollecTRI&datasets=tf_mirna&organisms=9606&fields=extra_attrs,evidences,sources,references,curation_effort&license=academic`
+[2025-07-29 14:07:01] [INFO]    [OmnipathR] Retrieving URL: `https://omnipathdb.org/interactions?genesymbols=yes&resources=CollecTRI&datasets=tf_mirna&organisms=9606&fields=extra_attrs,evidences,sources,references,curation_effort&license=academic`
+[2025-07-29 14:07:01] [TRACE]   [OmnipathR] Attempt 1/3: `https://omnipathdb.org/interactions?genesymbols=yes&resources=CollecTRI&datasets=tf_mirna&organisms=9606&fields=extra_attrs,evidences,sources,references,curation_effort&license=academic`
+[2025-07-29 14:07:01] [TRACE]   [OmnipathR] HTTP request by `omnipath_curl`.
+[2025-07-29 14:07:01] [TRACE]   [OmnipathR] Curl options: [connecttimeout=10,timeout=300,debugfunction=<function>,verbose=FALSE,tcp_keepalive=TRUE,tcp_keepintvl=10,tcp_keepidle=10,tcp_keepcnt=13,upkeep_interval_ms=30000,ssl_verifypeer=1,ssl_verifyhost=2]
+[2025-07-29 14:07:01] [TRACE]   [OmnipathR] HTTP v1 GET: status 200.
+[2025-07-29 14:07:01] [TRACE]   [OmnipathR] Downloaded 9.5 Kb in 0.539647s from omnipathdb.org (17.6 Kb/s); Redirect: 0s, DNS look up: 0.001265s, Connection: 0.142462s, Pretransfer: 0.287545s, First byte at: 0.538794s
+[2025-07-29 14:07:01] [TRACE]   [OmnipathR] HTTP headers: HTTP/1.1 200 OK; Server: nginx; Date: Tue, 29 Jul 2025 21:07:01 GMT; Content-Type: text/plain; charset=utf-8; Transfer-Encoding: chunked; Connection: keep-alive; Cache-Control: max-age=3600; Access-Control-Allow-Origin: *; Expires: Tue, 29 Jul 2025 22:07:01 GMT; Cache-Control: public; X-Frame-Options: DENY; Content-Encoding: gzip
+[2025-07-29 14:07:01] [INFO]    [OmnipathR] Successfully retrieved: `https://omnipathdb.org/interactions?genesymbols=yes&resources=CollecTRI&datasets=tf_mirna&organisms=9606&fields=extra_attrs,evidences,sources,references,curation_effort&license=academic`
+[2025-07-29 14:07:01] [TRACE]   [OmnipathR] Reading JSON from `C:\Users\KAILAS~1\AppData\Local\Cache\OmnipathR/cache.json` (encoding: UTF-8).
+[2025-07-29 14:07:01] [TRACE]   [OmnipathR] JSON validation successful: TRUE
+[2025-07-29 14:07:01] [TRACE]   [OmnipathR] Reading JSON from `C:\Users\KAILAS~1\AppData\Local\Cache\OmnipathR/cache.json` (encoding: UTF-8).
+[2025-07-29 14:07:01] [TRACE]   [OmnipathR] JSON validation successful: TRUE
+[2025-07-29 14:07:01] [INFO]    [OmnipathR] Cache item `911416570c2aaa914be32ebf7b85e1eb3d1ff162` version 1: status changed from `unknown` to `started`.
+[2025-07-29 14:07:01] [TRACE]   [OmnipathR] Exporting object to RDS: `C:\Users\KAILAS~1\AppData\Local\Cache\OmnipathR/911416570c2aaa914be32ebf7b85e1eb3d1ff162-1.rds`.
+[2025-07-29 14:07:01] [TRACE]   [OmnipathR] Exported RDS to `C:\Users\KAILAS~1\AppData\Local\Cache\OmnipathR/911416570c2aaa914be32ebf7b85e1eb3d1ff162-1.rds`.
+[2025-07-29 14:07:01] [INFO]    [OmnipathR] Download ready [key=911416570c2aaa914be32ebf7b85e1eb3d1ff162, version=1]
+[2025-07-29 14:07:01] [TRACE]   [OmnipathR] Reading JSON from `C:\Users\KAILAS~1\AppData\Local\Cache\OmnipathR/cache.json` (encoding: UTF-8).
+[2025-07-29 14:07:01] [TRACE]   [OmnipathR] JSON validation successful: TRUE
+[2025-07-29 14:07:01] [INFO]    [OmnipathR] Cache item `911416570c2aaa914be32ebf7b85e1eb3d1ff162` version 1: status changed from `started` to `ready`.
+[2025-07-29 14:07:01] [TRACE]   [OmnipathR] Converting JSON column `extra_attrs` to list.
+[2025-07-29 14:07:01] [TRACE]   [OmnipathR] Converting JSON column `evidences` to list.
+[2025-07-29 14:07:01] [TRACE]   [OmnipathR] Restricting interaction records to datasets: tf_mirna; and resources: CollecTRI
+[2025-07-29 14:07:01] [TRACE]   [OmnipathR] Filtering evidence columns: positive, negative, directed, undirected; to datasets: tf_mirna; and resources: CollecTRI; excluding resources: none
+[2025-07-29 14:07:02] [SUCCESS] [OmnipathR] Downloaded 232 interactions.
+[2025-07-29 14:57:20] [TRACE]   [OmnipathR] Reading JSON from `https://omnipathdb.org/resources` (encoding: UTF-8).
+[2025-07-29 14:57:20] [TRACE]   [OmnipathR] JSON validation successful: TRUE
+[2025-07-29 14:57:20] [TRACE]   [OmnipathR] Processing args for OmniPath query
+[2025-07-29 14:57:20] [TRACE]   [OmnipathR] Arguments for OmniPath query: [wide=TRUE,resources=PROGENy,query_type=annotations]
+[2025-07-29 14:57:20] [TRACE]   [OmnipathR] Organism(s): 9606
+[2025-07-29 14:57:20] [TRACE]   [OmnipathR] Orthology targets: 
+[2025-07-29 14:57:21] [TRACE]   [OmnipathR] Reading JSON from `https://omnipathdb.org/resources` (encoding: UTF-8).
+[2025-07-29 14:57:21] [TRACE]   [OmnipathR] JSON validation successful: TRUE
+[2025-07-29 14:57:21] [TRACE]   [OmnipathR] Looking up in cache: `https://omnipathdb.org/annotations?resources=PROGENy&license=academic`
+[2025-07-29 14:57:21] [INFO]    [OmnipathR] Cache record does not exist: `https://omnipathdb.org/annotations?resources=PROGENy&license=academic`
+[2025-07-29 14:57:21] [TRACE]   [OmnipathR] Looking up in cache: `http://no-tls.omnipathdb.org/annotations?resources=PROGENy&license=academic`
+[2025-07-29 14:57:21] [INFO]    [OmnipathR] Cache record does not exist: `http://no-tls.omnipathdb.org/annotations?resources=PROGENy&license=academic`
+[2025-07-29 14:57:21] [TRACE]   [OmnipathR] Attempting `https://omnipathdb.org/annotations?resources=PROGENy&license=academic`
+[2025-07-29 14:57:21] [INFO]    [OmnipathR] Retrieving URL: `https://omnipathdb.org/annotations?resources=PROGENy&license=academic`
+[2025-07-29 14:57:21] [TRACE]   [OmnipathR] Attempt 1/3: `https://omnipathdb.org/annotations?resources=PROGENy&license=academic`
+[2025-07-29 14:57:21] [TRACE]   [OmnipathR] HTTP request by `omnipath_curl`.
+[2025-07-29 14:57:21] [TRACE]   [OmnipathR] Curl options: [connecttimeout=10,timeout=300,debugfunction=<function>,verbose=FALSE,tcp_keepalive=TRUE,tcp_keepintvl=10,tcp_keepidle=10,tcp_keepcnt=13,upkeep_interval_ms=30000,ssl_verifypeer=1,ssl_verifyhost=2]
+[2025-07-29 14:57:21] [TRACE]   [OmnipathR] HTTP v1 GET: status 200.
+[2025-07-29 14:57:21] [TRACE]   [OmnipathR] Downloaded 15.7 Kb in 0.558884s from omnipathdb.org (28 Kb/s); Redirect: 0s, DNS look up: 0.001569s, Connection: 0.138747s, Pretransfer: 0.285285s, First byte at: 0.557986s
+[2025-07-29 14:57:21] [TRACE]   [OmnipathR] HTTP headers: HTTP/1.1 200 OK; Server: nginx; Date: Tue, 29 Jul 2025 21:57:21 GMT; Content-Type: text/plain; charset=utf-8; Transfer-Encoding: chunked; Connection: keep-alive; Cache-Control: max-age=3600; Access-Control-Allow-Origin: *; Expires: Tue, 29 Jul 2025 22:57:21 GMT; Cache-Control: public; X-Frame-Options: DENY; Content-Encoding: gzip
+[2025-07-29 14:57:23] [INFO]    [OmnipathR] Successfully retrieved: `https://omnipathdb.org/annotations?resources=PROGENy&license=academic`
+[2025-07-29 14:57:23] [TRACE]   [OmnipathR] Reading JSON from `C:\Users\KAILAS~1\AppData\Local\Cache\OmnipathR/cache.json` (encoding: UTF-8).
+[2025-07-29 14:57:23] [TRACE]   [OmnipathR] JSON validation successful: TRUE
+[2025-07-29 14:57:23] [TRACE]   [OmnipathR] Reading JSON from `C:\Users\KAILAS~1\AppData\Local\Cache\OmnipathR/cache.json` (encoding: UTF-8).
+[2025-07-29 14:57:23] [TRACE]   [OmnipathR] JSON validation successful: TRUE
+[2025-07-29 14:57:23] [INFO]    [OmnipathR] Cache item `3492392585ba05414edfae46801492076437d7e7` version 1: status changed from `unknown` to `started`.
+[2025-07-29 14:57:23] [TRACE]   [OmnipathR] Exporting object to RDS: `C:\Users\KAILAS~1\AppData\Local\Cache\OmnipathR/3492392585ba05414edfae46801492076437d7e7-1.rds`.
+[2025-07-29 14:57:24] [TRACE]   [OmnipathR] Exported RDS to `C:\Users\KAILAS~1\AppData\Local\Cache\OmnipathR/3492392585ba05414edfae46801492076437d7e7-1.rds`.
+[2025-07-29 14:57:24] [INFO]    [OmnipathR] Download ready [key=3492392585ba05414edfae46801492076437d7e7, version=1]
+[2025-07-29 14:57:24] [TRACE]   [OmnipathR] Reading JSON from `C:\Users\KAILAS~1\AppData\Local\Cache\OmnipathR/cache.json` (encoding: UTF-8).
+[2025-07-29 14:57:24] [TRACE]   [OmnipathR] JSON validation successful: TRUE
+[2025-07-29 14:57:24] [INFO]    [OmnipathR] Cache item `3492392585ba05414edfae46801492076437d7e7` version 1: status changed from `started` to `ready`.
+[2025-07-29 14:57:24] [SUCCESS] [OmnipathR] Downloaded 700239 annotation records.
+[2025-07-29 15:01:43] [TRACE]   [OmnipathR] Reading JSON from `https://omnipathdb.org/resources` (encoding: UTF-8).
+[2025-07-29 15:01:43] [TRACE]   [OmnipathR] JSON validation successful: TRUE
+[2025-07-29 15:01:43] [TRACE]   [OmnipathR] Processing args for OmniPath query
+[2025-07-29 15:01:43] [TRACE]   [OmnipathR] Arguments for OmniPath query: [wide=TRUE,resources=PROGENy,query_type=annotations]
+[2025-07-29 15:01:43] [TRACE]   [OmnipathR] Organism(s): 9606
+[2025-07-29 15:01:43] [TRACE]   [OmnipathR] Orthology targets: 
+[2025-07-29 15:01:44] [TRACE]   [OmnipathR] Reading JSON from `https://omnipathdb.org/resources` (encoding: UTF-8).
+[2025-07-29 15:01:44] [TRACE]   [OmnipathR] JSON validation successful: TRUE
+[2025-07-29 15:01:44] [TRACE]   [OmnipathR] Looking up in cache: `https://omnipathdb.org/annotations?resources=PROGENy&license=academic`
+[2025-07-29 15:01:44] [TRACE]   [OmnipathR] Loaded data from RDS `C:\Users\KAILAS~1\AppData\Local\Cache\OmnipathR/3492392585ba05414edfae46801492076437d7e7-1.rds`.
+[2025-07-29 15:01:44] [INFO]    [OmnipathR] Loaded from cache: `https://omnipathdb.org/annotations?resources=PROGENy&license=academic`
+[2025-07-29 15:01:44] [SUCCESS] [OmnipathR] Loaded 700239 annotation records from cache.
+[2025-07-29 15:54:04] [TRACE]   [OmnipathR] Processing args for OmniPath query
+[2025-07-29 15:54:04] [TRACE]   [OmnipathR] Arguments for OmniPath query: [loops=TRUE,extra_attrs=TRUE,organisms=9606,genesymbols=TRUE,query_type=interactions,datasets=collectri]
+[2025-07-29 15:54:04] [TRACE]   [OmnipathR] Organism(s): 9606
+[2025-07-29 15:54:04] [TRACE]   [OmnipathR] Orthology targets: 
+[2025-07-29 15:54:04] [TRACE]   [OmnipathR] Looking up in cache: `https://omnipathdb.org/interactions?genesymbols=yes&datasets=collectri&organisms=9606&fields=extra_attrs,sources,references,curation_effort&loops=yes&license=academic`
+[2025-07-29 15:54:04] [TRACE]   [OmnipathR] Loaded data from RDS `C:\Users\KAILAS~1\AppData\Local\Cache\OmnipathR/76e3673f92890910194d45678b3125a5674920d6-1.rds`.
+[2025-07-29 15:54:04] [INFO]    [OmnipathR] Loaded from cache: `https://omnipathdb.org/interactions?genesymbols=yes&datasets=collectri&organisms=9606&fields=extra_attrs,sources,references,curation_effort&loops=yes&license=academic`
+[2025-07-29 15:54:04] [TRACE]   [OmnipathR] Converting JSON column `extra_attrs` to list.
+[2025-07-29 15:54:06] [SUCCESS] [OmnipathR] Loaded 64958 interactions from cache.
+[2025-07-29 15:54:06] [TRACE]   [OmnipathR] Processing args for OmniPath query
+[2025-07-29 15:54:06] [TRACE]   [OmnipathR] Arguments for OmniPath query: [genesymbols=TRUE,resources=CollecTRI,strict_evidences=TRUE,extra_attrs=TRUE,query_type=interactions,datasets=tf_mirna]
+[2025-07-29 15:54:06] [TRACE]   [OmnipathR] Organism(s): 9606
+[2025-07-29 15:54:06] [TRACE]   [OmnipathR] Orthology targets: 
+[2025-07-29 15:54:07] [TRACE]   [OmnipathR] Reading JSON from `https://omnipathdb.org/resources` (encoding: UTF-8).
+[2025-07-29 15:54:07] [TRACE]   [OmnipathR] JSON validation successful: TRUE
+[2025-07-29 15:54:07] [TRACE]   [OmnipathR] Looking up in cache: `https://omnipathdb.org/interactions?genesymbols=yes&resources=CollecTRI&datasets=tf_mirna&organisms=9606&fields=extra_attrs,evidences,sources,references,curation_effort&license=academic`
+[2025-07-29 15:54:07] [TRACE]   [OmnipathR] Loaded data from RDS `C:\Users\KAILAS~1\AppData\Local\Cache\OmnipathR/911416570c2aaa914be32ebf7b85e1eb3d1ff162-1.rds`.
+[2025-07-29 15:54:07] [INFO]    [OmnipathR] Loaded from cache: `https://omnipathdb.org/interactions?genesymbols=yes&resources=CollecTRI&datasets=tf_mirna&organisms=9606&fields=extra_attrs,evidences,sources,references,curation_effort&license=academic`
+[2025-07-29 15:54:07] [TRACE]   [OmnipathR] Converting JSON column `extra_attrs` to list.
+[2025-07-29 15:54:07] [TRACE]   [OmnipathR] Converting JSON column `evidences` to list.
+[2025-07-29 15:54:07] [TRACE]   [OmnipathR] Restricting interaction records to datasets: tf_mirna; and resources: CollecTRI
+[2025-07-29 15:54:07] [TRACE]   [OmnipathR] Filtering evidence columns: positive, negative, directed, undirected; to datasets: tf_mirna; and resources: CollecTRI; excluding resources: none
+[2025-07-29 15:54:07] [SUCCESS] [OmnipathR] Loaded 232 interactions from cache.
+[2025-07-29 15:54:09] [TRACE]   [OmnipathR] Reading JSON from `https://omnipathdb.org/resources` (encoding: UTF-8).
+[2025-07-29 15:54:09] [TRACE]   [OmnipathR] JSON validation successful: TRUE
+[2025-07-29 15:54:09] [TRACE]   [OmnipathR] Processing args for OmniPath query
+[2025-07-29 15:54:09] [TRACE]   [OmnipathR] Arguments for OmniPath query: [wide=TRUE,resources=PROGENy,query_type=annotations]
+[2025-07-29 15:54:09] [TRACE]   [OmnipathR] Organism(s): 9606
+[2025-07-29 15:54:09] [TRACE]   [OmnipathR] Orthology targets: 
+[2025-07-29 15:54:10] [TRACE]   [OmnipathR] Reading JSON from `https://omnipathdb.org/resources` (encoding: UTF-8).
+[2025-07-29 15:54:10] [TRACE]   [OmnipathR] JSON validation successful: TRUE
+[2025-07-29 15:54:10] [TRACE]   [OmnipathR] Looking up in cache: `https://omnipathdb.org/annotations?resources=PROGENy&license=academic`
+[2025-07-29 15:54:11] [TRACE]   [OmnipathR] Loaded data from RDS `C:\Users\KAILAS~1\AppData\Local\Cache\OmnipathR/3492392585ba05414edfae46801492076437d7e7-1.rds`.
+[2025-07-29 15:54:11] [INFO]    [OmnipathR] Loaded from cache: `https://omnipathdb.org/annotations?resources=PROGENy&license=academic`
+[2025-07-29 15:54:11] [SUCCESS] [OmnipathR] Loaded 700239 annotation records from cache.

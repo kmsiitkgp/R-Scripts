@@ -1049,44 +1049,95 @@ exp_df <- exp_df %>%
   dplyr::mutate(SYMBOL = make.names(SYMBOL, unique=TRUE)) %>%
   tibble::column_to_rownames("SYMBOL")
 
+#...Run this for classification of YhighYlow
+y_genes <- c("DDX3Y", "UTY", "KDM5D", "USP9Y", "ZFY", "RPS4Y1", "TMSB4Y", "EIF1AY", "NLGN4Y")
+
+# Generate a list of gene sets
+gs <- list(y_genes)
+names(gs) <- "Y.sig"
+
+# Calculate GSVA scores
+gsvaPar <- GSVA::gsvaParam(exprData = as.matrix(exp_df), 
+                           geneSets = as.list(gs))
+gsva.scores <- gsva(gsvaPar, 
+                    verbose=TRUE)
+
+gsva.scores <- t(gsva.scores) %>% 
+  data.frame() %>%
+  dplyr::mutate(gsva.class = dplyr::case_when(Y.sig > 0 ~ "YHigh",
+                                              TRUE ~ "Ylow")) %>%
+  tibble::rownames_to_column("ModelID") %>%
+  dplyr::rename(gsva.score = Y.sig)
+
+# Calculate SSGSEA scores
+ssgseaPar <- GSVA::ssgseaParam(exprData = as.matrix(exp_df),
+                               geneSets = as.list(gs))
+ssgsea.scores <- GSVA::gsva(ssgseaPar, 
+                            verbose=TRUE)
+
+ssgsea.scores <- t(ssgsea.scores) %>% 
+  data.frame() %>%
+  dplyr::mutate(ssgsea.class = dplyr::case_when(Y.sig > 0 ~ "YHigh",
+                                                TRUE ~ "Ylow")) %>%
+  tibble::rownames_to_column("ModelID") %>%
+  dplyr::rename(ssgsea.score= Y.sig)
+
+# Calculate z scores
+normalized_counts <- exp_df
+normalized_counts <- normalized_counts[!rowSums(normalized_counts, na.rm=TRUE) == 0,]
+normalized_counts <- log(1+normalized_counts, base=2)
+t <- base::apply(X=normalized_counts, MARGIN=1, FUN=median, na.rm=TRUE)
+normalized_counts <- base::sweep(x=normalized_counts, MARGIN=1, FUN="-", STATS=t)
+z.scores <- as.data.frame(advanced_Z(y_genes, normalized_counts)) %>%
+  data.frame() %>%
+  dplyr::rename(z.score= identity(1)) %>%
+  dplyr::mutate(z.class = dplyr::case_when(z.score > 0 ~ "YHigh",
+                                           TRUE ~ "Ylow")) %>%
+  tibble::rownames_to_column("ModelID")
+
+#...
+
 # Read the human orthologs of the 419 hits
 # yscr_genes <- read.xlsx(paste0(data_path, "Hits.xlsx"), sheet= "hits_yscr") %>%
 #   dplyr::filter(U_gene_YSCR > 0)
 # yko_genes <- read.xlsx(paste0(data_path, "Hits.xlsx"), sheet= "hits_yko") %>%
 #   dplyr::filter(U_gene_YKO < 0)
 # hits <- intersect(yko_genes$Gene,yscr_genes$Gene)
-hits <- read.xlsx(paste0(data_path, "Human_orthologs.xlsx")) %>%
+hits <- read.xlsx(paste0(data_path, "Human_orthologs.xlsx"), sheet="New") %>%
   dplyr::mutate(Human = make.names(Human)) %>%
   dplyr::select(Human) %>%
   unlist(use.names = FALSE) %>%
   unique() 
 
 # Read the clinical data
-metadata_df <- openxlsx::read.xlsx(xlsxFile = paste0(data_path, "TCGA.BLCA.Metadata.xlsx")) 
+#metadata_df <- openxlsx::read.xlsx(xlsxFile = paste0(data_path, "TCGA.BLCA.Metadata.xlsx")) 
+metadata_df <- openxlsx::read.xlsx(xlsxFile = paste0(data_path, "TCGA_Metadata_Yiling.xlsx")) %>%
+  dplyr::filter(CancerType == "BLCA") %>%
+  dplyr::mutate(Sample_ID = Sample)
 
 # Read the expr data
 main_df <- openxlsx::read.xlsx(xlsxFile = paste0(data_path, "TCGA.BLCA.Normalized.counts.xlsx"))
 colnames(main_df)[1] <- "SYMBOL"
 main_df <-  main_df %>% 
   dplyr::filter(SYMBOL %in% hits) %>%
-  dplyr::select(SYMBOL, intersect(colnames(main_df), metadata_df$Sample_ID))
+  dplyr::select(SYMBOL, intersect(metadata_df$Sample_ID, colnames(main_df)))
 
 # Merge Y status and clinical data with gene effect score
-metadata_df <- metadata_df %>%
-  dplyr::left_join(gsva.scores, by=c("Sample_ID"="ModelID")) %>%
-  dplyr::left_join(ssgsea.scores, by=c("Sample_ID"="ModelID")) %>%
-  dplyr::select(Sample_ID, Sex, gsva.class, gsva.score, ssgsea.class, ssgsea.score, everything())
-
+# metadata_df <- metadata_df %>%
+#   dplyr::left_join(gsva.scores, by=c("Sample_ID"="ModelID")) %>%
+#   dplyr::left_join(ssgsea.scores, by=c("Sample_ID"="ModelID")) %>%
+#   dplyr::left_join(z.scores, by=c("Sample_ID"="ModelID")) %>%
+#   dplyr::select(Sample_ID, Sex, gsva.class, gsva.score, ssgsea.class, ssgsea.score, z.class, z.score, everything())
 
 # Heatmap parameters
 plot_genes <- main_df$SYMBOL
-disp_genes <- c()
+disp_genes <- plot_genes
 file_suffix <- ""
 output_path <- data_path
 heatmap_params <- list(anno.row       = NULL,        # NULL, c("Group")
-                       anno.column    = c("gsva.class"),
+                       anno.column    = c("Y_status"), #gsva.class"),
                        row.split      = NA,     
-                       col.split      = c("gsva.class"),
+                       col.split      = c("Y_status"),
                        row.cluster    = c("all"),           # c("alphabetical", "group", "all")
                        col.cluster    = c("group"),  # c("alphabetical", "group", "all")
                        log.transform  = TRUE,
@@ -1100,8 +1151,7 @@ heatmap_params <- list(anno.row       = NULL,        # NULL, c("Group")
                        expr_legend    = TRUE,  # set FALSE if it overlaps with annotation legends
                        file_format    = "tiff")
 
-
-metadata_column <- metadata_df %>% dplyr::filter(Sex == "Male")
+metadata_column <- metadata_df %>% dplyr::filter(Sample_ID %in% colnames(main_df))
 metadata_row <- data.frame(SYMBOL = "")
 norm_counts <- main_df %>% dplyr::select(SYMBOL, all_of(metadata_column$Sample_ID))
 plot_heatmap(norm_counts, metadata_column, metadata_row, heatmap_params,

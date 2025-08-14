@@ -41,21 +41,6 @@
 #                                STEP 1: FIND MARKERS                          #
 #******************************************************************************#
 
-proj <- "scRNASeq_BBN_C57BL6"
-source("/hpc/home/kailasamms/projects/scRNASeq/scRNASeq_Seurat_Functions_Variables.R")
-
-# "scRNASeq_Simon" is not a good dataset. So, we ignore it.
-# "scRNASeq_NA13_CDH12_C57BL6" is single nuclei. 
-# Markers are very different for single cell and single nuclei datasets.
-projects <- c("scRNASeq_BBN_C57BL6", 
-              "scRNASeq_BBN_Rag", 
-              "scRNASeq_Chen", 
-              "scRNASeq_GSE164557",
-              "scRNASeq_GSE217093", 
-              "scRNASeq_GSE222315",
-              "scRNASeq_HRA003620",
-              "scRNASeq_Jinfen")
-
 # This plots UMAP for each dataset at harmony resolution 0.4 and outputs an 
 # excel file with markers for all datasets
 find_markers_standard <- function(projects){

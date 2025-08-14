@@ -342,7 +342,7 @@ openxlsx::saveWorkbook(wb = wb,
 
 ######################## Fig 2A: RNA vs  Metabolite Correlation ########################
 
-source("C:/Users/kailasamms/OneDrive - Cedars-Sinai Health System/Documents/GitHub/R-Scripts/RNASeq_DESeq2_Functions.R")
+source("C:/Users/kailasamms/OneDrive - Cedars-Sinai Health System/Documents/GitHub/R-Scripts/Custom.Functions.R.Analysis.R")
 data_path <- "C:/Users/kailasamms/OneDrive - Cedars-Sinai Health System/Desktop/Collaboration projects data/Boopati/"
 
 # Get Y+Y- metabolite data
@@ -383,6 +383,7 @@ y <- y %>%
 
 # Get DESEq2 normalized counts
 rna <- read.xlsx(paste0(data_path, "Normalized_Counts_DESeq2_CRISPR_LOY.xlsx"))
+#rna <- read.xlsx(paste0(data_path, "Normalized_Counts_DESeq2_Natural_LOY.xlsx"))
 
 rna <- rna %>% 
   dplyr::select(SYMBOL, SCR_KO1, SCR_KO2, SCR_KO3, Y_KO1, Y_KO2, Y_KO3) %>%

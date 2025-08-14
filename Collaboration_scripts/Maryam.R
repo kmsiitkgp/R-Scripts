@@ -246,4 +246,118 @@ openxlsx::writeData(wb, sheet="Norm_counts_tumor", x=df2, rowNames = FALSE)
 openxlsx::saveWorkbook(wb, file = paste0(data_path, "Fig3B.xlsx"),
                        overwrite = TRUE)
 
+#******************************************************************************#
+
+source("C:/Users/kailasamms/OneDrive - Cedars-Sinai Health System/Documents/GitHub/R-Scripts/RNASeq_DESeq2_Functions.R")
+
+data_path <- "C:/Users/kailasamms/OneDrive - Cedars-Sinai Health System/Desktop/Collaboration projects data/Prince/"
+
+metadata <- openxlsx::read.xlsx(xlsxFile = paste0(data_path, "DepMap.Model.xlsx")) %>%
+  dplyr::select(ModelID, OncotreeCode, OncotreeSubtype) %>%
+  dplyr::mutate(ModelID = make.names(ModelID))
+  
+# Read the expression data for DepMap cell lines & classify into Yhigh, Ylow
+exp_df <- read.table(paste0(data_path, "DepMap.OmicsExpressionProteinCodingGenesTPMLogp1BatchCorrected.csv"), 
+                     header=TRUE, sep=",", quote="", skip=0, fill=TRUE)
+colnames(exp_df) <- gsub(pattern = "\\.[0-9]*", replacement = "", colnames(exp_df))
+exp_df <- exp_df %>%
+  tibble::column_to_rownames("X") %>%
+  t()
+colnames(exp_df) <- make.names(colnames(exp_df))
+
+metadata <- metadata %>% dplyr::filter(ModelID %in% colnames(exp_df))
+
+exp_df <- exp_df %>%
+  data.frame() %>%
+  dplyr::select(all_of(make.names(metadata$ModelID)))
+
+# # Read the expression data for TCGA BLCA patients & classify into Yhigh, Ylow
+# exp_df <- openxlsx::read.xlsx(xlsxFile = paste0(data_path, "TCGA.BLCA.Normalized.counts.xlsx"))
+# colnames(exp_df)[1] <- "SYMBOL"
+# exp_df <- exp_df %>%
+#   dplyr::mutate(SYMBOL = make.names(SYMBOL, unique=TRUE)) %>%
+#   tibble::column_to_rownames("SYMBOL")
+
+types <- metadata %>% 
+  dplyr::add_count(OncotreeCode) %>% 
+  dplyr::filter(n>3, !is.na(OncotreeCode)) %>%
+  dplyr::select(OncotreeCode, OncotreeSubtype,n) %>%
+  dplyr::distinct_at("OncotreeCode", .keep_all = TRUE)
+
+model <- c()
+pearson.p <- c()
+spearman.p <- c()
+pearson.cor <- c()
+spearman.cor <- c()
+
+for (m in types$OncotreeCode){
+  
+  # Data must be normal for pearson correlation. So, log transformed
+  df1 <- exp_df[c("EFNB2", "TERT"),] %>% 
+    t() %>% 
+    log() %>% 
+    data.frame() %>% 
+    dplyr::filter_all(all_vars(is.finite(.))) 
+  
+  df1 <- df1[rownames(df1) %in% intersect(metadata$ModelID[metadata$OncotreeCode == m], colnames(exp_df)),]
+
+  # Data neednt be normal for spearman correlation. So, not log transformed
+  df2 <- exp_df[c("EFNB2", "TERT"),] %>% 
+    t()
+  
+  df2 <- df2[rownames(df2) %in% intersect(metadata$ModelID[metadata$OncotreeCode == m], colnames(exp_df)),]
+  
+  #cor.test(df1[,1] %>% as.numeric(), df1[,2] %>% as.numeric(), method = "spearman")
+  p <- cor.test(df1[,1] %>% as.numeric(), df1[,2] %>% as.numeric(), method = "pearson")
+  s <- cor.test(df2[,1] %>% as.numeric(), df2[,2] %>% as.numeric(), method = "spearman")
+  #cor.test(df2[,1] %>% as.numeric(), df2[,2] %>% as.numeric(), method = "pearson")
+  
+  print(p)
+  print(s)
+  model <- c(model, m)
+  spearman.cor <- c(spearman.cor, s$estimate[[1]])
+  spearman.p   <- c(spearman.p,   s$p.value)
+  pearson.cor <- c(pearson.cor, p$estimate[[1]])
+  pearson.p   <- c(pearson.p,   p$p.value)
+}
+
+df <- data.frame(model, spearman.cor, spearman.p, pearson.cor, pearson.p)
+df <- df %>% dplyr::left_join(types, by=c("model"="OncotreeCode"))
+
+# Create workbook to store results
+wb <- openxlsx::createWorkbook()
+openxlsx::addWorksheet(wb, sheetName="1")
+openxlsx::writeData(wb, sheet="1", x=df, rowNames = FALSE)
+openxlsx::saveWorkbook(wb, file = paste0("C:/Users/kailasamms/OneDrive - Cedars-Sinai Health System/Desktop/", "TERT.EFNB2.Correlation.Depmap.xlsx"),
+                       overwrite = TRUE)
+
+
+# source("/hpc/home/kailasamms/projects/RNASeq/RNASeq_DESeq2_Functions.R")
+# 
+# file_path <- "/hpc/home/kailasamms/scratch/ICB_TCGA_datasets/original/"
+# data_path <- "/hpc/home/kailasamms/scratch/ICB_TCGA_datasets/processed/"
+# output_path <- "/hpc/home/kailasamms/scratch/ICB_TCGA_datasets/results/"
+# 
+# normalized_counts <- openxlsx::read.xlsx(xlsxFile=paste0(output_path,"TCGA.PanAtlas.median_centered_log_norm_counts.xlsx"))
+# colnames(normalized_counts)[1] <- "SYMBOL"
+# 
+# normalized_counts1 <- read.table(paste0(data_path, "TCGA.PanAtlas.Normalized.counts.tsv"), header=TRUE)
+# normalized_counts1 <- normalized_counts1[,-c(2:3)]
+# 
+# df1 <- normalized_counts %>% 
+#   dplyr::filter(SYMBOL %in% c("EFNB2", "TERT")) %>% 
+#   tibble::column_to_rownames("SYMBOL") %>% 
+#   t() %>% 
+#   log() %>% 
+#   data.frame() %>% 
+#   dplyr::filter_all(all_vars(is.finite(.)))
+# 
+# df2 <- normalized_counts %>% 
+#   dplyr::filter(SYMBOL %in% c("EFNB2", "TERT")) %>% 
+#   tibble::column_to_rownames("SYMBOL") %>%
+#   t()
+# 
+# cor.test(df1[,1] %>% as.numeric(), df1[,2] %>% as.numeric(), method = "pearson")
+# cor.test(df2[,1] %>% as.numeric(), df2[,2] %>% as.numeric(), method = "spearman")
+
 

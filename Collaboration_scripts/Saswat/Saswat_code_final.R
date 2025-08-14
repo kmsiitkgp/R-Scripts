@@ -145,7 +145,7 @@ sig <- sig[-1, -1] %>%
 # Read pan cancer metadata
 meta_data <- read.xlsx(paste0(data_path, "TCGA.PanAtlas.Metadata.xlsx"))
 proj <- make.names(unique(meta_data$Project_ID))
-proj <- c(proj, "IMvigor010", "IMvigor210", "TCGA.PanAtlas")
+proj <- c(proj, "IMvigor010", "IMvigor210", "GSE78220", "GSE91061", "GSE96619", "GSE115821", "GSE131521", "TCGA.PanAtlas")
 
 # Import expression data that has already been normalized across samples
 for (f in proj){
@@ -842,6 +842,53 @@ openxlsx::addWorksheet(wb, sheetName = paste0(s, ".classification"))
 openxlsx::writeData(wb, sheet = paste0(s, ".classification"), x = group_data, rowNames = FALSE)
 openxlsx::saveWorkbook(wb, file = paste0(output_path, "zPercentages.xlsx"), overwrite = TRUE)
 
+
+#******************************************************************************#
+#     NPEPPS expression high in KRT13 population
+#************************************************************************
+
+proj <- "scRNASeq_Simon"
+source("/hpc/home/kailasamms/projects/scRNASeq/scRNASeq_Seurat_Functions_Variables.R")
+source("/hpc/home/kailasamms/projects/RNASeq/RNASeq_DESeq2_Functions.R")
+
+file_path <- "/hpc/home/kailasamms/scratch/ICB_TCGA_datasets/original/"
+data_path <- "/hpc/home/kailasamms/scratch/ICB_TCGA_datasets/processed/"
+output_path <- "/hpc/home/kailasamms/scratch/ICB_TCGA_datasets/results/"
+
+integrated_seurat <- readRDS(paste0(seurat_results, "Simon_integrated_seurat_snn.rds"))
+
+Idents(integrated_seurat) <- "subtype"
+Seurat::FeaturePlot(object=integrated_seurat, 
+                    features = "NPEPPS", 
+                    reduction = "umap",
+                    cols = c("grey", viridis(n = 10, option = "C", direction = -1)),
+                    min.cutoff='q10',
+                    pt.size = 0.1,
+                    order = TRUE, 
+                    label = FALSE,
+                    raster = FALSE,
+                    combine = TRUE) +
+  #NoLegend() +
+  my_theme
+
+ggsave("NPEPPS.Umap.tiff")
+
+DotPlot(object=subset(integrated_seurat, celltype=="Epithelial"), 
+        features = "NPEPPS", 
+        assay = "RNA",
+        dot.min = 0,
+        dot.scale = 6,
+        scale = TRUE,
+        scale.by = "size",
+        scale.min = 0,
+        scale.max = 100) +
+  #coord_flip() +
+  ggplot2::geom_point(aes(size=pct.exp), shape = 21, colour="black", stroke=0.25) + #stroke is width of circle
+  ggplot2::scale_colour_distiller(type = "div", palette = "RdYlGn", direction = -1) +
+  ggplot2::guides(size=guide_legend(override.aes=list(shape=21, colour="black", fill="white", stroke=0.75))) +
+  ggplot2::theme(axis.text.x =  element_text(family="sans", face="plain", colour="black", size=10, hjust = 0.5, vjust = 0.5, angle = 45))
+
+ggsave("NPEPPS.Dotplot.tiff")
 #******************************************************************************#
 #      PERFORM DEGs KRT13 (COLD) vs CDH12 (HOT) IN SIMON SINGLE CELL DATA      #
 #          PERFORM DEGs NON-IMMUNE vs IMMUNE IN SIMON SINGLE CELL DATA         #
@@ -1059,6 +1106,7 @@ output_path <- "/hpc/home/kailasamms/scratch/ICB_TCGA_datasets/results/"
 supplemental_path <- "/hpc/home/kailasamms/scratch/ICB_TCGA_datasets/supplemental/"
 
 #**********REACTOME**********#
+
 # Get all reactome pathways from Reactome website
 reactome_all_pathways <- read.xlsx(paste0(supplemental_path, "ReactomePathways.gmt.xlsx"),
                                    colNames= FALSE)
@@ -1097,7 +1145,7 @@ immune_genes <- reactome_immune_pathways %>%
 # Get all DEGs that are upregulated in cold tumors
 tcga_degs_up <- read.xlsx(paste0(output_path, "zSummary_of_DEGs.xlsx")) %>%
   dplyr::rename(SYMBOL = identity(1)) %>%
-  dplyr::filter(n_UP>=4, n_DOWN <=1)
+  dplyr::filter(n_UP>=10, n_DOWN <=1)
 
 tcga_degs_down <- read.xlsx(paste0(output_path, "zSummary_of_DEGs.xlsx")) %>%
   dplyr::rename(SYMBOL = identity(1)) %>%
@@ -1109,69 +1157,96 @@ druggable_genes <- read.xlsx(paste0(supplemental_path, "DGIdb_categories.xlsx"))
   dplyr::rename(Class = identity(2)) %>%
   dplyr::filter(Class == "DRUGGABLE GENOME")
 
-#**********Single Cell**********#
-# Get DEGs from single cell analysis
-krt_cdh12_deseq2 <- read.xlsx(paste0(output_path, "zSimon.DEGs.KRT13_Epithelial_vs_CDH12_Epithelial_DESeq2.xlsx")) %>%
-  dplyr::filter(padj < 0.05) %>% 
-  dplyr::select(SYMBOL, log2FoldChange) %>% 
-  dplyr::distinct(.keep_all = TRUE)
+#****Keep ONLY protein coding genes***********#
+annotations <- get_annotations("Homo sapiens")
+annotations <- annotations %>% 
+  dplyr::filter(ENSEMBL_BIOTYPE == "protein_coding" | ENTREZ_BIOTYPE == "protein-coding")
 
-krt_cdh12_seurat <- read.xlsx(paste0(output_path, "zSimon.DEGs.KRT13_Epitheilal_vs_CDH12_Epithelial_Seurat.xlsx")) %>%
-  dplyr::mutate(avg_log2FC = dplyr::case_when(cluster == "CDH12_Epithelial" ~ -(avg_log2FC),
-                                              TRUE ~ avg_log2FC)) %>%
-  dplyr::filter(p_val_adj < 0.05) %>% 
-  dplyr::select(gene, avg_log2FC) %>% 
-  dplyr::distinct(.keep_all = TRUE)
 
-non_immune_deseq2 <- read.xlsx(paste0(output_path, "zSimon.DEGs.Non-Immune_vs_Immune_DESeq2.xlsx")) %>%
-  dplyr::filter(padj < 0.05) %>% 
-  dplyr::select(SYMBOL, log2FoldChange) %>% 
-  dplyr::distinct(.keep_all = TRUE)
+tcga_degs_up <- tcga_degs_up %>% 
+  dplyr::filter(SYMBOL %in% c(annotations$ENSEMBL_SYMBOL, annotations$ENTREZ_SYMBOL, annotations$ENSEMBL_ID))
 
-non_immune_seurat <- read.xlsx(paste0(output_path, "zSimon.DEGs.Non-Immune_vs_Immune_Seurat.xlsx")) %>%
-  dplyr::mutate(avg_log2FC = dplyr::case_when(cluster == "Immune" ~ -(avg_log2FC),
-                                              TRUE ~ avg_log2FC)) %>%
-  dplyr::filter(p_val_adj < 0.05) %>% 
-  dplyr::select(gene, avg_log2FC) %>% 
-  dplyr::distinct(.keep_all = TRUE)
+tcga_degs_down <- tcga_degs_down %>% 
+  dplyr::filter(SYMBOL %in% c(annotations$ENSEMBL_SYMBOL, annotations$ENTREZ_SYMBOL, annotations$ENSEMBL_ID))
 
-deseq2_hits <- dplyr::full_join(krt_cdh12_deseq2,non_immune_deseq2, by=c("SYMBOL"="SYMBOL"))
-colnames(deseq2_hits) <- c("SYMBOL","log2FC_KRT13","log2FC_Non_Immune")
-seurat_hits <- dplyr::full_join(krt_cdh12_seurat,non_immune_seurat, by=c("gene"="gene"))
-colnames(seurat_hits) <- c("SYMBOL","log2FC_KRT13","log2FC_Non_Immune")
 
-# Remove unwanted variables
-rm(custom_set1, custom_set2, krt_cdh12_deseq2, krt_cdh12_seurat, non_immune_deseq2, 
-   non_immune_seurat, reactome_all_pathways, reactome_search_immune, reactome_immune_pathways)
+# #**********Single Cell**********#
+# # Get DEGs from single cell analysis
+# krt_cdh12_deseq2 <- read.xlsx(paste0(output_path, "zSimon.DEGs.KRT13_Epithelial_vs_CDH12_Epithelial_DESeq2.xlsx")) %>%
+#   dplyr::filter(padj < 0.05) %>% 
+#   dplyr::select(SYMBOL, log2FoldChange) %>% 
+#   dplyr::distinct(.keep_all = TRUE)
+# 
+# krt_cdh12_seurat <- read.xlsx(paste0(output_path, "zSimon.DEGs.KRT13_Epitheilal_vs_CDH12_Epithelial_Seurat.xlsx")) %>%
+#   dplyr::mutate(avg_log2FC = dplyr::case_when(cluster == "CDH12_Epithelial" ~ -(avg_log2FC),
+#                                               TRUE ~ avg_log2FC)) %>%
+#   dplyr::filter(p_val_adj < 0.05) %>% 
+#   dplyr::select(gene, avg_log2FC) %>% 
+#   dplyr::distinct(.keep_all = TRUE)
+# 
+# non_immune_deseq2 <- read.xlsx(paste0(output_path, "zSimon.DEGs.Non-Immune_vs_Immune_DESeq2.xlsx")) %>%
+#   dplyr::filter(padj < 0.05) %>% 
+#   dplyr::select(SYMBOL, log2FoldChange) %>% 
+#   dplyr::distinct(.keep_all = TRUE)
+# 
+# non_immune_seurat <- read.xlsx(paste0(output_path, "zSimon.DEGs.Non-Immune_vs_Immune_Seurat.xlsx")) %>%
+#   dplyr::mutate(avg_log2FC = dplyr::case_when(cluster == "Immune" ~ -(avg_log2FC),
+#                                               TRUE ~ avg_log2FC)) %>%
+#   dplyr::filter(p_val_adj < 0.05) %>% 
+#   dplyr::select(gene, avg_log2FC) %>% 
+#   dplyr::distinct(.keep_all = TRUE)
+# 
+# deseq2_hits <- dplyr::full_join(krt_cdh12_deseq2,non_immune_deseq2, by=c("SYMBOL"="SYMBOL"))
+# colnames(deseq2_hits) <- c("SYMBOL","log2FC_KRT13","log2FC_Non_Immune")
+# seurat_hits <- dplyr::full_join(krt_cdh12_seurat,non_immune_seurat, by=c("gene"="gene"))
+# colnames(seurat_hits) <- c("SYMBOL","log2FC_KRT13","log2FC_Non_Immune")
+# 
+# # Remove unwanted variables
+# rm(custom_set1, custom_set2, krt_cdh12_deseq2, krt_cdh12_seurat, non_immune_deseq2, 
+#    non_immune_seurat, reactome_all_pathways, reactome_search_immune, reactome_immune_pathways)
+# 
+# # Create a dataframe with all filtering so we can color genes appropriately
+# deseq2_hits <- deseq2_hits %>%
+#   #dplyr::mutate(Pass = dplyr::case_when(SYMBOL %in% tcga_degs_down$SYMBOL ~ "TCGA",
+#   dplyr::mutate(Pass = dplyr::case_when(SYMBOL %in% tcga_degs_up$SYMBOL ~ "TCGA",
+#                                         TRUE ~ "Others")) %>%
+#   dplyr::mutate(Pass = dplyr::case_when(log2FC_KRT13 >= 1 & log2FC_Non_Immune >= 0.25 & Pass == "TCGA" ~ "TCGA+SC",
+#                                         TRUE ~ Pass)) %>%
+#   dplyr::mutate(Pass = dplyr::case_when(SYMBOL %in% immune_genes & Pass == "TCGA+SC" ~ "TCGA+SC+Reactome",
+#                                         TRUE ~ Pass)) %>%
+#   dplyr::mutate(Pass = dplyr::case_when(SYMBOL %in% druggable_genes$SYMBOL & Pass == "TCGA+SC+Reactome" ~ "TCGA+SC+Reactome+Druggable",
+#                                         TRUE ~ Pass))
+# 
+# seurat_hits <- seurat_hits %>%
+#   #dplyr::mutate(Pass = dplyr::case_when(SYMBOL %in% tcga_degs_down$SYMBOL ~ "TCGA",
+#   dplyr::mutate(Pass = dplyr::case_when(SYMBOL %in% tcga_degs_up$SYMBOL ~ "TCGA",
+#                                         TRUE ~ "Others")) %>%
+#   dplyr::mutate(Pass = dplyr::case_when(log2FC_KRT13 >= 1 & log2FC_Non_Immune >= 0.25 & Pass == "TCGA" ~ "TCGA+SC",
+#                                         TRUE ~ Pass)) %>%
+#   dplyr::mutate(Pass = dplyr::case_when(SYMBOL %in% immune_genes & Pass == "TCGA+SC" ~ "TCGA+SC+Reactome",
+#                                         TRUE ~ Pass)) %>%
+#   dplyr::mutate(Pass = dplyr::case_when(SYMBOL %in% druggable_genes$SYMBOL & Pass == "TCGA+SC+Reactome" ~ "TCGA+SC+Reactome+Druggable",
+#                                         TRUE ~ Pass))
 
-# Create a dataframe with all filtering so we can color genes appropriately
-deseq2_hits <- deseq2_hits %>%
-  #dplyr::mutate(Pass = dplyr::case_when(SYMBOL %in% tcga_degs_down$SYMBOL ~ "TCGA",
-  dplyr::mutate(Pass = dplyr::case_when(SYMBOL %in% tcga_degs_up$SYMBOL ~ "TCGA",
-                                        TRUE ~ "Others")) %>%
-  dplyr::mutate(Pass = dplyr::case_when(log2FC_KRT13 >= 1 & log2FC_Non_Immune >= 0.25 & Pass == "TCGA" ~ "TCGA+SC",
-                                        TRUE ~ Pass)) %>%
-  dplyr::mutate(Pass = dplyr::case_when(SYMBOL %in% immune_genes & Pass == "TCGA+SC" ~ "TCGA+SC+Reactome",
-                                        TRUE ~ Pass)) %>%
-  dplyr::mutate(Pass = dplyr::case_when(SYMBOL %in% druggable_genes$SYMBOL & Pass == "TCGA+SC+Reactome" ~ "TCGA+SC+Reactome+Druggable",
+hits_up <- tcga_degs_up[,1:4] %>%
+  dplyr::mutate(Pass = "TCGA",
+                Pass = dplyr::case_when(SYMBOL %in% immune_genes & Pass == "TCGA" ~ "TCGA+Reactome",
+                                        TRUE ~ Pass),
+                Pass = dplyr::case_when(SYMBOL %in% druggable_genes$SYMBOL & Pass == "TCGA+Reactome"~ "TCGA+Reactome+Druggable",
                                         TRUE ~ Pass))
 
-seurat_hits <- seurat_hits %>%
-  #dplyr::mutate(Pass = dplyr::case_when(SYMBOL %in% tcga_degs_down$SYMBOL ~ "TCGA",
-  dplyr::mutate(Pass = dplyr::case_when(SYMBOL %in% tcga_degs_up$SYMBOL ~ "TCGA",
-                                        TRUE ~ "Others")) %>%
-  dplyr::mutate(Pass = dplyr::case_when(log2FC_KRT13 >= 1 & log2FC_Non_Immune >= 0.25 & Pass == "TCGA" ~ "TCGA+SC",
-                                        TRUE ~ Pass)) %>%
-  dplyr::mutate(Pass = dplyr::case_when(SYMBOL %in% immune_genes & Pass == "TCGA+SC" ~ "TCGA+SC+Reactome",
-                                        TRUE ~ Pass)) %>%
-  dplyr::mutate(Pass = dplyr::case_when(SYMBOL %in% druggable_genes$SYMBOL & Pass == "TCGA+SC+Reactome" ~ "TCGA+SC+Reactome+Druggable",
-                                        TRUE ~ Pass))
 
+hits_down <- tcga_degs_down[,1:4] %>%
+  dplyr::mutate(Pass = "TCGA",
+                Pass = dplyr::case_when(SYMBOL %in% immune_genes & Pass == "TCGA" ~ "TCGA+Reactome",
+                                        TRUE ~ Pass),
+                Pass = dplyr::case_when(SYMBOL %in% druggable_genes$SYMBOL & Pass == "TCGA+Reactome"~ "TCGA+Reactome+Druggable",
+                                        TRUE ~ Pass))
 # Save as excel
 wb <- openxlsx::createWorkbook()
 
 for (d in c("deseq2_hits", "seurat_hits")){
-
+  
   data <- get(d)
   # data <- data %>% dplyr::mutate(size_col = dplyr::case_when(SYMBOL %in% hits$SYMBOL ~ 1.5,
   #                                                             TRUE ~ 0.25))
@@ -1260,7 +1335,7 @@ survival_params <- list(plot_by             = c(NA),
                         split_by            = c(NA),
                         split_plot          = FALSE,
                         multiple_cutoff     = FALSE,
-                        stratify_criteria   = c("o"),
+                        stratify_criteria   = c("q"),
                         reference           = c("LOW"),
                         conf_interval       = FALSE,
                         plot_curve          = TRUE,
@@ -1412,7 +1487,7 @@ survival_params <- list(plot_by             = c(NA),
                         split_by            = c(NA),
                         split_plot          = FALSE,
                         multiple_cutoff     = FALSE,
-                        stratify_criteria   = c("o"), #m
+                        stratify_criteria   = c("q"), #m, #o, #t, #q, #th, #none
                         reference           = c("LOW"),
                         conf_interval       = FALSE,
                         plot_curve          = TRUE,
@@ -1421,7 +1496,6 @@ survival_params <- list(plot_by             = c(NA),
                         legend_label        = c("High", "Low"),
                         color_palette       = c("#d73027","#0c2c84"),
                         plot_all_bins       = FALSE,
-                        plot_all_quartiles  = FALSE,
                         gene_sig_score      = TRUE)
 
 gse <- c("IMvigor210", "IMvigor010")
@@ -1462,12 +1536,12 @@ for (proj in gse){
   log_norm_counts <- base::sweep(x=log_norm_counts, MARGIN=1, FUN="-", STATS=t)
   
   # List genes to plot
-  krt13_sig <- read.xlsx(paste0(file_path, "41467_2021_25103_MOESM3_ESM.xlsx")) %>%
-    dplyr::filter(group == "KRT_Epithelial", pvals_adj < 0.05) %>%
-    dplyr::slice_max(order_by = logfoldchanges, n=200)
-  plot_genes <- krt13_sig$names
+  # krt13_sig <- read.xlsx(paste0(file_path, "41467_2021_25103_MOESM3_ESM.xlsx")) %>%
+  #   dplyr::filter(group == "KRT_Epithelial", pvals_adj < 0.05) %>%
+  #   dplyr::slice_max(order_by = logfoldchanges, n=200)
+  # plot_genes <- krt13_sig$names
   
-  #plot_genes <- c("IFNG", "GZMA", "GZMB", "PRF1", "GZMK", "ZAP70", "GNLY", "FASLG", "TBX21", "EOMES", "CD8A", "CD8B")
+  plot_genes <- c("IFNG", "GZMA", "GZMB", "PRF1", "GZMK", "ZAP70", "GNLY", "FASLG", "TBX21", "EOMES", "CD8A", "CD8B")
   plot_genes <- intersect(plot_genes, rownames(log_norm_counts))
   
   # Generate expr_df
@@ -1522,7 +1596,7 @@ for (proj in gse){
     openxlsx::writeData(wb, sheet = "Classification", x = classification_df)
     openxlsx::addWorksheet(wb, sheetName = "Norm_counts")
     openxlsx::writeData(wb, sheet = "Norm_counts", x = norm_df)
-    openxlsx::saveWorkbook(wb, file = paste0(output_path, proj, "_Stats.xlsx"), overwrite = TRUE)
+    openxlsx::saveWorkbook(wb, file = paste0(output_path, proj, "CTL.score_q_Stats.xlsx"), overwrite = TRUE)
   }
 }
 
@@ -1552,7 +1626,10 @@ survival_params <- list(plot_by             = c(NA),
                         plot_all_quartiles  = FALSE,      # If plotting expression and 
                         gene_sig_score      = FALSE)      # If plotting gene signature
 
-gse <- c("IMvigor210", "IMvigor010")
+meta_data <- read.xlsx(paste0(data_path, "TCGA.PanAtlas.Metadata.xlsx"))
+proj <- make.names(unique(meta_data$Project_ID))
+
+gse <- c(proj, "GSE78220", "GSE91061", "GSE96619", "GSE115821", "GSE131521", "IMvigor210", "IMvigor010")
 
 for (proj in gse){  
   
@@ -1570,7 +1647,7 @@ for (proj in gse){
   # Reformat metadata 
   meta_data <- meta_data %>% 
     dplyr::mutate(Sample_ID = make.names(names = Sample_ID)) %>%
-    dplyr::mutate(Time = as.numeric(Time)) %>%
+    dplyr::mutate(Time = as.numeric(Time), Status = as.numeric(Status)) %>%
     dplyr::filter(Time > 0 & !is.na(Time)) %>%
     dplyr::distinct_at("Sample_ID", .keep_all = TRUE)
   
@@ -1597,7 +1674,7 @@ for (proj in gse){
   
   # Merge all stats into a dataframe
   stats_df <- as.data.frame(summary[[2]])
- 
+  
   # Save the results
   wb <- openxlsx::createWorkbook()
   openxlsx::addWorksheet(wb, sheetName = "Summary")
@@ -1650,7 +1727,7 @@ ggplot2::ggplot(data = meta_data, aes(x = factor(model), y = percent, fill = Bes
 ggsave(paste0(output_path, "Stacked_bar_Imvigor210.tiff"))
 
 #******************************************************************************#
-#   30 HITS, CD8A, CD8B IN NORMAL & TUMOR TCGA SAMPLES WITH CLASSIFICATION    #
+#ALL PROTEIN CODING DEGs, CD8A, CD8B, CTL SCORE IN NORMAL & TUMOR TCGA SAMPLES WITH CLASSIFICATION    #
 #******************************************************************************#
 
 source("/hpc/home/kailasamms/projects/RNASeq/RNASeq_DESeq2_Functions.R")
@@ -1659,42 +1736,95 @@ file_path <- "/hpc/home/kailasamms/scratch/ICB_TCGA_datasets/original/"
 data_path <- "/hpc/home/kailasamms/scratch/ICB_TCGA_datasets/processed/"
 output_path <- "/hpc/home/kailasamms/scratch/ICB_TCGA_datasets/results/"
 
-hits <- openxlsx::read.xlsx(xlsxFile=paste0(output_path, "zFinal_Hits.xlsx"),
-                            sheet= "seurat_hits") %>%
-  dplyr::filter(grepl(pattern="Reactome", x=Pass)) %>%
-  dplyr::select(SYMBOL) %>%
-  unlist(use.names=FALSE)
+# hits <- openxlsx::read.xlsx(xlsxFile=paste0(output_path, "zFinal_Hits.xlsx"),
+#                             sheet= "seurat_hits") %>%
+#   dplyr::filter(grepl(pattern="Reactome", x=Pass)) %>%
+#   dplyr::select(SYMBOL) %>%
+#   unlist(use.names=FALSE)
+# 
+# hits <- c(hits, "CD8A", "CD8B")
 
-hits <- c(hits, "CD8A", "CD8B")
+# Read the median centered log norm counts
+log_norm_counts <- openxlsx::read.xlsx(xlsxFile=paste0(output_path,"TCGA.PanAtlas.median_centered_log_norm_counts.xlsx"))
+colnames(log_norm_counts)[1] <- "SYMBOL"
 
-normalized_counts <- openxlsx::read.xlsx(xlsxFile=paste0(output_path,"TCGA.PanAtlas.median_centered_log_norm_counts.xlsx"))
-colnames(normalized_counts)[1] <- "SYMBOL"
-
+# Get clinical data of normal and tumor samples to identify their TCGA cancer type
 meta_data_normal <- openxlsx::read.xlsx(xlsxFile=paste0(data_path, "TCGA.PanAtlas.Metadata.xlsx"),
-                                 sheet = "Normal")
+                                        sheet = "Normal")
 meta_data_tumor <- openxlsx::read.xlsx(xlsxFile=paste0(data_path, "TCGA.PanAtlas.Metadata.xlsx"),
                                        sheet = "Tumor")
 
-classification_df <- openxlsx::read.xlsx(xlsxFile=paste0(output_path, "Two_Group_Classification_from_Individual_cancers.xlsx"))
+# Calculate CTL score for each patient
+plot_genes <- c("IFNG", "GZMA", "GZMB", "PRF1", "GZMK", "ZAP70", "GNLY", "FASLG", "TBX21", "EOMES", "CD8A", "CD8B")
+plot_genes <- intersect(plot_genes, log_norm_counts$SYMBOL)
+survival_params <- list(plot_by             = c(NA), 
+                        split_by            = c(NA),
+                        split_plot          = FALSE,
+                        multiple_cutoff     = FALSE,
+                        stratify_criteria   = c("none"), #m
+                        reference           = c("Immune Enriched"),
+                        conf_interval       = FALSE,
+                        plot_curve          = TRUE,
+                        plot_risk_table     = TRUE,
+                        legend_title        = "Immune Status",
+                        legend_label        = c("Immune Depleted", "Immune Enriched"),
+                        color_palette       = c("#CB181D","#A6D854"),
+                        plot_all_bins       = FALSE,
+                        plot_all_quartiles  = FALSE,      # If plotting expression and 
+                        gene_sig_score      = TRUE)      # If plotting gene signature
+expr_df_tumor <- prep_expr_df(log_norm_counts %>% tibble::column_to_rownames("SYMBOL"), meta_data_tumor, plot_genes, survival_params)
+expr_df_normal <- prep_expr_df(log_norm_counts %>% tibble::column_to_rownames("SYMBOL"), meta_data_normal, plot_genes, survival_params)
+expr_df_tumor <- expr_df_tumor %>%
+  dplyr::rename(CTL.score=combined.exp) %>%
+  dplyr::select(Sample_ID, CTL.score)
+expr_df_normal <- expr_df_normal %>%
+  dplyr::rename(CTL.score=combined.exp) %>%
+  dplyr::select(Sample_ID, CTL.score)
 
-df_normal <- normalized_counts %>% 
-  dplyr::filter(SYMBOL %in% hits) %>%
+# Get classification of samples into immune enriched vs depleted
+classification_df <- openxlsx::read.xlsx(xlsxFile=paste0(output_path, "Two_Group_Classification_from_Individual_cancers.xlsx"))
+lower_cutoff <- quantile(classification_df$Mean, c(0.33,0.66))[[1]]
+upper_cutoff <- quantile(classification_df$Mean, c(0.33,0.66))[[2]]
+
+# Get all DEGs nUP>10, ndown<=1
+DEGs_df <- openxlsx::read.xlsx(xlsxFile=paste0(output_path, "zSummary_of_DEGs.xlsx"))
+colnames(DEGs_df)[1] <- "SYMBOL"
+DEGs_df <- DEGs_df %>%
+  dplyr::filter(n_UP > 10, n_DOWN <=1) %>%
+  dplyr::select(SYMBOL) %>%
+  unlist(use.names=FALSE)
+
+# Keep ONLY protein coding DEGs
+annotations <- get_annotations()
+protein_coding <- annotations[[1]] %>% dplyr::filter(str_detect(string=ENSEMBL_BIOTYPE, pattern="protein") |
+                                                       str_detect(string=ENTREZ_BIOTYPE,pattern="protein"))
+DEGs_df <- intersect(DEGs_df, union(protein_coding$ENSEMBL_SYMBOL, protein_coding$ENTREZ_SYMBOL))
+DEGs_df <- c(DEGs_df, "CD8A", "CD8B")
+
+# Merge all info together
+df_normal <- log_norm_counts %>% 
+  dplyr::filter(SYMBOL %in% DEGs_df) %>%
   tibble::column_to_rownames("SYMBOL") %>%
   t() %>%
   data.frame() %>% 
   tibble::rownames_to_column("Sample_ID") %>%
   dplyr::inner_join(meta_data_normal %>% dplyr::select(Sample_ID, Project_ID), by=c("Sample_ID"="Sample_ID")) %>%
-  dplyr::select(Project_ID, Sample_ID, everything())
+  dplyr::inner_join(expr_df_normal) %>%
+  dplyr::select(Project_ID, Sample_ID, CTL.score, everything())
 
-df_tumor <- normalized_counts %>% 
-  dplyr::filter(SYMBOL %in% hits) %>%
+df_tumor <- log_norm_counts %>% 
+  dplyr::filter(SYMBOL %in% DEGs_df) %>%
   tibble::column_to_rownames("SYMBOL") %>%
   t() %>%
   data.frame() %>% 
   tibble::rownames_to_column("Sample_ID") %>%
   dplyr::inner_join(meta_data_tumor %>% dplyr::select(Sample_ID, Project_ID), by=c("Sample_ID"="Sample_ID")) %>%
   dplyr::left_join(classification_df %>% dplyr::select(Sample, Class, Mean), by=c("Sample_ID"="Sample")) %>%
-  dplyr::select(Project_ID, Sample_ID, Class, Mean, everything())
+  dplyr::inner_join(expr_df_tumor) %>%
+  dplyr::mutate(Class.33 = dplyr::case_when(Mean <= lower_cutoff ~ Class,
+                                            Mean >= upper_cutoff ~ Class,
+                                            TRUE ~ "")) %>%
+  dplyr::select(Project_ID, Sample_ID, Class, Class.33, Mean, CTL.score, everything())
 
 # Save the results
 wb <- openxlsx::createWorkbook()
@@ -1703,6 +1833,120 @@ openxlsx::writeData(wb, sheet = "Normal", x = df_normal)
 openxlsx::addWorksheet(wb, sheetName = "Tumor")
 openxlsx::writeData(wb, sheet = "Tumor", x = df_tumor)
 openxlsx::saveWorkbook(wb, file = paste0(output_path, "zHit.Expression.Tumor.Normal.xlsx"), overwrite = TRUE)
+
+# Calculate correlation between each gene and immune score; each gene vs CTL score
+proj <- c(unique(meta_data_tumor$Project_ID))
+DEGs <- intersect(make.names(DEGs_df), make.names(colnames(df_tumor)))
+df <- data.frame()
+
+for (f in proj){
+  
+  df_tumor_subset <- df_tumor %>%
+    dplyr::filter(Project_ID == f)
+  
+  gene <- c()
+  spearman.p.immune <- c()
+  spearman.r.immune <- c()
+  pearson.p.immune <- c()
+  pearson.r.immune <- c()
+  spearman.p.ctl <- c()
+  spearman.r.ctl <- c()
+  pearson.p.ctl <- c()
+  pearson.r.ctl <- c()
+  spearman.p.immune.33 <- c()
+  spearman.r.immune.33 <- c()
+  pearson.p.immune.33 <- c()
+  pearson.r.immune.33 <- c()
+  spearman.p.ctl.33 <- c()
+  spearman.r.ctl.33 <- c()
+  pearson.p.ctl.33 <- c()
+  pearson.r.ctl.33 <- c()
+  
+  for (i in 1:length(DEGs)){
+    
+    gene <- c(gene, DEGs[i])
+    cat(i,":", DEGs[i], "\n")
+    
+    # Correlation between gene z score and immune score
+    immune.df <- df_tumor_subset %>%
+      dplyr::select(Mean, all_of(DEGs[i]))
+    
+    res <- cor.test(x=immune.df[[1]], y=immune.df[[2]], method = "spearman")
+    spearman.p.immune <- c(spearman.p.immune, res$p.value)
+    spearman.r.immune <- c(spearman.r.immune, res$estimate)
+    
+    res <- cor.test(x=immune.df[[1]], y=immune.df[[2]], method = "pearson")
+    pearson.p.immune <- c(pearson.p.immune, res$p.value)
+    pearson.r.immune <- c(pearson.r.immune, res$estimate)
+    
+    # Correlation between gene z score and CTL score
+    ctl.df <- df_tumor_subset %>%
+      dplyr::select(CTL.score, all_of(DEGs[i]))
+    
+    res <- cor.test(x=ctl.df[[1]], y=ctl.df[[2]], method = "spearman")
+    spearman.p.ctl <- c(spearman.p.ctl, res$p.value)
+    spearman.r.ctl <- c(spearman.r.ctl, res$estimate)
+    
+    res <- cor.test(x=ctl.df[[1]], y=ctl.df[[2]], method = "pearson")
+    pearson.p.ctl <- c(pearson.p.ctl, res$p.value)
+    pearson.r.ctl <- c(pearson.r.ctl, res$estimate)
+    
+    # Correlation between gene z score and immune score using top 33% and bottom 33%
+    immune.df <- df_tumor_subset %>%
+      dplyr::filter(nchar(Class.33)!=0) %>% 
+      dplyr::select(Mean, all_of(DEGs[i]))
+    
+    res <- cor.test(x=immune.df[[1]], y=immune.df[[2]], method = "spearman")
+    spearman.p.immune.33 <- c(spearman.p.immune.33, res$p.value)
+    spearman.r.immune.33 <- c( spearman.r.immune.33, res$estimate)
+    
+    res <- cor.test(x=immune.df[[1]], y=immune.df[[2]], method = "pearson")
+    pearson.p.immune.33 <- c(pearson.p.immune.33, res$p.value)
+    pearson.r.immune.33 <- c(pearson.r.immune.33, res$estimate)
+    
+    # Correlation between gene z score and ctl score using top 33% and bottom 33%
+    ctl.df <- df_tumor_subset %>%
+      dplyr::filter(nchar(Class.33)!=0) %>% 
+      dplyr::select(CTL.score, all_of(DEGs[i]))
+    
+    res <- cor.test(x=ctl.df[[1]], y=ctl.df[[2]], method = "spearman")
+    spearman.p.ctl.33 <- c(spearman.p.ctl.33, res$p.value)
+    spearman.r.ctl.33 <- c(spearman.r.ctl.33, res$estimate)
+    
+    res <- cor.test(x=ctl.df[[1]], y=ctl.df[[2]], method = "pearson")
+    pearson.p.ctl.33 <- c(pearson.p.ctl.33, res$p.value)
+    pearson.r.ctl.33 <- c(pearson.r.ctl.33, res$estimate)
+    
+  }
+  summary <- data.frame("Cancer" = f,
+                        "Gene" = gene,
+                        "spearman.p.immune" = spearman.p.immune,
+                        "spearman.r.immune" = spearman.r.immune,
+                        "pearson.p.immune" = pearson.p.immune,
+                        "pearson.r.immune" = pearson.r.immune,
+                        "spearman.p.ctl" = spearman.p.ctl,
+                        "spearman.r.ctl" = spearman.r.ctl,
+                        "pearson.p.ctl" = pearson.p.ctl,
+                        "pearson.r.ctl" = pearson.r.ctl,
+                        "spearman.p.immune.33" = spearman.p.immune.33, 
+                        "spearman.r.immune.33" = spearman.r.immune.33, 
+                        "pearson.p.immune.33" = pearson.p.immune.33,
+                        "pearson.r.immune.33" = pearson.r.immune.33,
+                        "spearman.p.ctl.33" = spearman.p.ctl.33,
+                        "spearman.r.ctl.33" = spearman.r.ctl.33,
+                        "pearson.p.ctl.33" = pearson.p.ctl.33,
+                        "pearson.r.ctl.33" = pearson.r.ctl.33)
+  
+  df <- dplyr::bind_rows(df, summary)
+}
+
+# Save the results
+wb <- openxlsx::createWorkbook()
+openxlsx::addWorksheet(wb, sheetName = "Summary")
+openxlsx::writeData(wb, sheet = "Summary", x = df)
+openxlsx::saveWorkbook(wb, file = paste0(output_path, "Correlation.xlsx"), overwrite = TRUE)
+
+
 
 #******************************************************************************#
 #  ORA ANALYSIS oF UP AND DOWN REGULATED GENES IN ID vs IE IN EACH TCGA CANCER #

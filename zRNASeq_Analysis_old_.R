@@ -1,5 +1,4 @@
-# https://master.bioconductor.org/packages/release/workflows/vignettes/rnaseqGene/inst/doc/rnaseqGene.html
-# https://hbctraining.github.io/DGE_workshop/lessons/08_DGE_LRT.html
+
 
 #source("/hpc/home/kailasamms/projects/RNASeq/RNASeq_DESeq2_Functions.R")
 source("C:/Users/kailasamms/OneDrive - Cedars-Sinai Health System/Documents/GitHub/R-Scripts/RNASeq_DESeq2_Functions.R")

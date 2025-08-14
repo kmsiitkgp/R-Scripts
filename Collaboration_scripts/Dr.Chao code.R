@@ -770,11 +770,11 @@ plot_heatmap(normalized_counts, metadata_column, metadata_row, heatmap_params,
 ######Reviewer 4 stage adjusted survival curves
 
 source("C:/Users/kailasamms/OneDrive - Cedars-Sinai Health System/Documents/GitHub/R-Scripts/RNASeq_DESeq2_Functions.R")
-output_path <- "C:/Users/kailasamms/OneDrive - Cedars-Sinai Health System/Desktop/"
+output_path <- "C:/Users/kailasamms/OneDrive - Cedars-Sinai Health System/Desktop/Folder8/"
 parent_path <- "C:/Users/kailasamms/OneDrive - Cedars-Sinai Health System/FromBox/Dr.Chao project/"
 
 survival_params <- list(plot_by             = c(NA), 
-                        split_by            = c("ajcc_pathologic_stage"),
+                        split_by            = c("combined_stage"), #c("ajcc_pathologic_stage"),
                         split_plot          = TRUE,
                         multiple_cutoff     = TRUE,
                         stratify_criteria   = c("o"),
@@ -789,13 +789,17 @@ survival_params <- list(plot_by             = c(NA),
                         plot_all_quartiles  = FALSE,
                         gene_sig_score      = TRUE)
 
-meta_data <- openxlsx::read.xlsx(paste0(parent_path,"!TCGA_BLCA_Metadata.xlsx"))
-read_data <- read.xlsx(paste0(parent_path, "!TCGA_BLCA_Normalized_Counts.xlsx"))
-read_data <- read_data[, -c(2,3,4)]
+meta_data <- openxlsx::read.xlsx(paste0(parent_path,"TCGA_BLCA_Metadata.xlsx")) %>%
+  dplyr::mutate(combined_stage = dplyr::case_when(ajcc_pathologic_stage %in% c("Stage I", "Stage II") ~ "StageI+II",
+                                                  ajcc_pathologic_stage %in% c("Stage III", "Stage IV") ~ "StageIII+IV",
+                                                  TRUE ~ "delete")) %>%
+  dplyr::filter(combined_stage != "delete")
+  
+read_data <- read.xlsx(paste0(parent_path, "TCGA_BLCA_Normalized.xlsx"))
 
 # Reformat metadata 
 meta_data <- meta_data %>% 
-  dplyr::mutate(Sample_ID = make.names(names = Sample_id)) %>%
+  dplyr::mutate(Sample_ID = make.names(names = Sample_ID)) %>%
   dplyr::mutate(Time = as.numeric(Time)) %>%
   dplyr::filter(Time > 0 & !is.na(Time)) %>%
   dplyr::distinct_at("Sample_ID", .keep_all = TRUE)
@@ -847,6 +851,29 @@ for (p in c("cam_genes", "scaffold_genes", "combo")){
     
     gene <- "combined.exp"
     prefix <- p
-  plot_survival(expr_df, gene, survival_params, prefix, output_path)
+    summary <- plot_survival(expr_df, gene, survival_params, prefix, output_path)
+    
+    # Merge classification info to parent dataframe
+    classification_df <- summary[[1]] %>%
+      dplyr::select(Sample_ID, combined.exp,	model, everything())
+    
+    # Merge all stats into a dataframe
+    stats_df <- as.data.frame(summary[[2]])
+    
+    # # Create a dataframe of normalized counts of genes plotted
+    # norm_df <- norm_counts[intersect(plot_genes, rownames(norm_counts)),] %>%
+    #   t() %>%
+    #   data.frame() %>%
+    #   tibble::rownames_to_column("SYMBOL")
+    
+    # Save the results
+    wb <- openxlsx::createWorkbook()
+    openxlsx::addWorksheet(wb, sheetName = "Summary")
+    openxlsx::writeData(wb, sheet = "Summary", x = stats_df)
+    openxlsx::addWorksheet(wb, sheetName = "Classification")
+    openxlsx::writeData(wb, sheet = "Classification", x = classification_df)
+    # openxlsx::addWorksheet(wb, sheetName = "Norm_counts")
+    # openxlsx::writeData(wb, sheet = "Norm_counts", x = norm_df)
+    openxlsx::saveWorkbook(wb, file = paste0(output_path, p, "_Stats.xlsx"), overwrite = TRUE)
   }
 }

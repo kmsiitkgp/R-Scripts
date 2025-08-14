@@ -29,7 +29,7 @@ library("pheatmap")
 # Single cell analysis packages
 library("Seurat")
 
-# https://github.com/saezlab/transcriptutorial/blob/master/scripts/03_Pathway_activity_with_Progeny.md
+# 
 
 #******************************************************************************#
 #                           DECLARE GLOBAL VARIABLES                           #
