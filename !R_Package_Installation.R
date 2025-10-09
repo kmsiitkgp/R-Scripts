@@ -121,6 +121,7 @@ library(scCustomize)          # Customize Seurat plots
 ## Core Seurat Ecosystem
 library(Seurat)               # Single-cell analysis toolkit
 library(SeuratData)           # Load Seurat datasets
+library(SeuratDisk)           # HDF5 (.h5ad) conversion
 library(SeuratWrappers)       # Extra Seurat functions
 library(patchwork)            # Arrange ggplots easily
 
@@ -144,6 +145,11 @@ library(CellChat)             # Infer cell-cell signaling
 ## Utilities
 library(xpectr)               # Suppress warnings and messages
 
+## GeoMx
+library(NanoStringNCTools)
+library(GeomxTools)
+library(GeoMxWorkflows)
+
 # ------------------------------
 # Commented/Optional Libraries
 # ------------------------------
@@ -152,16 +158,17 @@ library(xpectr)               # Suppress warnings and messages
 # library(pathview)         # Pathway visualization tool
 # library(hrbrthemes)       # Modern ggplot themes
 # library(infercnv)         # CNV from single-cell RNA
-# library(SeuratDisk)       # HDF5 (.h5ad) conversion
+
 # library(SCopeLoomR)       # Read .loom format files
 # library(SCENIC)           # SC regulon analysis
 # library(Augur)            # Cell-type prioritization
 # library(ktplots)          # CellPhoneDB visualizations
 
-
-
-
-
+### GeoMx packages
+BiocManager::install(pkgs = c("NanoStringNCTools", "GeomxTools", 
+                              "GeoMxWorkflows"),
+                     force = FALSE,
+                     INSTALL_opts = '--no-lock')
 
 ### Annotation packages
 BiocManager::install(pkgs = c("AnnotationHub", "ensembldb", 
@@ -173,7 +180,7 @@ BiocManager::install(pkgs = c("AnnotationHub", "ensembldb",
 BiocManager::install(pkgs = c("fgsea", "clusterProfiler", "decoupleR", 
                               "progeny", "dorothea", 
                               "viper", "DESeq2", "sva", "GSVA", "glmGamPoi", 
-                              "ashr"),
+                              "ashr", "OmnipathR"),
                      force = FALSE,
                      INSTALL_opts = '--no-lock')
 
@@ -194,7 +201,8 @@ BiocManager::install(pkgs = c("infercnv", "UCell", "scDblFinder", "RcisTarget",
 # Sometimes connection is timed out when connecting to GitHub. So, use a proxy.
 library("httr")
 httr::set_config(use_proxy("8.8.8.8", port = 8080))
-remotes::install_github(repo = c("jinworks/CellChat", 
+remotes::install_github(repo = c("mojaveazure/seurat-disk",,
+                                 "jinworks/CellChat", 
                                  "prabhakarlab/Banksy@devel", 
                                  "satijalab/seurat-wrappers", # needed for Banksy
                                  "immunogenomics/presto",     # needed for faster FindMarkers()
@@ -238,28 +246,53 @@ utils::update.packages(lib.loc = .libPaths(),
                     repos = 'http://cran.us.r-project.org')
 
 # List packages that couldn't be installed
-pkgs <- c("BiocManager", "remotes", "AnnotationHub", "ensembldb", "org.Hs.eg.db",
-          "org.Mm.eg.db", "fgsea", "clusterProfiler", "progeny", "dorothea", 
-          "viper", "DESeq2", "sva", "GSVA", "RcisTarget", "glmGamPoi", "Seurat",
-          "harmony", "hdf5r", "arrow", "leidenAlg", "scCustomize", "reticulate", 
-          "ashr", "infercnv", 
-          "UCell", "scDblFinder", "DropletUtils", "batchelor", 
-          "ClusterFoldSimilarity", "CellChat", 
-          "Banksy", "SeuratWrappers", "presto", "DoubletFinder", "SeuratData", 
-          "oligo",
-          "oligoData", "illuminaHumanv4.db", "hgu133plus2.db", "GEOquery", 
-          "affy", "lumi", "openxlsx", "dplyr", "tibble", "stringr", "purrr", 
-          "ggplot2", "ggplotify", "ggrepel", "ggpubr", "ggfortify", "ggridges",
-          "ggbeeswarm", "pheatmap", "VennDiagram", "survival", "survminer", 
-          "UpSetR", "umap", "plot3D", "cowplot", "viridis", "RColorBrewer", 
-          "colorspace", "enrichplot", "ComplexHeatmap")
+all_pkgs <- c(
+  # Non-CRAN utilities
+  "BiocManager", "remotes",
+  
+  # Gene annotation
+  "AnnotationHub", "ensembldb", "org.Hs.eg.db", "org.Mm.eg.db",
+  
+  # Microarray analysis
+  "affy", "illuminaHumanv4.db", "lumi", "limma",
+  "oligo", "oligoData", "hgu133plus2.db", "GEOquery",
+  
+  # RNA-seq & Differential Expression
+  "DESeq2", "sva",
+  
+  # Gene set enrichment & pathway
+  "fgsea", "clusterProfiler", "enrichplot", "progeny", "dorothea", "viper",
+  "decoupleR", "GSVA", "glmGamPoi", "ashr", "OmnipathR",
+  
+  # Data wrangling
+  "dplyr", "tibble", "purrr", "stringr", "openxlsx",
+  
+  # Basic plotting
+  "ggplot2", "ggpubr", "cowplot", "ggrepel", "ggbeeswarm",
+  "RColorBrewer", "viridis", "colorspace", "ggplotify", "ggfortify",
+  
+  # Specialized plotting
+  "pheatmap", "ggridges", "plot3D", "VennDiagram", "UpSetR",
+  "survival", "survminer", "scCustomize", "ComplexHeatmap",
+  
+  # Single-cell core
+  "Seurat", "SeuratData", "SeuratDisk", "SeuratWrappers", "patchwork",
+  "harmony", "umap", "Banksy", "UCell", "ClusterFoldSimilarity",
+  "DropletUtils", "DoubletFinder", "scDblFinder", "CellChat", "xpectr",
+  "infercnv", "batchelor", "RcisTarget",
+  
+  # GeoMx
+  "NanoStringNCTools", "GeomxTools", "GeoMxWorkflows",
+  
+  # GitHub / optional dependencies
+  "hdf5r", "arrow", "leidenAlg", "reticulate", "presto"
+)
          
 # Display packages that couldn't be installed
 cat("These pacakges have NOT yet been installed:", sort(pkgs[!(pkgs %in% installed.packages()[,1])]), sep="\n")
 
 
 #BiocManager::install(pkgs = c("BiocNeighbors", ),
-# "mojaveazure/seurat-disk",
 # "aertslab/SCENIC",
 # "aertslab/SCopeLoomR",
 # "neurorestore/Augur"

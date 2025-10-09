@@ -78,7 +78,7 @@ utils::write.table(x = srr,
 #******************************************************************************#
 # MOST IMPORTANT: Open "SRR_Acc_List.txt" in Notepad++.                        #
 # Right click "Windows (CR LF)" at right bottom and change to "Unix (LF)".     #
-# Next, upload "SRR_Acc_List.txt" to HPC cluster and use 02a_Fastq_dump.sh to  #
+# Next, upload "SRR_Acc_List.txt" to HPC cluster and use 01_Fastqer_dump.sh to  #
 # download the SRR files to HPC cluster. If you do not change this, arrays     #  
 # created in Linux by reading the txt file wont work properly and only the     #
 # last value will be stored in the array.                                      #

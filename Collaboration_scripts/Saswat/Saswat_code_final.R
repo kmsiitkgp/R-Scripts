@@ -2045,12 +2045,422 @@ openxlsx::writeData(wb, sheet=paste0("ORA_DOWN_ALL"), x=down_df, rowNames = FALS
 openxlsx::saveWorkbook(wb, file = paste0(output_path, "zPanCancer_Pathway_Analysis_Results.xlsx"),
                        overwrite = TRUE)
 
-
-
-
 # NOTE: You can convert the tsv to xlsx and also import into R
 # identical(df1, df2) will be FALSE indicating there is difference in dataframes
 # imported using read.table() vs read.xlsx().
 # setdiff(df1,df2) will reveal no differences.
 # However, sapply(df, class) will reveal that "size" column is stored as numeric
 # by read.xlsx() but as integer by read.table().
+
+
+### 29 gene pathway analysis
+gmt.dir <- "C:/Users/kailasamms/OneDrive - Cedars-Sinai Health System/Documents/GitHub/R-Scripts/GSEA_genesets"
+gmt_files <- list.files(file.path(gmt.dir, "Homo sapiens"), full.names = TRUE)
+
+DEGs_df <- read.xlsx("C:/Users/kailasamms/OneDrive - Cedars-Sinai Health System/Desktop/Collaboration projects data/Past/Saswat/zFinal_Hits_All.xlsx")
+
+ora_df_up <- data.frame()
+ora_df_down <- data.frame()
+sig_genes_up <- DEGs_df %>%
+  dplyr::filter(n_UP > 10, n_DOWN <=1) %>%
+  dplyr::pull(SYMBOL)
+universe_genes <- DEGs_df %>%
+  dplyr::pull(SYMBOL)
+
+for (gmt_file in gmt_files) {
+  
+  # Extract gene set name
+  # gmt_name <- gsub(pattern = "^.*/|.v[0-9].*$", replacement = "", x = gmt_file)
+  gmt_name <- gsub(pattern = "^.*/|", replacement = "", x = gmt_file)
+  
+  # Format gene sets for fgsea and keep only genes present in ranked_list
+  gmt <- fgsea::gmtPathways(gmt_file)
+
+  # Format gene sets for clusterProfiler and keep only genes present in ranked_list
+  pathway_gene_df <- data.frame(pathways = base::rep(x = names(gmt), times = base::unname(obj = lengths(gmt))),
+                                genes = unlist(gmt, use.names = FALSE))
+  
+  ora_res_up <- clusterProfiler::enricher(gene = sig_genes_up,
+                                          pvalueCutoff = 0.05,
+                                          pAdjustMethod = "BH",
+                                          universe = universe_genes,
+                                          minGSSize = 10,
+                                          maxGSSize = 500,
+                                          qvalueCutoff = 0.2,
+                                          TERM2GENE = pathway_gene_df,
+                                          TERM2NAME = NA)
+  
+  if (!is.null(ora_res_up)) {
+    ora_df_up <- dplyr::bind_rows(ora_df_up, ora_res_up@result)
+  }
+}
+
+ora_df <- dplyr::bind_rows(ora_df_up %>% dplyr::mutate(Direction = "Upregulated"), 
+                           ora_df_down %>% dplyr::mutate(Direction = "Downregulated"))
+
+
+if (nrow(ora_df) > 0){
+  ora_df <- ora_df %>%
+    tidyr::separate(col = GeneRatio, into = c("k", "n")) %>%
+    tidyr::separate(col = BgRatio, into = c("K", "N")) %>%
+    dplyr::mutate_at(c("k", "n", "K", "N"), as.numeric) %>%
+    dplyr::mutate(GeneRatio = k / n,
+                  BackgroundRatio = K / N,
+                  EnrichmentRatio = GeneRatio / BackgroundRatio,
+                  combined_score = GeneRatio * -log10(p.adjust),
+                  NES = NA_integer_)
+}
+
+lookup <- c(pathway = "ID",
+            geneID = "leadingEdge", geneID = "core_enrichment",
+            K = "size", K = "setSize",
+            padj = "p.adjust", 
+            pval = "pvalue")
+
+for (i in c("ora_df")){
+  
+  df <- get(i)
+  if (nrow(df) > 0){
+    df <- df %>%
+      dplyr::rename(any_of(lookup)) %>%
+      dplyr::filter(padj <= 0.05) %>%
+      tibble::remove_rownames() %>%
+      tidyr::separate(col = pathway, into = c("Collection", "Description"), sep = "_", extra = "merge") %>%
+      dplyr::mutate(Description = base::gsub(pattern = "_", replacement = " ", x= Description),
+                    geneID = base::sapply(X = geneID, FUN = paste, collapse = "/")) %>%
+      dplyr::rowwise() %>%
+      dplyr::mutate(leading_edge_size = length(unlist(stringr::str_split(geneID, "/")))) %>%
+      dplyr::ungroup() %>%
+      as.data.frame() %>%
+      dplyr::select(Collection, Description, leading_edge_size, K, pval, padj, NES, Direction, everything(), -geneID, geneID)
+    
+    max_len <- max(df$leading_edge_size)
+    sep_char <- ifelse(grepl(",", df$geneID[1], fixed = TRUE), ",", "/")
+    
+    # NOTE: across() allows you to apply a function(s) to multiple columns at 
+    # once. map_chr() iterates over a list/vector and applies a function to 
+    # each element (in this context, each cell within the selected columns),
+    # returning a character vector.
+    df <- df %>% 
+      tidyr::separate(col = geneID, into = paste0("gene", 1:max_len), sep = sep_char, remove = TRUE, fill = "right") %>%
+      dplyr::mutate(across(.cols = starts_with("gene", ignore.case = FALSE), 
+                           .fns = function (col) { col %>% 
+                               purrr::map_chr(.f = function (x){gsub('c\\(', "", x) }) %>%
+                               purrr::map_chr(.f = function (x){gsub('\\)', "", x) }) %>%
+                               purrr::map_chr(.f = function (x){gsub('"', "", x) }) %>%
+                               trimws() })) %>%
+      dplyr::select(Collection, Description, leading_edge_size, K, padj, NES, Direction, everything())
+    
+    assign(x = i, value = df)
+  }
+}
+
+df <- ora_df
+method <- "ORA"
+save.dir <- "C:/Users/kailasamms/OneDrive - Cedars-Sinai Health System/Desktop/"
+dot_plot_list <- list()
+bar_plots <- list()
+plot_colors <- c("Upregulated" = "#E69F00", "Downregulated" = "#56B4E9")
+
+df <- df %>%
+  dplyr::mutate(Description = gsub(pattern = "_", replacement = " ", x = Description),
+                Description = stringr::str_wrap(string = Description, width = 30))
+
+# Decide if there are multiple collections or single collection.
+# If multiple, plot each collection separately,
+collections <- unique(df$Collection)
+n_collections <- length(unique(df$Collection))
+
+for (i in seq_len(n_collections)){
+  
+  plot_df <- df %>% dplyr::filter(Collection %in% collections[i])
+  
+  # Choose x axis column, size column and labels
+  if (method == "ORA"){
+    x_col <- sym("GeneRatio")
+    x_label <- "GeneRatio"
+    size_col <- sym("leading_edge_size")
+    color_col <- sym("Direction")
+    score_var <- dplyr::case_when("GeneRatio" %in% colnames(df) ~ "GeneRatio",
+                                  "combined_score" %in% colnames(df) ~ "combined_score", 
+                                  TRUE ~ NA_character_)
+    x_limits <- c(0, NA)  # start at 0, auto end
+    
+    df <- df %>%
+      dplyr::filter(!is.na(.data[[score_var]])) %>%
+      dplyr::arrange(dplyr::desc(.data[[score_var]]))
+    
+  }
+  
+  # Pad with empty rows if fewer than 15 pathways 
+  n_missing <- 20 - nrow(plot_df)
+  if(n_missing > 0){
+    empty_df <- matrix(data = "", 
+                       nrow = n_missing,
+                       ncol = ncol(plot_df)) %>%
+      as.data.frame() %>%
+      dplyr::mutate(Description = paste0("", seq_len(n_missing)))
+    plot_df <- dplyr::bind_rows(plot_df, empty_df)
+  }
+  
+  max_label_len <- max(nchar(plot_df$Description), na.rm = TRUE)
+  y_text_size <- dplyr::case_when(max_label_len > 50 ~ 6,
+                                  max_label_len > 35 ~ 7,
+                                  max_label_len > 25 ~ 8,
+                                  TRUE ~ 10)
+  
+  # Plot bar plot 
+  p1 <- ggplot2::ggplot(data = plot_df,
+                        aes(x = !!x_col,
+                            y = reorder(Description, !!x_col),
+                            fill = !!color_col,
+                            alpha = -log10(padj))) +
+    ggplot2::geom_col(width = 0.75, na.rm = TRUE) +
+    ggplot2::theme_classic() +
+    ggplot2::labs(x = x_label,
+                  y = "",
+                  title = paste("Top", collections[i], "Pathways"),
+                  fill = "Direction") +
+    custom_theme +
+    theme(axis.text.y = element_text(size = y_text_size)) +
+    coord_cartesian(clip = "off") +
+    scale_x_continuous(limits = x_limits, expand = expansion(mult = c(0, 0.05))) +
+    scale_alpha_continuous(range = c(0.5, 1)) +
+    scale_fill_manual(values = plot_colors) +
+    guides(fill = guide_legend(override.aes = list(shape = 22, size = 6)),
+           color = guide_legend(override.aes = list(shape = 22, size = 6)),
+           alpha = guide_legend(override.aes = list(shape = 22, size = 6))) +
+    ggplot2::geom_text(aes(label =  !!size_col), x = 0, hjust = -0.1, size = 3, show.legend = FALSE)
+  
+  bar_plots <- c(bar_plots, list(p1))
+  
+  # Plot dot plot 
+  vals <- c(min(plot_df[[size_col]], na.rm = TRUE), max(plot_df[[size_col]], na.rm = TRUE))
+  breaks <- as.vector(floor(quantile(vals) / 10) * 10)
+  
+  p2 <- ggplot2::ggplot(data = plot_df,
+                        aes(x = !!x_col,
+                            y = reorder(Description, !!x_col),
+                            fill = !!color_col,
+                            alpha = -log10(padj),
+                            color = !!color_col,
+                            size = !!size_col)) +
+    ggplot2::geom_point() +
+    ggplot2::theme_classic() +
+    ggplot2::labs(x = x_label ,
+                  y = "",
+                  title = paste("Top", collections[i], "Pathways"),
+                  color = "Direction",
+                  size = "Counts") +
+    custom_theme +
+    theme(axis.text.y = element_text(size = y_text_size)) +
+    coord_cartesian(clip = "off") + 
+    scale_x_continuous(limits = x_limits, expand = expansion(mult = c(0, 0.05))) +
+    scale_alpha_continuous(range = c(0.5, 1)) +
+    scale_color_manual(values = plot_colors) +
+    scale_fill_manual(values = plot_colors) + # need for coloring the legend
+    guides(fill = guide_legend(override.aes = list(shape = 22, size = 6)),
+           color = guide_legend(override.aes = list(shape = 22, size = 6)),
+           alpha = guide_legend(override.aes = list(shape = 15, size = 6))) +
+    ggplot2::scale_size(breaks = breaks) 
+  
+  dot_plot_list <- c(dot_plot_list, list(p2))
+}
+
+bar_plots <- cowplot::plot_grid(plotlist = bar_plots, ncol = 3, nrow = 3)
+ggplot2::ggsave(filename = paste0("Bar_plot_pathways_", method, ".tiff"),
+                plot = bar_plots,
+                device = "jpeg",
+                path = file.path(save.dir),
+                width = 3*7,
+                height = 3*7,
+                units = "in",
+                dpi = 300,
+                bg = "white")
+
+dot_plots <- cowplot::plot_grid(plotlist = dot_plot_list, ncol = 3, nrow = 3)
+ggplot2::ggsave(filename = paste0("Dot_plot_pathways_", method, ".tiff"),
+                plot = dot_plots,
+                device = "jpeg",
+                path = file.path(save.dir),
+                width = 3*7,
+                height = 3*7,
+                units = "in",
+                dpi = 300,
+                bg = "white")
+
+
+wb <- openxlsx::createWorkbook()
+openxlsx::addWorksheet(wb, sheetName = "Pathways")
+openxlsx::writeData(wb, sheet = "Pathways", x = ora_df, rowNames = FALSE)
+openxlsx::saveWorkbook(wb, file.path(save.dir, "Pathway_results.xlsx"), overwrite = TRUE)
+
+## new plot
+
+# ---- Load data ----
+data <- read.xlsx("C:/Users/kailasamms/OneDrive - Cedars-Sinai Health System/Desktop/zFinal_Hits_All.xlsx")
+
+# ---- Count occurrences of each (n_UP, n_DOWN) combination ----
+joint_counts <- data %>%
+  count(n_UP, n_DOWN)
+
+# ---- Polished heatmap ----
+ggplot(joint_counts, aes(x = n_UP, y = n_DOWN, fill = n)) +
+  geom_tile(color = "white") +
+  scale_fill_viridis(option = "D") +                # visually pleasant gradient
+  scale_x_continuous(breaks = seq(0, 33, 5), limits = c(0, 33), expand = c(0, 0)) +
+  scale_y_continuous(breaks = seq(0, 33, 5), limits = c(0, 33), expand = c(0, 0)) +
+  theme_classic(base_size = 14) +
+  theme(
+    axis.ticks = element_line(color = "black"),
+    axis.text = element_text(color = "black")
+  ) +
+  labs(
+    title = "Joint Distribution of n_UP and n_DOWN Across Genes",
+    x = "n_UP",
+    y = "n_DOWN",
+    fill = "Number of Genes"
+  )
+
+ggsave("2.jpg", width = 8, height = 6, dpi = 300)
+
+# ---- Saswat dot plots ----
+
+data <- read.xlsx("C:/Users/kailasamms/OneDrive - Cedars-Sinai Health System/Desktop/Collaboration projects data/Past/Saswat/Saswat_Pathways.xlsx")
+save.dir <- "C:/Users/kailasamms/OneDrive - Cedars-Sinai Health System/Desktop/"
+dot_plot_list <- list()
+bar_plot_list <- list()
+
+for (g in unique(data$Genes)){
+  
+  df <- data %>% 
+    dplyr::filter(Genes == g) %>%
+    dplyr::filter(P.value <= 0.05)
+  
+  plot_colors <- c("Upregulated" = "#E69F00", "Downregulated" = "#56B4E9")
+  
+  # str_wrap() wraps only between words, and it defines "words" based on spaces (" ").
+  # If all words are connected by "_", it wont split.
+  df <- df %>%
+    dplyr::mutate(Description = gsub(pattern = "_", replacement = " ", x = Description),
+                  Description = stringr::str_wrap(string = Description, width = 30))
+  
+  # Decide if there are multiple collections or single collection.
+  # If multiple, plot each collection separately,
+  collections <- "Reactome"
+  n_collections <- length(collections)
+  
+  for (i in seq_len(n_collections)){
+    
+    plot_df <- df %>% dplyr::filter(Collection %in% collections[i])
+    
+    # Choose x axis column, size column and labels
+      x_col <- sym("Combined.Score")
+      x_label <- "Combined.Score"
+      size_col <- sym("P.value")
+      color_col <- sym("P.value")
+      score_var <- "Combined.Score"
+      x_limits <- c(0, NA)  # start at 0, auto end
+      
+      df <- df %>%
+        dplyr::filter(!is.na(.data[[score_var]])) %>%
+        dplyr::arrange(dplyr::desc(.data[[score_var]]))
+    
+    # Pad with empty rows if fewer than 15 pathways 
+    n_missing <- 20 - nrow(plot_df)
+    if(n_missing > 0){
+      empty_df <- matrix(data = "", 
+                         nrow = n_missing,
+                         ncol = ncol(plot_df)) %>%
+        as.data.frame() %>%
+        dplyr::mutate(Description = paste0("", seq_len(n_missing)))
+      plot_df <- dplyr::bind_rows(plot_df, empty_df)
+    }
+    
+    max_label_len <- max(nchar(plot_df$Description), na.rm = TRUE)
+    y_text_size <- dplyr::case_when(max_label_len > 50 ~ 6,
+                                    max_label_len > 35 ~ 7,
+                                    max_label_len > 25 ~ 8,
+                                    TRUE ~ 10)
+    
+    # Plot bar plot 
+    p1 <- ggplot2::ggplot(data = plot_df,
+                          aes(x = !!x_col,
+                              y = reorder(Description, !!x_col),
+                              fill = !!color_col))+
+                              #alpha = -log10(P.value))) +
+      ggplot2::geom_col(width = 0.75, na.rm = TRUE) +
+      ggplot2::theme_classic() +
+      ggplot2::labs(x = x_label,
+                    y = "",
+                    title = g,
+                    fill = "P.value") + #Direction") +
+      custom_theme +
+      theme(axis.text.y = element_text(size = y_text_size)) +
+      coord_cartesian(clip = "off") +
+      scale_x_continuous(limits = x_limits, expand = expansion(mult = c(0, 0.05))) +
+      scale_alpha_continuous(range = c(0.5, 1)) +
+      #scale_fill_manual(values = plot_colors) +
+      guides(fill = guide_legend(override.aes = list(shape = 22, size = 6)),
+             color = guide_legend(override.aes = list(shape = 22, size = 6)),
+             alpha = guide_legend(override.aes = list(shape = 22, size = 6)))
+      #ggplot2::geom_text(aes(label =  !!size_col), x = 0, hjust = -0.1, size = 3, show.legend = FALSE)
+    
+    bar_plot_list <- c(bar_plot_list, list(p1))
+    
+    # Plot dot plot 
+    vals <- c(min(plot_df[[size_col]], na.rm = TRUE), max(plot_df[[size_col]], na.rm = TRUE))
+    breaks <- as.vector(floor(quantile(vals) / 10) * 10)
+    
+    p2 <- ggplot2::ggplot(data = plot_df,
+                          aes(x = !!x_col,
+                              y = reorder(Description, !!x_col),
+                              #fill = !!color_col,
+                              #alpha = -log10(P.value),
+                              color = !!color_col,
+                              size = !!size_col)) +
+      ggplot2::geom_point() +
+      ggplot2::theme_classic() +
+      ggplot2::labs(x = x_label ,
+                    y = "",
+                    title = g,
+                    color = "Direction",
+                    size = "P.value") +
+      custom_theme +
+      theme(axis.text.y = element_text(size = y_text_size)) +
+      coord_cartesian(clip = "off") + 
+      scale_x_continuous(limits = x_limits, expand = expansion(mult = c(0, 0.05))) +
+      scale_alpha_continuous(range = c(0.5, 1)) +
+      #scale_color_manual(values = plot_colors) +
+      #scale_fill_manual(values = plot_colors) + # need for coloring the legend
+      guides(fill = guide_legend(override.aes = list(shape = 22, size = 6)),
+             color = guide_legend(override.aes = list(shape = 22, size = 6)),
+             alpha = guide_legend(override.aes = list(shape = 15, size = 6))) +
+      ggplot2::scale_size(breaks = breaks) 
+    
+    dot_plot_list <- c(dot_plot_list, list(p2))
+  }
+  
+  bar_plots <- cowplot::plot_grid(plotlist = bar_plot_list, ncol = 3, nrow = 2)
+  ggplot2::ggsave(filename = paste0("Bar_plot_pathways.tiff"),
+                  plot = bar_plots,
+                  device = "jpeg",
+                  path = file.path(save.dir),
+                  width = 3*7,
+                  height = 3*7,
+                  units = "in",
+                  dpi = 300,
+                  bg = "white")
+  
+  dot_plots <- cowplot::plot_grid(plotlist = dot_plot_list, ncol = 3, nrow = 2)
+  ggplot2::ggsave(filename = paste0("Dot_plot_pathways.tiff"),
+                  plot = dot_plots,
+                  device = "jpeg",
+                  path = file.path(save.dir),
+                  width = 3*7,
+                  height = 3*7,
+                  units = "in",
+                  dpi = 300,
+                  bg = "white")
+  
+}

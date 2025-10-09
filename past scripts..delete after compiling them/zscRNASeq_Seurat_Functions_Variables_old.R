@@ -99,7 +99,6 @@ plot_conserved_modules <- function(res, reduc, celltype, sheetname){
   }
 }
 
-
 #******************************************************************************#
 #                   ANNOTATE CLUSTERS AND SAVE SEURAT OBJECT                   #
 #******************************************************************************#

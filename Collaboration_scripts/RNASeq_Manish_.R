@@ -1,24 +1,10 @@
-# In this case, the replicates for each group are clustered together.
-# So, the within-group variability is low. Hence, we do not subset the data
-
-proj <- "Manish_22RV1_ARCaPM"
+proj <- "Manish_22RV1"
 species <- "Homo sapiens"
-contrasts <- c("ARCaPM.NDRG1.4Gy-ARCaPM.NDRG1.0Gy",
-               "ARCaPM.PRDX1.4Gy-ARCaPM.PRDX1.0Gy",
-               "ARCaPM.WT.4Gy-ARCaPM.WT.0Gy",
-               "RV1_22.NDRG1.4Gy-RV1_22.NDRG1.0Gy",
-               "RV1_22.PRDX1.4Gy-RV1_22.PRDX1.0Gy",
-               "RV1_22.WT.4Gy-RV1_22.WT.0Gy",
-               "ARCaPM.NDRG1.4Gy-ARCaPM.WT.4Gy",
-               "ARCaPM.PRDX1.4Gy-ARCaPM.WT.4Gy",
-               "ARCaPM.NDRG1.0Gy-ARCaPM.WT.0Gy",
-               "ARCaPM.PRDX1.0Gy-ARCaPM.WT.0Gy",
-               "RV1_22.NDRG1.4Gy-RV1_22.WT.4Gy",
-               "RV1_22.PRDX1.4Gy-RV1_22.WT.4Gy",
-               "RV1_22.NDRG1.0Gy-RV1_22.WT.0Gy",
-               "RV1_22.PRDX1.0Gy-RV1_22.WT.0Gy",
-               "(ARCaPM.NDRG1.4Gy-ARCaPM.NDRG1.0Gy)-(ARCaPM.WT.4Gy-ARCaPM.WT.0Gy)",
-               "(RV1_22.NDRG1.4Gy-RV1_22.NDRG1.0Gy)-(RV1_22.WT.4Gy-RV1_22.WT.0Gy)")
+contrasts <- c("SPB-Vehicle",
+               "IRR-Vehicle",
+               "SPB_IRR-Vehicle",
+               "SPB_IRR-IRR")  # same as "(SPB_IRR-Vehicle)-(IRR-Vehicle)"
+               
 
 parent.dir <- "C:/Users/kailasamms/OneDrive - Cedars-Sinai Health System/Desktop/Collaboration projects data"
 gmt.dir <- "C:/Users/kailasamms/OneDrive - Cedars-Sinai Health System/Documents/GitHub/R-Scripts/GSEA_genesets"
@@ -35,7 +21,7 @@ deseq2.override <- list(
 # Heatmap overrides
 heatmap.override <- list(
   #force.log        = TRUE,                  # Force log transformation
-  col.ann          = c("Treatment", "Cell_Line", "Condition"),                  # Column annotation
+  col.ann          = c("Treatment"),                  # Column annotation
   #row.ann          = NULL,                  # Row annotation
   #col.gaps         = NULL,                  # Column gaps
   #row.gaps         = NULL,                  # Row gaps
@@ -56,4 +42,3 @@ volcano.override <- list(
   #color       = "vrds",                    # Color palette
   #label.genes = c()                         # Genes to label on the plot
 )
-

@@ -1,3 +1,65 @@
+#!/usr/bin/env Rscript
+
+# Read and store variables from command line interface (CLI)
+cli <- base::commandArgs(trailingOnly = TRUE) 
+args <- base::strsplit(x = cli, split = "=", fixed = TRUE)
+
+for (e in args){
+  argname <- e[1]
+  argval <- e[2]
+  assign(argname, argval)
+}
+
+# Run the Custom_Functions.R script
+path1 <- "C:/Users/kailasamms/OneDrive - Cedars-Sinai Health System/Documents/GitHub/R-Scripts/Custom_Functions.R"
+path2 <- "/hpc/home/kailasamms/projects/scRNASeq/Custom_Functions.R"
+if (file.exists(path1)) {
+  source(path1)
+} else if (file.exists(path2)) {
+  source(path2)
+}
+
+# ---- PROJECT SET UP ----
+
+parent.dir <- "C:/Users/kailasamms/OneDrive - Cedars-Sinai Health System/Desktop/Collaboration projects data"
+gmt.dir    <- "C:/Users/kailasamms/OneDrive - Cedars-Sinai Health System/Documents/GitHub/R-Scripts/GSEA_genesets"
+
+parent.dir  <- "/hpc/home/kailasamms/scratch"
+gmt.dir     <- "/hpc/home/kailasamms/projects/GSEA_genesets"
+scripts.dir <- "/hpc/home/kailasamms/projects/scRNASeq"
+
+proj.params <- setup_project(
+  proj = proj,
+  species = species,
+  contrasts = contrasts,
+  parent.dir = parent.dir,
+  gmt.dir = gmt.dir,
+  deseq2.override = deseq2.override,
+  heatmap.override = heatmap.override,
+  volcano.override = volcano.override
+)
+
+# ---- PRE-ANALYSIS ----
+
+meta_data <- read.xlsx(file.path(proj.params$proj.dir, paste0(proj, "_Metadata.xlsx")))
+read_data <- NULL
+trial <- TRUE
+main_analysis(meta_data, read_data, proj.params, trial)
+
+# ---- FULL-ANALYSIS ----
+
+meta_data <- read.xlsx(file.path(proj.params$proj.dir, paste0(proj, "_Metadata.xlsx")))
+read_data <- read.xlsx(file.path(proj.params$proj.dir, paste0(proj, "_Raw_counts.xlsx")))
+trial <- FALSE
+
+## Remove bad samples [CASE by CASE BASIS]
+# read_data <- read_data %>%
+#   dplyr::select(everything(), -c("SBQuadFc2", "SBQuadFc4"))
+main_analysis(meta_data, read_data, proj.params, trial)
+  
+
+# ---- OLD NOTES, CODE ----
+
 # https://master.bioconductor.org/packages/release/workflows/vignettes/rnaseqGene/inst/doc/rnaseqGene.html
 # https://hbctraining.github.io/DGE_workshop/lessons/08_DGE_LRT.html
 
@@ -28,63 +90,9 @@
 # "Error in base::colMeans(x, na.rm = na.rm, dims = dims, ...) : 'x' must be an
 # array of at least two dimensions"
 
-proj <- ""
-source("C:/Users/kailasamms/OneDrive - Cedars-Sinai Health System/Documents/GitHub/R-Scripts/Custom.Functions.R.Analysis.R")
-
-# DEG.params  <- list(contrast    = c("ARCaPM.NDRG1.4Gy-ARCaPM.NDRG1.0Gy",
-#                                     "(RV1_22.NDRG1.4Gy-RV1_22.NDRG1.0Gy)-(RV1_22.WT.4Gy-RV1_22.WT.0Gy)"),
-#                     design      = "Comparisons",
-#                     design.ref  = c("Cell.Line:ARCaPM", "Condition:WT", "Treatment:0Gy"),
-#                     lfc.cutoff  = 0,
-#                     padj.cutoff = 0.1,
-#                     deseq2.batch.correct = FALSE,
-#                     proj        = "RNASeq_Manish_22RV1_ARCaPM",
-#                     species     = "Homo sapiens")
-
-method <- "STAR"
-data_dir <- paste0("C:/Users/kailasamms/OneDrive - Cedars-Sinai Health System/Desktop/Collaboration projects data/", DEG.params$proj, "/")
-count_dir <- paste0(data_dir, "counts/", method, "_raw_counts/")
-degs_dir <- paste0(data_dir, "DEGs/")
-base::dir.create(path = degs_dir)
-
-annotations <- get_annotations()
-
-# Consolidate raw counts from STAR into excel file
-read_data <- compile_raw_counts(count_dir, DEG.params$proj, method)
-
-# If raw counts are already consolidated in xlsx, read raw.counts.xlsx
-# NOTE: "SYMBOL" column with gene names/ensembl_id/entrez_id without any duplication
-read_data <- openxlsx::read.xlsx(xlsxFile = paste0(data_dir, DEG.params$proj, ".raw.counts.xlsx"))
-
-# meta_data MUST be xlsx file and have "Sample.ID" column with sample names
-meta_data <- openxlsx::read.xlsx(xlsxFile=paste0(data_dir, DEG.params$proj, ".Metadata.xlsx")) %>%
-  dplyr::distinct_at("Sample.ID", .keep_all=TRUE)
-
-# Rename appropiate column in read_data to "SYMBOL"
-# read_data <- read_data %>% dplyr::rename(SYMBOL = GeneID)
-# colnames(read_data)[1] <- "SYMBOL"
-
-# STOP...STOP...STOP...Subset data based on PCA plot if needed before proceeding
-
-# NOTE: Remove samples that fail QC (eg:PCA plot) or samples that belong to 
-# different cell line or in vivo samples from dataset while analyzing in vitro samples
-#read_data <- read_data %>% dplyr::select(everything(), -c("SBQuadFc2", "SBQuadFc4"))
-
-#norm_counts_sva(meta_data, read_data, sva.formula_string, annotations, data_dir)
-
 for (n in 1:length(DEG.params$contrast)){
-
+  
   if (DEG.params$deseq2.batch.correct == TRUE){
-    
-    # Perform DESeq2() using in-built batch modelling
-    # Create DESeq2 object with appropriate variables in design
-    deseq2.formula_string <- dplyr::case_when(DEG.params$deseq2.batch.correct == TRUE ~ paste0("~", paste("Batch", DEG.params$design[n], sep = "+")),
-                                              TRUE ~ formula_string)
-    dds <- DESeq2::DESeqDataSetFromMatrix(countData=read_data,
-                                          colData=meta_data, 
-                                          design=~1)
-    design(dds) <- as.formula(deseq2.formula_string)
-    dds <- run_deseq2(dds, meta_data, DEG.params, n, "DESeq2", degs_dir)
     
     # Perform DESeq2() using sva modelled surrogate variables
     # Create DESeq2 object with surrogate variables in design
@@ -104,298 +112,8 @@ for (n in 1:length(DEG.params$contrast)){
     dds <- run_deseq2(combat_dds, meta_data, DEG.params, n, "combat", degs_dir)
   }
 }
-plotMA_DESeq2(dds, data_dir)
 
-#******************************************************************************#
-#                                 VOLCANO PLOT                                 #
-#******************************************************************************#
-
-data_dir <- paste0("C:/Users/kailasamms/OneDrive - Cedars-Sinai Health System/Desktop/Collaboration projects data/", DEG.params$proj, "/")
-volcano_dir <- paste0(data_dir, "Volcano plots/")
-base::dir.create(path = volcano_dir)
-
-for (n in 1:length(DEG.params$contrast)){
-  
-  # Read DEGs
-  approach <- ""
-  file_suffix <- DEG.params$contrast[n]
-  file_suffix <- gsub(pattern="/", replacement="", x=file_suffix)
-  df <- read.xlsx(paste0(degs_dir, "DEGs.", file_suffix , "_", approach, ".xlsx"))
-  
-  # Define volcano plot parameters
-  disp_genes <- c()
-  output_path <- volcano_dir
-  volcano_params <- list(Target           = gsub(pattern="-.*$",replacement="", x=file_suffix),
-                         Reference        = gsub(pattern="^.*-",replacement="", x=file_suffix),
-                         plot.title       = file_suffix,
-                         matrix_color     = "vrds",
-                         color_disp_genes = TRUE,
-                         label_disp_genes = FALSE,
-                         label_top        = FALSE,
-                         lfc.cutoff       = 0.58,
-                         padj.cutoff      = 0.05)
-  
-  # Input dataframe MUST have SYMBOL, padj, log2FoldChange columns
-  volcano_df <- df %>% 
-    dplyr::select(SYMBOL, padj, log2FoldChange)
-  
-  # Plot the volcano plot
-  plot_volcano(volcano_df, volcano_params, disp_genes, file_suffix, output_path)
-}
-
-#******************************************************************************#
-#                                    HEATMAP                                   #
-#******************************************************************************#
-
-data_dir <- paste0("C:/Users/kailasamms/OneDrive - Cedars-Sinai Health System/Desktop/Collaboration projects data/", DEG.params$proj, "/")
-heatmap_dir <- paste0(data_dir, "Heatmaps/")
-base::dir.create(path = heatmap_dir)
-
-# Read normalized counts
-norm_counts <- read.xlsx(paste0(data_dir, "Normalized.counts.DESeq2.xlsx"))
-
-# Get list of DEG files
-DEG.files <- list.files(degs_dir)
-DEG.files <- DEG.files[grepl(pattern="DEGs", x=DEG.files)]
-DEG.files <- DEG.files[!grepl(pattern="combat|sva", x=DEG.files)]
-
-# Combine all DEGs from all comparisons
-DEGs.list <- c()
-for (f in DEG.files){
-  df <- read.xlsx(paste0(degs_dir, f)) %>%
-    dplyr::filter(padj <= 0.05)
-  
-  DEGs.list <- c(DEGs.list, df$SYMBOL) %>% unique()
-}
-
-# Heatmap parameters
-plot_genes <- DEGs.list
-disp_genes <- c()
-file_suffix <- ""
-output_path <- heatmap_dir
-
-# Create metadata for columns
-# MUST have column Sample.ID
-# MUST have columns listed in heatmap_params$anno.column
-metadata_column <- openxlsx::read.xlsx(xlsxFile=paste0(data_dir,DEG.params$proj, ".Metadata.xlsx")) %>%
-  dplyr::distinct_at("Sample.ID", .keep_all=TRUE)
-
-# Create metadata for rows
-# MUST have column SYMBOL
-# MUST have columns listed in heatmap_params$anno.row
-metadata_row <- data.frame(SYMBOL = "")
-#metadata_row <- data.frame(SYMBOL = "", Gene = "")
-#metadata_row <- data.frame(SYMBOL = norm_counts$SYMBOL, Gene = rep(x=c("A", "B"), times=c(700, 799)))
-
-# Plot norm_counts
-mat <- norm_counts %>% 
-  dplyr::select(everything(), -intersect(colnames(.), c("ENTREZ_ID", "ENTREZ_SYMBOL", "ENSEMBL_ID", "ENSEMBL_SYMBOL"))) %>%
-  dplyr::filter(SYMBOL %in% plot_genes) %>%
-  dplyr::distinct_at("SYMBOL", .keep_all = TRUE)  %>%
-  dplyr::filter(!(SYMBOL %in% c("Y_RNA", "Metazoa_SRP")))
-
-plot_heatmap(mat, metadata_column, metadata_row, heatmap.params,
-             plot_genes, disp_genes, "Full", output_path)
-
-# Plot heatmap for individual comparisons
-for (n in 1:length(DEG.params$contrast)){
-  
-  # Read DEGs
-  approach <- ""
-  file_suffix <- DEG.params$contrast[n]
-  file_suffix <- gsub(pattern="/", replacement="", x=file_suffix)
-  df <- read.xlsx(paste0(degs_dir, "DEGs.", file_suffix , "_", approach, ".xlsx")) %>%
-      dplyr::filter(padj <= 0.05)
-    
-  DEGs.list <- df$SYMBOL %>% unique()
-  
-  metadata_column <- openxlsx::read.xlsx(xlsxFile=paste0(data_dir, DEG.params$proj, ".Metadata.xlsx")) %>%
-    dplyr::distinct_at("Sample.ID", .keep_all=TRUE) %>%
-    dplyr::filter(Comparisons %in% c(gsub(pattern="-.*$",replacement="", x=file_suffix),
-                                     gsub(pattern="^.*-",replacement="", x=file_suffix)))
-  
-  metadata_row <- data.frame(SYMBOL = "")
-  
-  # Heatmap parameters
-  plot_genes <- DEGs.list
-  disp_genes <- c()
-  output_path <- heatmap_dir
-  
-  mat <- norm_counts %>%
-    dplyr::select(everything(), -intersect(colnames(.), c("ENTREZ_ID", "ENTREZ_SYMBOL", "ENSEMBL_ID", "ENSEMBL_SYMBOL"))) %>%
-    dplyr::select(SYMBOL, intersect(colnames(.), metadata_column$Sample.ID)) %>%
-    dplyr::filter(SYMBOL %in% plot_genes) %>%
-    dplyr::distinct_at("SYMBOL", .keep_all = TRUE)  %>%
-    dplyr::filter(!(SYMBOL %in% c("Y_RNA", "Metazoa_SRP")))
-
-  plot_heatmap(mat, metadata_column, metadata_row, heatmap.params,
-               plot_genes, disp_genes, file_suffix, output_path)
-
-}
-
-#******************************************************************************#
-#                               PATHWAY ANALYSIS                               #
-#******************************************************************************#
-
-data_dir <- paste0("C:/Users/kailasamms/OneDrive - Cedars-Sinai Health System/Desktop/Collaboration projects data/", DEG.params$proj, "/")
-pathways_dir <- paste0(data_dir, "Pathways/")
-degs_dir <- paste0(data_dir, "DEGs/")
-base::dir.create(path = pathways_dir)
-
-# Read the gene set files
-species <- DEG.params$species
-gmt_dir <- paste0("C:/Users/kailasamms/OneDrive - Cedars-Sinai Health System/Documents/GitHub/R-Scripts/GSEA_genesets/", species, "/")
-gmt_files <- list.files(gmt_dir, full.names = TRUE)
-
-for (n in 1:length(DEG.params$contrast)){
-  
-  # Read DEGs
-  approach <- ""
-  file_suffix <- DEG.params$contrast[n]
-  file_suffix <- gsub(pattern="/", replacement="", x=file_suffix)
-  DEGs_df <- read.xlsx(paste0(degs_dir, "DEGs.", file_suffix , "_", approach, ".xlsx"))
-  
-  # Input dataframe MUST have SYMBOL, padj, log2FoldChange columns
-  DEGs_df <- DEGs_df %>%
-    dplyr::select(SYMBOL, padj, log2FoldChange)
-  
-  # Perform pathway analysis
-  pathway_results <- pathway_analysis(DEGs_df, gmt_files)
-  
-  # Save the results
-  wb <- openxlsx::createWorkbook()
-  openxlsx::addWorksheet(wb, sheetName="FGSEA")
-  openxlsx::writeData(wb, sheet="FGSEA", x=pathway_results[[1]], rowNames = FALSE)
-  openxlsx::addWorksheet(wb, sheetName="GSEA")
-  openxlsx::writeData(wb, sheet="GSEA", x=pathway_results[[2]], rowNames = FALSE)
-  openxlsx::addWorksheet(wb, sheetName="ORA")
-  openxlsx::writeData(wb, sheet="ORA", x=pathway_results[[3]], rowNames = FALSE)
-  openxlsx::saveWorkbook(wb, file = paste0(pathways_dir, "Pathways.", file_suffix, ".xlsx"),
-                         overwrite = TRUE)
-}
-
-#******************************************************************************#
-#               MASTER REGULATOR & PATHWAY ACTIVITY ANALYSIS                   #
-#******************************************************************************#
-
-data_dir <- paste0("C:/Users/kailasamms/OneDrive - Cedars-Sinai Health System/Desktop/Collaboration projects data/", DEG.params$proj, "/")
-pathways_dir <- paste0(data_dir, "Pathways/")
-species <- DEG.params$species
-
-# Read normalized counts
-norm_counts <- read.xlsx(paste0(data_dir, "Normalized.counts.DESeq2.xlsx"),
-                         sheet = "vst")
-
-get_pathway_tf_scores(norm_counts, species)
-
-#******************************************************************************#
-#                             MULTIPLE DE ANALYSIS                             #
-#******************************************************************************#
-
-# Sometimes, we want to create a heatmap of samples from multiple conditions.
-# In order to see an proper pattern in heatmap, we need to perform DE analysis 
-# for every possible pair of conditions, retain most variable genes and then 
-# plot the heatmap 
-
-# Perform DESEQ2 on all possible combinations
-
-
-#******************************************************************************#
-#                                 COMPARE ANY 2 DEG RESULTS                    #
-#******************************************************************************#
-
-compare_deg_results(df1, df2, file_suffix, output_path)
-
-
-
-
-#*************************PATHWAY COMPARISON ANALYSIS*************************#
-
-# Merge pathways from all differential expression analysis for comparison
-# Read Pathway analysis files
-Pathway.files <- list.files(pathways_dir)
-Pathway.files <- Pathway.files[grepl(pattern="Pathway.", x=Pathway.files)]
-
-file_suffix <- gsub(pattern="Pathway.Analysis|.xlsx",replacement="", x=Pathway.files[1])
-ora.pathway.df <- read.xlsx(paste0(data_dir, Pathway.files[1]), sheet = "ORA") %>%
-  dplyr::filter(p.adjust <= 0.05) %>%
-  dplyr::select(Description, k.K) %>%
-  dplyr::rename(!!rlang::sym(file_suffix):= k.K)
-
-for (f in Pathway.files[-1]){
-  
-  file_suffix <- gsub(pattern="Pathway.Analysis|.xlsx",replacement="", x=f)
-  
-  df <- read.xlsx(paste0(data_dir, f)) %>%
-    dplyr::filter(p.adjust <= 0.05) %>%
-    dplyr::select(Description, k.K) %>%
-    dplyr::rename(!!rlang::sym(file_suffix):= k.K)
-  
-  ora.pathway.df <- ora.pathway.df %>% 
-    dplyr::full_join(df, by=c("Description"="Description"))
-}
-
-fgsea.pathway.df <- read.xlsx(paste0(data_dir, Pathway.files[1]), sheet = "FGSEA") %>%
-  dplyr::filter(padj <= 0.05) %>%
-  dplyr::select(pathway, NES) %>%
-  dplyr::rename(!!rlang::sym(file_suffix):= NES)
-
-for (f in Pathway.files[-1]){
-  
-  file_suffix <- gsub(pattern="Pathway.Analysis|.xlsx",replacement="", x=f)
-  
-  df <- read.xlsx(paste0(data_dir, f), sheet = "FGSEA") %>%
-    dplyr::filter(padj <= 0.05) %>%
-    dplyr::select(pathway, NES) %>%
-    dplyr::rename(!!rlang::sym(file_suffix):= NES)
-  
-  fgsea.pathway.df <- fgsea.pathway.df %>% 
-    dplyr::full_join(df, by=c("pathway"="pathway"))
-}
-
-# Create workbook to store results
-wb <- openxlsx::createWorkbook()
-openxlsx::addWorksheet(wb, sheetName="ORA")
-openxlsx::writeData(wb, sheet="ORA", x=ora.pathway.df, rowNames = FALSE)
-openxlsx::addWorksheet(wb, sheetName="FGSEA")
-openxlsx::writeData(wb, sheet="FGSEA", x=fgsea.pathway.df, rowNames = FALSE)
-openxlsx::saveWorkbook(wb, file = paste0(data_dir, "Pathway.Analysis.Comparison.xlsx"),
-                       overwrite = TRUE)
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-#***********************************TESTING************************************#
+# ---- CODE TESTING ---- 
 
 DEG.params  <- list(Variable    = c("Comparisons"),
                     Target      = c("ARCaPM.4Gy.NDRG1_mut"),
@@ -473,7 +191,7 @@ contrast6B <- WT_4Gy - WT_0Gy
 contrast7B <- (NDRG1_4Gy - NDRG1_0Gy) - (WT_4Gy - WT_0Gy)
 contrast8B <- 
   
-res1B. <- DESeq2::results(dds, contrast = contrast1B)
+  res1B. <- DESeq2::results(dds, contrast = contrast1B)
 res2B. <- DESeq2::results(dds, contrast = contrast2B)
 res3B. <- DESeq2::results(dds, contrast = contrast3B)
 res4B. <- DESeq2::results(dds, contrast = contrast4B)
@@ -728,4 +446,4 @@ setdiff(rownames(data.frame(res7B) %>% filter(log2FoldChange > 0.58, padj < 0.1)
         rownames(data.frame(res7B.) %>% filter(log2FoldChange > 0.58, padj < 0.1))) 
 
 setdiff(rownames(data.frame(res7B) %>% filter(log2FoldChange < -0.58, padj < 0.1)),
-        rownames(data.frame(res7B.) %>% filter(log2FoldChange < -0.58, padj < 0.1))) 
+        rownames(data.frame(res7B.) %>% filter(log2FoldChange < -0.58, padj < 0.1)))

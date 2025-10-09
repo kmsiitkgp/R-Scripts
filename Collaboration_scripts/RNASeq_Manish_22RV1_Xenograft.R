@@ -1,28 +1,44 @@
-DEG.params  <- list(contrast    = c("SPB-Vehicle",
-                                    "SPB.IR-Vehicle",
-                                    "IR-Vehicle"),
-                    design      = "Comparisons",
-                    design.ref  = c("Condition:Vehicle"),
-                    lfc.cutoff  = 0,
-                    padj.cutoff = 0.1,
-                    deseq2.batch.correct = FALSE,
-                    proj        = "RNASeq_Manish_22RV1_Xenograft",
-                    species     = "Homo sapiens")
+# ---- User Override Project Directories & Parameters ----
 
-heatmap.params <- list(anno.row       = NULL,        # NULL, c("Group")
-                       anno.column    = c("Condition"),
-                       row.split      = NA,     
-                       col.split      = NA, #c("Treatment"),
-                       row.cluster    = c("all"),           # c("alphabetical", "group", "all")
-                       col.cluster    = c("all"),  # c("alphabetical", "group", "all")
-                       discrete_panel = FALSE, 
-                       log.transform  = TRUE,
-                       scale          = TRUE,
-                       border_color   = "white",
-                       bar_width      = NA,              # NA , 5
-                       bar_height     = NA,              # NA , 5
-                       width          = 5,              # NA
-                       height         = 5,              # NA 
-                       matrix_color   = "rdbu",          # c("vrds", "rdbu")
-                       expr_legend    = TRUE,  # set FALSE if it overlaps with annotation legends
-                       file_format    = "tiff")
+proj <- "Manish_22RV1_Xenograft"
+species <- "Homo sapiens"
+contrasts <- c("SPB-Vehicle",
+               "SPB.IR-Vehicle",
+               "IR-Vehicle")
+
+parent.dir <- "C:/Users/kailasamms/OneDrive - Cedars-Sinai Health System/Desktop/Collaboration projects data"
+gmt.dir <- "C:/Users/kailasamms/OneDrive - Cedars-Sinai Health System/Documents/GitHub/R-Scripts/GSEA_genesets"
+
+# DESeq2 overrides
+deseq2.override <- list(
+  contrasts     = contrasts,
+  #design        = "Comparisons",            # DESeq2 design formula or column name
+  #lfc.cutoff    = 0,                        # Log fold change cutoff for significance
+  #padj.cutoff   = 0.1,                      # Adjusted p-value cutoff for significance
+  batch.correct = FALSE                     # Boolean, whether to apply batch correction
+)
+
+# Heatmap overrides
+heatmap.override <- list(
+  #force.log        = TRUE,                  # Force log transformation
+  col.ann          = c("Condition"),                  # Column annotation
+  #row.ann          = NULL,                  # Row annotation
+  #col.gaps         = NULL,                  # Column gaps
+  #row.gaps         = NULL,                  # Row gaps
+  col.cluster      = c("Condition"),                 # Column clustering
+  #row.cluster      = "all",                 # Row clustering
+  #palette         = "rdbu",                # Heatmap palette
+  #ann.palette     = "discrete",            # Annotation palette
+  #border.color    = NA,                    # Cell border color
+  #show.expr.legend = TRUE,                  # Show expression legend
+  #title           = "",                    # Heatmap title
+  format           = "tiff"                 # Output file format
+)
+
+# Volcano plot overrides
+volcano.override <- list(
+  #lfc.cutoff  = 0.58,                         # Minimum log2 fold-change to highlight
+  #padj.cutoff = 0.05,                      # Adjusted p-value cutoff
+  #color       = "vrds",                    # Color palette
+  #label.genes = c()                         # Genes to label on the plot
+)

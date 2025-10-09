@@ -1,23 +1,36 @@
-#******************************************************************************#
-#                           LOAD NECESSARY PACKAGES                            #
-#******************************************************************************#
+#!/usr/bin/env Rscript
 
-# Data analysis packages
-library("ensembldb")
-library("AnnotationHub")
-library("GEOquery")
-library("affy")
-library("lumi")
-library("oligo")
-library("oligoData")
-library("illuminaHumanv4.db")
-library("hgu133plus2.db")
+# Read and store variables from command line interface (CLI)
+cli <- base::commandArgs(trailingOnly = TRUE) 
+args <- base::strsplit(x = cli, split = "=", fixed = TRUE)
 
-# Data wrangling packages     
-library("openxlsx")
-library("dplyr")
-library("tibble")
-library("pheatmap")
+for (e in args){
+  argname <- e[1]
+  argval <- e[2]
+  assign(argname, argval)
+}
+
+# Run the Custom_Functions.R script
+path1 <- "C:/Users/kailasamms/OneDrive - Cedars-Sinai Health System/Documents/GitHub/R-Scripts/Custom_Functions.R"
+path2 <- "/hpc/home/kailasamms/projects/scRNASeq/Custom_Functions.R"
+if (file.exists(path1)) {
+  source(path1)
+} else if (file.exists(path2)) {
+  source(path2)
+}
+
+# ---- PROJECT SET UP ----
+proj.params <- setup_project(
+  proj = proj,
+  species = species,
+  contrasts = contrasts,
+  parent.dir = parent.dir,
+  gmt.dir = gmt.dir,
+  deseq2.override = deseq2.override,
+  heatmap.override = heatmap.override,
+  volcano.override = volcano.override
+)
+
 
 #******************************************************************************#
 #                           DECLARE GLOBAL VARIABLES                           #

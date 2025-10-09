@@ -1391,3 +1391,262 @@ for (p in c("BIOCARTA", "REACTOME", "WP", "GOBP", "GOCC", "GOMF", "HALLMARK")){
   plot_ora(df2, paste0("ora_421_",p), data_path)
   
 }
+
+
+#######Heatmap pancancer single cell
+
+save.dir <- "/hpc/home/kailasamms/scratch/scRNASeq_PanCancer/"
+proj.params <- list(proj                    = "scRNASeq_PanCancer",
+                    heatmap.force.log       = FALSE,                       
+                    heatmap.col.ann         = c("Cancertype_TCGA", "LOY", "Age"), 
+                    heatmap.row.ann         = NULL,                        
+                    heatmap.col.gaps        = NULL,                        
+                    heatmap.row.gaps        = NULL,                        
+                    heatmap.col.cluster     = c("LOY"),                    
+                    heatmap.row.cluster     = "all",                       
+                    heatmap.palette         = "rdbu",                      
+                    heatmap.ann.palette     = "discrete",                  
+                    heatmap.border.color    = NA,                          
+                    heatmap.show.expr.legend= TRUE,                        
+                    heatmap.title           = NA,                          
+                    heatmap.format          = "tiff")
+
+samples <- integ.ann@meta.data %>% 
+  dplyr::filter(Sex == "Male") %>%
+  dplyr::pull(SampleID) %>%
+  unique()
+
+# assay <- "RNA"
+# read_data <- data.frame(matrix(NA, nrow=nrow(degs_seurat@assays[[assay]]@data), ncol=length(samples)))
+# rownames(read_data) <- rownames(degs_seurat@assays[[assay]]@data)
+# colnames(read_data) <- samples 
+# 
+# for(i in samples){
+#   
+#   # Create a list of cells for each sample
+#   cells_subset <- degs_seurat@meta.data %>% dplyr::filter(SampleID == i) %>% rownames()
+#   
+#   # Use data.frame to convert "." in sparse matrix to "0"
+#   subset <- data.frame(degs_seurat@assays[[assay]]@data[,cells_subset])
+#   read_data[,i]  <- rowSums(subset)
+#   
+#   print(i)
+# }
+# read_data <- read_data[rowSums(read_data) != 0,]
+plot_genes <- intersect(plot_genes, rownames(integ.ann@assays[["RNA"]]@data))
+# norm_counts <- read_data[plot_genes, samples]
+# metadata_col <- seurat_obj@meta.data %>% 
+#   dplyr::filter(Sex == "Male") %>%
+#   dplyr::rename(Sample.ID = SampleID) %>%
+#   dplyr::distinct_at("Sample.ID", .keep_all = TRUE)
+# ph <- plot_heatmap(norm_counts, proj.params, metadata_col)
+# jpeg(file.path(save.dir, "Heatmap.jpeg"), width = 5, height = 7, units = "in", res = 300)
+# gridExtra::grid.arrange(grobs = list(ph$ph$gtable), ncol = 1)
+# dev.off()
+
+source("/hpc/home/kailasamms/projects/scRNASeq/Custom_Functions.R")
+integ.ann <- readRDS(file.path(proj.params$seurat_dir, "scRNAseq_pancan_normalized_after_scanvi.rds"))
+integ.ann <- subset(integ.ann,
+                    Sex == "Male")
+#coi <- c("HNSC", "LIHC", "CHOL", "CRC", "LC", "STAD", "BLCA", "PDAC")
+#integ.ann1 <- subset(integ.ann,
+#                    Cancertype_TCGA %in% coi)
+
+# Feature plot
+plot_genes <- c("AKR1B1", "CAMK1D", "CAMKK1", "CDKN1B", "CHEK2", "CHRNA7", 
+                "CLK1", "CP", "CRYZ", "DBI", "DCAF11", "DGKZ", "DUSP19", 
+                "EHHADH", "GAD2", "GNGT1", "GRIA1", "GRID1", "GRIK3", "GSK3B",
+                "IYD", "KCND3", "LATS1", "MAP3K6", "MKNK2", "MMP10", "MTMR1", 
+                "MTNR1B", "MTR", "PDP1", "PFKFB3", "PKN1", "PPM1A", "PPP1R15B",
+                "PRKACB", "PRKD1", "PTPRG", "RARRES1", "RNASE4", "RPS6KA6", 
+                "STK31", "TAOK1", "TESK2", "UHMK1")
+reduction <- "umap"
+filename <- "Feature_plot"
+output_path <- proj.params$seurat_dir
+split.col <- "LOY"
+plot_features(integ.ann1, plot_genes, reduction, filename, output_path, split.col)
+
+# Dot plot
+epi_seurat <- subset(integ.ann, Celltype1 == "Epithelium")
+ident.1 <- "LOY"
+ident.2 <- NULL
+features <- c("AKR1B1", "CAMK1D", "CAMKK1", "CDKN1B", "CHEK2", "CHRNA7", 
+              "CLK1", "CP", "CRYZ", "DBI", "DCAF11", "DGKZ", "DUSP19", 
+              "EHHADH", "GAD2", "GNGT1", "GRIA1", "GRID1", "GRIK3", "GSK3B",
+              "IYD", "KCND3", "LATS1", "MAP3K6", "MKNK2", "MMP10", "MTMR1", 
+              "MTNR1B", "MTR", "PDP1", "PFKFB3", "PKN1", "PPM1A", "PPP1R15B",
+              "PRKACB", "PRKD1", "PTPRG", "RARRES1", "RNASE4", "RPS6KA6", 
+              "STK31", "TAOK1", "TESK2", "UHMK1")
+filename <- "Dot_plot"
+output_path <- proj.params$seurat_dir
+split.col <- NULL
+for (i in as.character(unique(epi_seurat@meta.data[["Cancertype_TCGA"]]))){
+  subset_obj <- epi_seurat[, epi_seurat@meta.data[["Cancertype_TCGA"]] == i]
+  filename <- i
+  plot_dot_custom(subset_obj, ident.1, ident.2, features, filename, output_path, split.col)
+}
+
+
+epi_seurat <- subset(integ.ann, Celltype1 == "Epithelium")
+ident.1 <- "LOY"
+ident.2 <- NULL
+filename <- "Dot_plot"
+output_path <- proj.params$seurat_dir
+split.col <- NULL
+plot_dot_custom(subset_obj, ident.1, ident.2, features, filename, output_path, split.col)
+
+
+
+epi_seurat <- subset(integ.ann, Celltype1 == "Epithelium")
+ident.1 <- "LOY"
+ident.2 <- "Cancertype_TCGA"
+features <- "GSK3B"
+filename <- "Dot_plot"
+output_path <- proj.params$seurat_dir
+split.col <- NULL
+plot_dot_custom(epi_seurat, ident.1, ident.2, features, filename, output_path, split.col)
+
+
+
+
+# ----
+reduction <- "umap"
+color.col <- "Celltype1"
+filename <- "UMAP_CellType"
+output_path <- proj.params$seurat_dir
+plot_umap(integ.ann1, reduction, color.col, filename, output_path)
+
+# --- Survival curves
+proj <- "TCGA_BLCA"
+meta_data <- openxlsx::read.xlsx("C:/Users/kailasamms/OneDrive - Cedars-Sinai Health System/Desktop/OneDrive_1_9-19-2025/TCGA_BLCA_DNA_Metadata.xlsx")
+read_data <- openxlsx::read.xlsx("C:/Users/kailasamms/OneDrive - Cedars-Sinai Health System/Desktop/OneDrive_1_9-19-2025/TCGA_BLCA_DNA_Normalized.xlsx")
+output_path <-  "C:/Users/kailasamms/OneDrive - Cedars-Sinai Health System/Desktop/OneDrive_1_9-19-2025/WT/"
+#output_path <-  "C:/Users/kailasamms/OneDrive - Cedars-Sinai Health System/Desktop/OneDrive_1_9-19-2025/LOY/"
+
+survival_params <- list(plot_by             = c(NA), 
+                        split_by            = c(NA),
+                        split_plot          = FALSE,
+                        multiple_cutoff     = FALSE,
+                        stratify_criteria   = c("o"),
+                        reference           = c("LOW"),
+                        conf_interval       = FALSE,
+                        plot_curve          = TRUE,
+                        plot_risk_table     = TRUE,
+                        legend_title        = "Expression",
+                        legend_label        = c("High", "Low"),
+                        color_palette       = c("#d73027","#0c2c84"),
+                        plot_all_bins       = FALSE,
+                        plot_all_quartiles  = FALSE,
+                        gene_sig_score      = FALSE)
+
+# Reformat metadata 
+meta_data <- meta_data %>% 
+  dplyr::mutate(Sample_ID = make.names(names = Sample_ID)) %>%
+  dplyr::mutate(Time = as.numeric(Time)) %>%
+  dplyr::filter(Time > 0 & !is.na(Time)) %>%
+  dplyr::distinct_at("Sample_ID", .keep_all = TRUE) %>%
+  dplyr::filter(Sex == "Male", Y_status == "WT")
+  #dplyr::filter(Sex == "Male", Y_status == "LOY")
+
+# Reformat read data
+norm_counts <- read_data %>%
+  dplyr::mutate(SYMBOL = make.names(names = SYMBOL, unique = TRUE)) %>%
+  dplyr::distinct_at("SYMBOL", .keep_all = TRUE) %>%
+  tibble::column_to_rownames(var = "SYMBOL") %>%
+  dplyr::mutate(across(.cols = everything(), .fns = as.numeric))
+colnames(norm_counts) <- base::make.names(names = colnames(norm_counts))
+norm_counts <- norm_counts[,intersect(make.names(meta_data$Sample_ID), colnames(norm_counts))]
+norm_counts <- norm_counts[!rowSums(norm_counts, na.rm=TRUE) == 0,]
+
+#log_norm_counts <- log(1+norm_counts, base=2)
+#t <- base::apply(X=log_norm_counts, MARGIN=1, FUN=median, na.rm=TRUE)
+#log_norm_counts <- base::sweep(x=log_norm_counts, MARGIN=1, FUN="-", STATS=t)
+
+plot_genes <- c("AKR1B1", "CAMK1D", "CAMKK1", "CDKN1B", "CHEK2", "CHRNA7", 
+                "CLK1", "CP", "CRYZ", "DBI", "DCAF11", "DGKZ", "DUSP19", 
+                "EHHADH", "GAD2", "GNGT1", "GRIA1", "GRID1", "GRIK3", "GSK3B",
+                "IYD", "KCND3", "LATS1", "MAP3K6", "MKNK2", "MMP10", "MTMR1", 
+                "MTNR1B", "MTR", "PDP1", "PFKFB3", "PKN1", "PPM1A", "PPP1R15B",
+                "PRKACB", "PRKD1", "PTPRG", "RARRES1", "RNASE4", "RPS6KA6", 
+                "STK31", "TAOK1", "TESK2", "UHMK1")
+
+# Generate expr_df
+expr_df <- prep_expr_df(norm_counts, meta_data, plot_genes, survival_params)
+
+# Create a list to store survminer cutoffs, coxph stats, etc..
+stats <- list("gene" = c(),
+              "group" = c(),
+              "lower_cutoff" = c(),
+              "middle_cutoff" = c(),
+              "upper_cutoff" = c(),
+              "HR" = c(),
+              "CI_lower" = c(),
+              "CI_upper" = c(),
+              "logrank" = c(),  
+              "reg_logrank.late" = c(),
+              "Gehan_Breslow.early" = c(),
+              "Tarone_Ware.early"  = c(),
+              "Peto_Peto.early" = c(),
+              "modified_Peto_Peto"  = c(),
+              "Fleming_Harrington" = c())
+
+# Create a dataframe to classification info
+classification_df <- expr_df %>% 
+  dplyr::select(Sample_ID) %>%
+  dplyr::mutate(Dummy_col = 0)
+
+# Plot survival curves
+if (survival_params$gene_sig_score != TRUE){
+  
+  for (gene in plot_genes) {
+    
+    prefix <- paste0(proj, "_", gene)
+    summary <- plot_survival(expr_df, gene, survival_params, prefix, output_path)
+    
+    # Get sample classification info for the individual gene
+    class_df <- summary[[1]] %>%
+      dplyr::select(Sample_ID, all_of(gene), model) %>%
+      dplyr::rename(!!paste0(gene, "_model") := model)
+    
+    # Merge classification info to parent dataframe
+    classification_df <- classification_df %>% 
+      dplyr::left_join(class_df, by=("Sample_ID"="Sample_ID"))
+    
+    # Store stats for individual gene
+    stats$gene          <- c(stats$gene, summary[[2]]$gene)
+    stats$group         <- c(stats$group, summary[[2]]$group)
+    stats$lower_cutoff  <- c(stats$lower_cutoff, summary[[2]]$lower)
+    stats$middle_cutoff <- c(stats$middle_cutoff, summary[[2]]$middle)
+    stats$upper_cutoff  <- c(stats$upper_cutoff, summary[[2]]$upper)
+    stats$HR            <- c(stats$HR, summary[[2]]$HR )
+    stats$CI_lower      <- c(stats$CI_lower, summary[[2]]$CI_lower)
+    stats$CI_upper      <- c(stats$CI_upper, summary[[2]]$CI_upper)
+    stats$pvalue        <- c(stats$pvalue, summary[[2]]$pvalue)
+    stats$logrank       <- c(stats$logrank, summary[[2]]$logrank) 
+    stats$reg_logrank.late    <- c(stats$reg_logrank.late, summary[[2]]$reg_logrank.late)
+    stats$Gehan_Breslow.early <- c(stats$Gehan_Breslow.early, summary[[2]]$Gehan_Breslow.early)
+    stats$Tarone_Ware.early   <- c(stats$Tarone_Ware.early, summary[[2]]$Tarone_Ware.early)
+    stats$Peto_Peto.early     <- c(stats$Peto_Peto.early, summary[[2]]$Peto_Peto.early)
+    stats$modified_Peto_Peto  <- c(stats$modified_Peto_Peto, summary[[2]]$modified_Peto_Peto)
+    stats$Fleming_Harrington  <- c(stats$Fleming_Harrington, summary[[2]]$Fleming_Harrington)
+  }
+  
+  # Merge all stats into a dataframe
+  stats_df <- data.frame(stats)
+  
+  # Create a dataframe of normalized counts of genes plotted
+  norm_df <- norm_counts[intersect(plot_genes, rownames(norm_counts)),] %>%
+    t() %>%
+    data.frame() %>%
+    tibble::rownames_to_column("SYMBOL")
+  
+  # Save the results
+  wb <- openxlsx::createWorkbook()
+  openxlsx::addWorksheet(wb, sheetName = "Summary")
+  openxlsx::writeData(wb, sheet = "Summary", x = stats_df)
+  openxlsx::addWorksheet(wb, sheetName = "Classification")
+  openxlsx::writeData(wb, sheet = "Classification", x = classification_df)
+  openxlsx::addWorksheet(wb, sheetName = "Norm_counts")
+  openxlsx::writeData(wb, sheet = "Norm_counts", x = norm_df)
+  openxlsx::saveWorkbook(wb, file = paste0(output_path, proj, "_Individual_stats.xlsx"), overwrite = TRUE)
+}
