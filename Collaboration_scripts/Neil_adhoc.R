@@ -1,5 +1,5 @@
 
-### Josh data ####
+### Josh data Liver met vs all other mets ####
 proj.dir <- "C:/Users/kailasamms/OneDrive - Cedars-Sinai Health System/Desktop/Collaboration projects data/Neil_adhoc/"
 gmt.dir <- "C:/Users/kailasamms/OneDrive - Cedars-Sinai Health System/Documents/GitHub/R-Scripts/GSEA_genesets"
 save.dir <- proj.dir
@@ -272,11 +272,7 @@ dev.off()
 save_xlsx(ph$mat, file.path(proj.params$deseq2_dir, "Heatmap_Matrix_CellType.xlsx"), "Heatmap_matrix", row_names = TRUE)
 
 
-
-
-
-
-# Heatmap FGFR
+# ---- Heatmap FGFR ----
 path <- "C:/Users/kailasamms/OneDrive - Cedars-Sinai Health System/Desktop/Collaboration projects data/Neil_Spatial/Metastatic.Tumor.Pancreas.Met.Panc-Primary.Tumor.Pancreas.Primary.Panc"
 norm_counts <- read.xlsx(file.path(path, "VST_counts.xlsx")) %>%
   dplyr::select(SYMBOL, contains("Hepatocytes")) %>%
@@ -312,6 +308,38 @@ dev.off()
 save_xlsx(ph$mat, file.path(path, "Heatmap_FGFR.xlsx"), "Heatmap_matrix", row_names = TRUE)
 
 
+# ---- ORA Liver Met vs Soft Mets ----
+
+parent.dir <- "C:/Users/kailasamms/OneDrive - Cedars-Sinai Health System/Desktop/Collaboration projects data/Neil_ProstateLiverMet/LiverMet - SoftMet"
+gmt.dir <- "C:/Users/kailasamms/OneDrive - Cedars-Sinai Health System/Documents/GitHub/R-Scripts/GSEA_genesets"
+scripts.dir <- NULL
+contrasts   <- "LiverMets-SoftMets"
+
+proj                    = "Neil_adhoc"             # Project name
+species                 = "Homo sapiens"              # Species name (e.g. "Mus musculus", "Homo sapiens")
+
+deseq2.override <- list()
+heatmap.override <- list()
+volcano.override <- list()
+
+proj.params <- setup_project(
+  proj = proj,
+  species = species,
+  contrasts = contrasts,
+  parent.dir = parent.dir,
+  gmt.dir = gmt.dir,
+  deseq2.override = deseq2.override,
+  heatmap.override = heatmap.override,
+  volcano.override = volcano.override
+)
+
+data <- read.xlsx(file.path(parent.dir, "DEGs_LMvsSoftMets_PO1.xlsx"))
+
+DEGs_df <- data %>%
+  dplyr::rename(log2FoldChange = log2FC)
+output_path <- parent.dir
+
+gsea_res_list <- pathway_analysis(DEGs_df, proj.params, output_path)
 
 
 
@@ -331,4 +359,4 @@ save_xlsx(ph$mat, file.path(path, "Heatmap_FGFR.xlsx"), "Heatmap_matrix", row_na
 
 
 
-
+# 

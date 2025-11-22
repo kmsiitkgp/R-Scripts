@@ -1,21 +1,21 @@
-gmt.dir <- "C:/Users/kailasamms/OneDrive - Cedars-Sinai Health System/Documents/GitHub/R-Scripts/GSEA_genesets"
+gmt_dir <- "C:/Users/kailasamms/OneDrive - Cedars-Sinai Health System/Documents/GitHub/R-Scripts/GSEA_genesets"
 
 # ---- LOAD PACKAGES ----
 
 pkgs <- c(
   "BiocManager", "remotes", "AnnotationHub", "ensembldb", "org.Hs.eg.db",
-  "org.Mm.eg.db", "fgsea", "clusterProfiler", "progeny", "dorothea", 
-  "viper", "DESeq2", "sva", "GSVA", "RcisTarget", "glmGamPoi", "Seurat",
-  "harmony", "hdf5r", "arrow", "leidenAlg", "scCustomize", "reticulate", 
-  "ashr", "infercnv", "UCell", "scDblFinder", "DropletUtils", "batchelor", 
-  "ClusterFoldSimilarity", "CellChat", "Banksy", "SeuratWrappers", "presto", 
-  "DoubletFinder", "SeuratData", "oligo", "oligoData", "illuminaHumanv4.db", 
-  "hgu133plus2.db", "GEOquery", "affy", "lumi", "openxlsx", "dplyr", "tibble", 
-  "stringr", "purrr", "ggplot2", "ggplotify", "ggrepel", "ggpubr", "ggfortify", 
-  "ggridges", "ggbeeswarm", "pheatmap", "VennDiagram", "survival", "survminer", 
-  "UpSetR", "umap", "plot3D", "cowplot", "viridis", "RColorBrewer", "colorspace", 
+  "org.Mm.eg.db", "fgsea", "clusterProfiler", "DESeq2", "sva", "GSVA", 
+  "RcisTarget", "glmGamPoi", "Seurat", "harmony", "hdf5r", "scCustomize", 
+  "reticulate", "ashr", "infercnv", "UCell", "scDblFinder", "DropletUtils", 
+  "CellChat", "SeuratWrappers", "presto", "DoubletFinder", "SeuratData", 
+  "oligo", "oligoData", "illuminaHumanv4.db", "hgu133plus2.db", "GEOquery", 
+  "affy", "lumi", "openxlsx", "dplyr", "tibble", "stringr", "purrr", "ggplot2",
+  "ggplotify", "ggrepel", "ggpubr", "ggfortify", "ggridges", "ggbeeswarm",
+  "pheatmap", "VennDiagram", "survival", "survminer", "UpSetR", "umap", 
+  "plot3D", "cowplot", "viridis", "RColorBrewer", "colorspace", 
   "enrichplot", "ComplexHeatmap", "NanoStringNCTools", "GeomxTools", 
-  "GeoMxWorkflows", "networkD3"
+  "GeoMxWorkflows", "networkD3", "httr", "decoupleR", "OmnipathR", "SeuratDisk",
+  "clustree"
 )
 
 for (pkg in pkgs) {
@@ -29,7 +29,7 @@ for (pkg in pkgs) {
 
 # NOTE: survminer handles %++% while dplyr handles %>%
 
-# ---- Custom ggplot Theme ----
+# ---- Custom Palette and ggplot Theme ----
 
 custom_theme <- ggplot2::theme(
   plot.title    = element_text(family = "sans", face = "bold",  colour = "black", size = 15, hjust = 0.5),
@@ -40,8 +40,6 @@ custom_theme <- ggplot2::theme(
   axis.text.x   = element_text(family = "sans", face = "plain", colour = "black", size = 10, hjust = 0.5, vjust = 0.5, angle = 45),
   axis.text.y   = element_text(family = "sans", face = "plain", colour = "black", size = 10, hjust = 0.5, vjust = 0.5, angle = 0)
 )
-
-# ---- Custom Palette ----
 
 custom_palette <- c(
   "#1f77b4", "#ff7f0e", "#2ca02c", "#d62728", "#9467bd", "#8c564b", "#e377c2", "#7f7f7f", "#bcbd22", "#17becf",
@@ -74,15 +72,14 @@ tab_palettes <- c(
 
 # ---- BULK RNA SEQ ANALYSIS RELATED FUNCTIONS ----
 
-# # User Override Project Directories & Parameters
-# 
+# # Copy and paste in wrapper for "User Override Project Directories & Parameters"
 # proj <- ""
 # species <- ""
 # contrasts <- c("Treatment1-Control1",
 #                "Treatment2-Control2")
 # 
-# parent.dir <- "C:/Users/kailasamms/OneDrive - Cedars-Sinai Health System/Desktop/Collaboration projects data"
-# gmt.dir <- "C:/Users/kailasamms/OneDrive - Cedars-Sinai Health System/Documents/GitHub/R-Scripts/GSEA_genesets"
+# parent_dir <- "C:/Users/kailasamms/OneDrive - Cedars-Sinai Health System/Desktop/Collaboration projects data"
+# gmt_dir <- "C:/Users/kailasamms/OneDrive - Cedars-Sinai Health System/Documents/GitHub/R-Scripts/GSEA_genesets"
 # 
 # # DESeq2 overrides
 # deseq2.override <- list(
@@ -122,24 +119,26 @@ tab_palettes <- c(
 #   proj = proj,
 #   species = species,
 #   contrasts = contrasts,
-#   parent.dir = parent.dir,
-#   gmt.dir = gmt.dir,
+#   parent_dir = parent_dir,
+#   gmt_dir = gmt_dir,
 #   deseq2.override = deseq2.override,
 #   heatmap.override = heatmap.override,
 #   volcano.override = volcano.override
 # )
 
 # Default Project Directories & Parameters
-setup_project <- function(proj, species, contrasts, parent.dir, gmt.dir,
-                          deseq2.override  = list(),
-                          heatmap.override = list(),
-                          volcano.override = list(),
-                          pathway.override = list()) {
+setup_project <- function(proj, species, contrasts,
+                          parent_dir, gmt_dir, scripts_dir = NULL,
+                          deseq2.override  = list(), heatmap.override = list(),
+                          volcano.override = list(), pathway.override = list()) {
   
-  # Global Options
+  # ---- 🛠️ Global Environment Configuration ----
+  
   options(future.globals.maxSize = 1e15)            # Increase future globals size for parallelization
   options(Seurat.object.assay.version = "v5")       # Ensure Seurat uses v5 assay format
-  set.seed(1234)                                   # Set seed for reproducibility
+  set.seed(1234)                                    # Set seed for reproducibility
+  
+  # ---- 📊 Default Parameter Definition ----
   
   # Default DESeq2 Parameters
   default.deseq2 <- list(
@@ -163,8 +162,7 @@ setup_project <- function(proj, species, contrasts, parent.dir, gmt.dir,
     ann.palette      = "discrete",  # Color palette for heatmap annotation ("discrete" or "sequential")
     border.color     = NA,          # Color of heatmap cell borders (default NA i.e. no border)
     show.expr.legend = TRUE,        # Show expression legend (set FALSE if annotations overlap)
-    title            = NA,          # Title for heatmap (default NA i.e. no title)
-    format           = "tiff"       # Output format for heatmap ("tiff", "jpeg", "pdf")
+    title            = NA           # Title for heatmap (default NA i.e. no title)
   )
   
   # Default Volcano Parameters
@@ -175,66 +173,71 @@ setup_project <- function(proj, species, contrasts, parent.dir, gmt.dir,
     label.genes  = NULL             # Optional vector of genes to label on volcano plot
   )
   
-  # Merge Overrides
+  # Apply Overrides
   deseq2.params  <- modifyList(default.deseq2,  deseq2.override)
   heatmap.params <- modifyList(default.heatmap, heatmap.override)
   volcano.params <- modifyList(default.volcano, volcano.override)
   
-  # Derived Directories
-  proj.dir      <- file.path(parent.dir, proj)
-  counts.dir    <- file.path(proj.dir, "counts")                # Directory containing count files
-  contrast.dir  <- file.path(proj.dir, contrasts)               # Directory to store results for each contrast
-  deseq2.dir    <- file.path(contrast.dir, "DEG_Analysis")     # Directory to store DESeq2 results
-  pathway.dir   <- file.path(contrast.dir, "Pathway_Analysis") # Directory to store Pathway analysis results
-  tf.dir        <- file.path(contrast.dir, "TF_Analysis")      # Directory to store TF analysis results
+  # ---- 📂 Directory Structure Setup ----
   
-  # ---- Optional Single-Cell Directories and Marker Files ----
-  sc.dirs <- list()
+  proj_dir      <- file.path(parent_dir, proj)
+  
+  # Bulk RNA-seq Directories
+  counts_dir    <- file.path(proj_dir, "counts")               # Directory containing count files
+  contrast_dir  <- file.path(proj_dir, contrasts)              # Directory to store results for each contrast
+  deseq2_dir    <- file.path(contrast_dir, "DEG_Analysis")     # Directory to store DESeq2 results
+  pathway_dir   <- file.path(contrast_dir, "Pathway_Analysis") # Directory to store Pathway analysis results
+  tf_dir        <- file.path(contrast_dir, "TF_Analysis")      # Directory to store TF analysis results
+  
+  # Single-Cell RNA-seq Directories
+  diagnostics_dir        <- file.path(proj_dir, "04.Diagnostics")
+  demux_dir              <- file.path(proj_dir, "05.Demux")
+  raw_matrix_dir         <- file.path(proj_dir, "06.Matrix", "raw_feature_bc_matrix")
+  filt_matrix_dir        <- file.path(proj_dir, "06.Matrix", "filt_feature_bc_matrix")
+  hto_matrix_dir         <- file.path(proj_dir, "06.Matrix", "HTO_bc_matrix")
+  seurat_dir             <- file.path(proj_dir, "Seurat")
+  sc_deseq2_dir          <- file.path(proj_dir, "DESeq2")
+  pyscenic_dir           <- file.path(proj_dir, "pySCENIC")
+  scvelo_dir             <- file.path(proj_dir, "scVelo")
+  velocyto_dir           <- file.path(proj_dir, "velocyto")
+  cellphonedb_dir        <- file.path(proj_dir, "CellphoneDB")
+  cellchat_dir           <- file.path(proj_dir, "CellChat")
+  
+  # ---- 🧬 Cell Marker and Gene Set Extraction ----
+ 
   markers <- list()
-  cell_cycle <- list()
+  s_genes <- c()
+  g2m_genes <- c()
   
-  if (!is.null(scripts.dir)) {
-    sc.dirs <- list(
-      meta.file              = file.path(scripts.dir, paste0(proj, "_Metadata.xlsx")),
-      cell.cycle.marker.file = file.path(scripts.dir, "Cell_Cycle_Markers.xlsx"),
-      cell.type.marker.file  = file.path(scripts.dir, "Cell_Type_Markers.xlsx"),
-      raw_matrix_dir         = file.path(proj.dir, "raw_feature_bc_matrix"),
-      filt_matrix_dir        = file.path(proj.dir, "filt_feature_bc_matrix"),
-      hto_matrix_dir         = file.path(proj.dir, "raw_hto_bc_matrix"),
-      diagnostics_dir        = file.path(proj.dir, "diagnostics"),
-      seurat_dir             = file.path(proj.dir, "seurat"),
-      deseq2_dir             = file.path(proj.dir, "deseq2"),
-      demux_dir              = file.path(proj.dir, "demux"),
-      pyscenic_dir           = file.path(proj.dir, "pyscenic"),
-      scvelo_dir             = file.path(proj.dir, "scvelo"),
-      velocyto_dir           = file.path(proj.dir, "velocyto"),
-      cellphonedb_dir        = file.path(proj.dir, "cellphonedb"),
-      cellchat_dir           = file.path(proj.dir, "cellchat"),
-      dorothea_dir           = file.path(proj.dir, "dorothea")
-    )
+  if (!is.null(scripts_dir)){ 
+    metafile               <- file.path(scripts_dir, "scRNASeq_Metadata", paste0(proj, "_Metadata.xlsx"))
+    cell.cycle.marker.file <- file.path(scripts_dir, "Cell_Cycle_Markers.xlsx")
+    cell.type.marker.file  <- file.path(scripts_dir, "Cell_Type_Markers.xlsx")
     
-    # Load Single cell marker Files
-    if (file.exists(sc.dirs$cell.type.marker.file)) {
-      markers$cell_type_markers <- openxlsx::read.xlsx(sc.dirs$cell.type.marker.file)
+    # Extract Cell type Genes
+    if (file.exists(cell.type.marker.file)) {
+      markers <- openxlsx::read.xlsx(cell.type.marker.file)
     }
-    if (file.exists(sc.dirs$cell.cycle.marker.file)) {
-      markers$cell_cycle_markers <- openxlsx::read.xlsx(sc.dirs$cell.cycle.marker.file)
+    
+    # Extract Cell Cycle Genes (Human and Mouse)
+    if (file.exists(cell.cycle.marker.file)) {
+      cc_markers <- openxlsx::read.xlsx(cell.cycle.marker.file)
       
-      # Extract Cell Cycle Genes
-      cell_cycle$all  <- c(markers$cell_cycle_markers$Human_Gene,
-                           markers$cell_cycle_markers$Mouse_Gene)
-      cell_cycle$S    <- c(
-        markers$cell_cycle_markers$Human_Gene[markers$cell_cycle_markers$Phase == "S"],
-        markers$cell_cycle_markers$Mouse_Gene[markers$cell_cycle_markers$Phase == "S"]
-      )
-      cell_cycle$G2M  <- c(
-        markers$cell_cycle_markers$Human_Gene[markers$cell_cycle_markers$Phase == "G2/M"],
-        markers$cell_cycle_markers$Mouse_Gene[markers$cell_cycle_markers$Phase == "G2/M"]
-      )
+      # Combine Human and Mouse genes for each phase
+      s_genes <- c(cc_markers$Human_Gene[cc_markers$Phase == "S"],
+                   cc_markers$Mouse_Gene[cc_markers$Phase == "S"])
+      
+      g2m_genes <- c(cc_markers$Human_Gene[cc_markers$Phase == "G2/M"],
+                     cc_markers$Mouse_Gene[cc_markers$Phase == "G2/M"])
+      
+      # Clean up potential NA/empty values resulting from unlist/subsetting
+      s_genes <- s_genes[!is.na(s_genes) & s_genes != ""]
+      g2m_genes <- g2m_genes[!is.na(g2m_genes) & g2m_genes != ""]
     }
   }
   
-  # Final Project Parameters
+  # ---- 📦 Final Project Parameters Construction ----
+  
   proj.params <- c(
     list(
       # Project info
@@ -242,22 +245,42 @@ setup_project <- function(proj, species, contrasts, parent.dir, gmt.dir,
       species     = species,
       
       # Bulk RNA-seq directories
-      proj.dir    = normalizePath(proj.dir, mustWork = FALSE),
-      counts.dir  = normalizePath(counts.dir, mustWork = FALSE),
-      gmt.dir     = normalizePath(gmt.dir, mustWork = FALSE),
-      contrast.dir= normalizePath(contrast.dir, mustWork = FALSE),
-      deseq2.dir  = normalizePath(deseq2.dir, mustWork = FALSE),
-      pathway.dir = normalizePath(pathway.dir, mustWork = FALSE),
-      tf.dir      = normalizePath(tf.dir, mustWork = FALSE),
+      proj_dir    = normalizePath(proj_dir,     mustWork = FALSE),
+      counts_dir  = normalizePath(counts_dir,   mustWork = FALSE),
+      gmt_dir     = normalizePath(gmt_dir,      mustWork = FALSE),
+      contrast_dir= normalizePath(contrast_dir, mustWork = FALSE),
+      deseq2_dir  = normalizePath(deseq2_dir,   mustWork = FALSE),
+      pathway_dir = normalizePath(pathway_dir,  mustWork = FALSE),
+      tf_dir      = normalizePath(tf_dir,       mustWork = FALSE),
       
       # Bulk RNA-seq parameters
       contrasts   = contrasts,
       deseq2      = deseq2.params,
       heatmap     = heatmap.params,
-      volcano     = volcano.params
-    ),
-    sc.dirs  # Add single-cell directories if scripts.dir is provided
+      volcano     = volcano.params,
+      
+      # Single cell RNA-seq directories
+      diagnostics_dir  = normalizePath(diagnostics_dir, mustWork = FALSE),
+      demux_dir        = normalizePath(demux_dir,       mustWork = FALSE),
+      raw_matrix_dir   = normalizePath(raw_matrix_dir,  mustWork = FALSE), 
+      filt_matrix_dir  = normalizePath(filt_matrix_dir, mustWork = FALSE), 
+      hto_matrix_dir   = normalizePath(hto_matrix_dir,  mustWork = FALSE), 
+      seurat_dir       = normalizePath(seurat_dir,      mustWork = FALSE), 
+      sc_deseq2_dir    = normalizePath(sc_deseq2_dir,   mustWork = FALSE), 
+      pyscenic_dir     = normalizePath(pyscenic_dir,    mustWork = FALSE), 
+      scvelo_dir       = normalizePath(scvelo_dir,      mustWork = FALSE), 
+      velocyto_dir     = normalizePath(velocyto_dir,    mustWork = FALSE), 
+      cellphonedb_dir  = normalizePath(cellphonedb_dir, mustWork = FALSE), 
+      cellchat_dir     = normalizePath(cellchat_dir,    mustWork = FALSE),
+      
+      # Single cell data
+      metafile = normalizePath(metafile,       mustWork = FALSE),
+      markers = markers,
+      cell_cycle = list(S = s_genes, G2M = g2m_genes)
+    )
   )
+  
+  # ---- ⚠️ Final Checks and Return ----
   
   if (proj == "") warning("⚠️ Project name is empty")
   if (species == "") warning("⚠️ Species is not set")
@@ -265,6 +288,7 @@ setup_project <- function(proj, species, contrasts, parent.dir, gmt.dir,
   
   return(proj.params)
 }
+
 
 # Helper functions #1
 save_xlsx <- function(data, file, sheet_name, row_names) {
@@ -289,7 +313,7 @@ filter_samples_by_contrast <- function(metadata, contrast) {
 merge_counts <- function(proj.params) {
   
   # Check required proj.params attributes ----
-  required_attrs <- c("counts.dir", "proj.dir", "proj")
+  required_attrs <- c("counts_dir", "proj_dir", "proj")
   for (attr in required_attrs) {
     if (is.null(proj.params[[attr]])) {
       stop("⚠️ Missing required proj.params attribute: ", attr)
@@ -301,7 +325,7 @@ merge_counts <- function(proj.params) {
   set.seed(1234)
   
   # Get count files
-  count_files <- list.files(path = proj.params$counts.dir, pattern = "\\.txt$|ReadsPerGene\\.out\\.tab$", full.names = TRUE)
+  count_files <- list.files(path = proj.params$counts_dir, pattern = "\\.txt$|ReadsPerGene\\.out\\.tab$", full.names = TRUE)
   if (length( count_files) == 0) {
     stop("No count files found in the directory.")
   }
@@ -372,12 +396,12 @@ merge_counts <- function(proj.params) {
   count_matrix <- count_matrix[, c(TRUE, colSums(count_matrix[,-1]) > 0), drop = FALSE]
   
   # ---- Export ----
-  filename <- file.path(proj.params$proj.dir, paste0(proj.params$proj, "_Raw_counts.xlsx"))
+  filename <- file.path(proj.params$proj_dir, paste0(proj.params$proj, "_Raw_counts.xlsx"))
   wb <- openxlsx::createWorkbook()
   openxlsx::addWorksheet(wb = wb, sheetName = "Raw_counts")
   openxlsx::writeData(wb = wb, sheet = "Raw_counts", x = count_matrix)
   openxlsx::saveWorkbook(wb = wb, file = filename, overwrite = TRUE)
-  message("✅ Saved counts to: ", file.path(proj.params$proj.dir, proj.params$proj))
+  message("✅ Saved counts to: ", file.path(proj.params$proj_dir, proj.params$proj))
   
   return(count_matrix)
 }
@@ -483,7 +507,7 @@ prepare_deseq2_input <- function(meta_data, read_data, project_params) {
   return(invisible(list(meta_data = meta_data, read_data = read_data)))
 }
 
-plot_pca <- function(meta_data, read_data, output_path, top_n_genes = 500, file_name = "PCA_Plots.pdf") {
+plot_pca <- function(meta_data, read_data, output_dir, top_n_genes = 500, file_name = "PCA_Plots.pdf") {
   
   set.seed(1234)
   
@@ -499,9 +523,9 @@ plot_pca <- function(meta_data, read_data, output_path, top_n_genes = 500, file_
   }
   
   # Warn if output path does not exist
-  if (!dir.exists(output_path)) {
-    warning("Output path does not exist. Attempting to create: ", output_path)
-    dir.create(output_path, recursive = TRUE)
+  if (!dir.exists(output_dir)) {
+    warning("Output path does not exist. Attempting to create: ", output_dir)
+    dir.create(output_dir, recursive = TRUE)
   }
   
   # ---- DESeq2 Object Preparation ----
@@ -537,7 +561,7 @@ plot_pca <- function(meta_data, read_data, output_path, top_n_genes = 500, file_
   comp_variables <- setdiff(colnames(meta_data), "Sample_ID")
   
   # ---- Save all plots to a single PDF ----
-  output_file <- file.path(output_path, file_name)
+  output_file <- file.path(output_dir, file_name)
   message("Saving PCA plots to: ", output_file)
   
   grDevices::pdf(file = output_file, width = 8.5, height = 11)
@@ -574,7 +598,7 @@ plot_pca <- function(meta_data, read_data, output_path, top_n_genes = 500, file_
   dev.off()
 }
 
-plot_ma <- function(dds, output_path, file_name = "MA_Plot.pdf") {
+plot_ma <- function(dds, output_dir, file_name = "MA_Plot.pdf") {
   
   set.seed(1234)
   
@@ -583,13 +607,13 @@ plot_ma <- function(dds, output_path, file_name = "MA_Plot.pdf") {
     stop("`dds` must be a DESeqDataSet object.")
   }
   
-  if (!dir.exists(output_path)) {
-    warning("Output path does not exist. Creating: ", output_path)
-    dir.create(output_path, recursive = TRUE)
+  if (!dir.exists(output_dir)) {
+    warning("Output path does not exist. Creating: ", output_dir)
+    dir.create(output_dir, recursive = TRUE)
   }
   
   # ---- MA Plot ----
-  output_file <- file.path(output_path, file_name)
+  output_file <- file.path(output_dir, file_name)
   message("Saving MA plot to: ", output_file)
   
   grDevices::pdf(file = output_file, width = 8.5, height = 11)
@@ -606,7 +630,7 @@ plot_ma <- function(dds, output_path, file_name = "MA_Plot.pdf") {
   message("MA plot completed successfully.")
 }
 
-plot_dispersion <- function(dds, output_path, file_name = "Dispersion_Plot.pdf") {
+plot_dispersion <- function(dds, output_dir, file_name = "Dispersion_Plot.pdf") {
   
   set.seed(1234)
   
@@ -615,13 +639,13 @@ plot_dispersion <- function(dds, output_path, file_name = "Dispersion_Plot.pdf")
     stop("`dds` must be a DESeqDataSet object.")
   }
   
-  if (!dir.exists(output_path)) {
-    warning("Output path does not exist. Creating: ", output_path)
-    dir.create(output_path, recursive = TRUE)
+  if (!dir.exists(output_dir)) {
+    warning("Output path does not exist. Creating: ", output_dir)
+    dir.create(output_dir, recursive = TRUE)
   }
   
   # ---- Dispersion Plot ----
-  output_file <- file.path(output_path, file_name)
+  output_file <- file.path(output_dir, file_name)
   message("Saving dispersion plot to: ", output_file)
   
   grDevices::pdf(file = output_file, width = 8.5, height = 11)
@@ -645,7 +669,7 @@ plot_dispersion <- function(dds, output_path, file_name = "Dispersion_Plot.pdf")
 }
 
 plot_volcano <- function(DEGs_df, proj.params, contrast = "Target-Reference", 
-                         output_path, top_n = 5, file_prefix = "Volcano_Plot") {
+                         output_dir, top_n = 5, file_prefix = "Volcano_Plot") {
   
   set.seed(1234)
   
@@ -655,9 +679,9 @@ plot_volcano <- function(DEGs_df, proj.params, contrast = "Target-Reference",
     stop("DEGs_df must contain columns: log2FoldChange, padj, SYMBOL")
   }
   
-  if (!dir.exists(output_path)) {
-    warning("Output path does not exist. Creating: ", output_path)
-    dir.create(output_path, recursive = TRUE)
+  if (!dir.exists(output_dir)) {
+    warning("Output path does not exist. Creating: ", output_dir)
+    dir.create(output_dir, recursive = TRUE)
   }
   
   # ---- Check required proj.params attributes ----
@@ -824,10 +848,10 @@ plot_volcano <- function(DEGs_df, proj.params, contrast = "Target-Reference",
   )
   
   # ---- Save Plots ----
-  ggplot2::ggsave(file.path(output_path, paste0(file_prefix, "_", contrast, ".pdf")),
+  ggplot2::ggsave(file.path(output_dir, paste0(file_prefix, "_", contrast, ".pdf")),
                   plot = p, width = 7, height = 7, device = "pdf")
   
-  ggplot2::ggsave(file.path(output_path, paste0(file_prefix, "_top_", contrast, ".pdf")),
+  ggplot2::ggsave(file.path(output_dir, paste0(file_prefix, "_top_", contrast, ".pdf")),
                   plot = q, width = 7, height = 7, device = "pdf")
   
   message("Volcano plots saved successfully.")
@@ -839,6 +863,7 @@ plot_volcano <- function(DEGs_df, proj.params, contrast = "Target-Reference",
 # metadata_row has column SYMBOL and columns defined in proj.params$heatmap.row.ann
 # metadata_row <- NULL if no row annotations needed
 # disp_genes either empty vector c() or vector of genes
+# norm_counts is a matrix with gene symbols as rownames
 plot_heatmap <- function(norm_counts, proj.params, metadata_col = NULL, metadata_row = NULL, disp_genes = c()) {
   
   set.seed(1234)
@@ -881,6 +906,9 @@ plot_heatmap <- function(norm_counts, proj.params, metadata_col = NULL, metadata
     tibble::column_to_rownames("SYMBOL") %>%
     dplyr::mutate(across(.cols = everything(), .fns = as.numeric))
   
+  # Remove genes that have 0 across all samples
+  mat <- mat[rowSums(mat) != 0, ]
+  
   rownames(mat) <- make.names(rownames(mat), unique = TRUE)
   colnames(mat) <- make.names(colnames(mat), unique = TRUE)
   
@@ -904,6 +932,7 @@ plot_heatmap <- function(norm_counts, proj.params, metadata_col = NULL, metadata
     col_annotation <- metadata_col %>%
       dplyr::select(Sample_ID, all_of(proj.params$heatmap$col.ann)) %>%
       dplyr::mutate(Sample_ID = make.names(Sample_ID)) %>%
+      dplyr::filter(Sample_ID %in% colnames(mat)) %>%
       tibble::remove_rownames() %>%
       tibble::column_to_rownames("Sample_ID") %>%
       as.data.frame() %>%
@@ -917,6 +946,7 @@ plot_heatmap <- function(norm_counts, proj.params, metadata_col = NULL, metadata
     row_annotation <- metadata_row %>%
       dplyr::select(SYMBOL, all_of(proj.params$heatmap$row.ann)) %>%
       dplyr::mutate(SYMBOL = make.names(SYMBOL, unique = TRUE)) %>%
+      dplyr::filter(SYMBOL %in% rownames(mat)) %>%
       tibble::remove_rownames() %>%
       tibble::column_to_rownames("SYMBOL") %>%
       as.data.frame() %>%
@@ -939,12 +969,12 @@ plot_heatmap <- function(norm_counts, proj.params, metadata_col = NULL, metadata
   
   col_list <- base::lapply(X = as.list(col_annotation), FUN = function(x) { as.character(x) %>% unique})
   row_list <- base::lapply(X = as.list(row_annotation), FUN = function(x) { as.character(x) %>% unique})
-  ann_list <- c(col_list, row_list)
+  ann_list <- c(row_list, col_list)
   
   color_index <- 1
   for (i in seq_along(ann_list)) {  # Iterate through each annotation variable (Eg: CellType) 
-    levels <- sort(ann_list[[i]])  # Get levels within each annotation variable (Eg: CT1, CT2)
-    n_levels <- length(levels)    # Get number of levels within each annotation variable
+    levels <- sort(ann_list[[i]])   # Get levels within each annotation variable (Eg: CT1, CT2)
+    n_levels <- length(levels)      # Get number of levels within each annotation variable
     
     palette_colors <- if (proj.params$heatmap$ann.palette == "discrete" | n_levels == 1){
       base_colors[color_index:(color_index + n_levels - 1)]
@@ -954,10 +984,10 @@ plot_heatmap <- function(norm_counts, proj.params, metadata_col = NULL, metadata
                    FUN = function(x) { colorspace::adjust_transparency(col = base_colors[color_index], alpha = x) })
     }
     
-    names(palette_colors) <- levels          # Name each color with levels
+    names(palette_colors) <- levels                   # Name each color with levels
     ann_colors <- c(ann_colors, list(palette_colors)) # Append named color palette
-    names(ann_colors)[i] <- names(ann_list)[i]     # Name the color palette with corresponding annotation variable name
-    color_index <- color_index + n_levels       # Move to next color
+    names(ann_colors)[i] <- names(ann_list)[i]        # Name the color palette with corresponding annotation variable name
+    color_index <- color_index + n_levels             # Move to next color
   }
   
   # ---- Heatmap Palette ----
@@ -1097,15 +1127,42 @@ plot_heatmap <- function(norm_counts, proj.params, metadata_col = NULL, metadata
   angle.col <- 45       # column label angle
   
   # ---- Set cell width, height (in points) dynamically ----
-  cell.width <- dplyr::if_else(ncol(reordered) <= 60, fontsize+2, NA)
-  cell.height <- dplyr::if_else(nrow(reordered) <= 48, fontsize+2, NA)
   
+  # NOTE: A page is 8.5inch wide x 11 inch high
+  # Giving 2 inch width for figure legend, 2 inch height for col annotations,
+  # 0.5 inch for margins, actual plot area ~ 6inch wide x 8 inch high
+  # For text to be readable, fontsize >= 10. We keep cell.width and cell.height
+  # 5 point size larger than fontsize so it looks pretty
+  
+  optimal_col.width <- fontsize+5
+  optimal_row.height <- fontsize+5
+  max_cols <- 6 * 72 / optimal_col.width
+  max_rows <- 8 * 72 / optimal_row.height
+  
+  if (ncol(reordered) <= max_cols){
+    cell.width <- optimal_col.width
+  } else{
+    cell.width <- 6 * 72 / ncol(reordered)
+  }
+  
+  if (nrow(reordered) <= max_rows){
+    cell.height <- optimal_row.height
+  } else{
+    cell.height <- 8 * 72 / nrow(reordered)
+  }
+ 
   # ---- Truncate long row and column labels ----
   main.title <- stringr::str_wrap(string = proj.params$heatmap$title, width = 20)
-  labels.col <- stringr::str_trunc(string = colnames(reordered), width = 15, side = "right", ellipsis = "…")
-  labels.row <- stringr::str_trunc(string = rownames(reordered), width = 15, side = "right", ellipsis = "…")
-  if(length(disp_genes) > 0){
+  if (ncol(reordered) <= max_cols){
+    labels.col <- stringr::str_trunc(string = colnames(reordered), width = 15, side = "right", ellipsis = "…")
+  } else{
+    labels.col <- rep(x="", times = ncol(reordered))
+  }
+  if (nrow(reordered) <= max_rows & length(disp_genes) > 0){
+    labels.row <- stringr::str_trunc(string = rownames(reordered), width = 15, side = "right", ellipsis = "…")
     labels.row <- dplyr::if_else(rownames(reordered) %in% make.names(disp_genes), rownames(reordered), " ")
+  } else {
+    labels.row <- rep(x="", times = nrow(reordered))
   }
   
   # ---- Heatmap plotting ----
@@ -1120,8 +1177,8 @@ plot_heatmap <- function(norm_counts, proj.params, metadata_col = NULL, metadata
                            
                            cellwidth         = cell.width,     
                            cellheight        = cell.height,  
-                           show_rownames     = !is.na(cell.height),
-                           show_colnames     = !is.na(cell.width),
+                           show_rownames     = cell.height >= fontsize,
+                           show_colnames     = cell.width >= fontsize,
                            labels_row        = labels.row,
                            labels_col        = labels.col,
                            angle_col         = angle.col,        # column label angle
@@ -1174,11 +1231,11 @@ run_deseq2 <- function(meta_data, read_data, proj.params, n = 1) {
   }
   
   contrast <- proj.params$deseq2$contrasts[n]
-  contrast.dir <- proj.params$contrast.dir[n]
+  contrast_dir <- proj.params$contrast_dir[n]
   
-  if (!dir.exists(contrast.dir)) {
-    warning("Contrast directory does not exist. Creating: ", contrast.dir)
-    dir.create(contrast.dir, recursive = TRUE)
+  if (!dir.exists(contrast_dir)) {
+    warning("Contrast directory does not exist. Creating: ", contrast_dir)
+    dir.create(contrast_dir, recursive = TRUE)
   }
   
   # ---- DESeq2 Object Preparation ----
@@ -1290,7 +1347,7 @@ run_deseq2 <- function(meta_data, read_data, proj.params, n = 1) {
     dplyr::summarize(across(.cols = where(is.numeric), .fns = mean, na.rm = TRUE), .groups = "drop") %>%
     dplyr::mutate(padj = ifelse(padj == 0, min(padj[padj > 0], na.rm = TRUE), padj))
   
-  save_xlsx(DEGs_df, file.path(contrast.dir, "DEGs.xlsx"), "DEGs", row_names = FALSE)
+  save_xlsx(DEGs_df, file.path(contrast_dir, "DEGs.xlsx"), "DEGs", row_names = FALSE)
   
   # ---- VST Counts (Non-blind) ----
   vsd <- DESeq2::vst(dds, blind = FALSE)
@@ -1306,7 +1363,7 @@ run_deseq2 <- function(meta_data, read_data, proj.params, n = 1) {
     dplyr::select(-dplyr::starts_with("ENSEMBL"), -dplyr::starts_with("ENTREZ")) %>%
     as.matrix()
   
-  save_xlsx(vst_counts, file.path(contrast.dir, "VST_counts.xlsx"), "VST_Nonblind", row_names = TRUE)
+  save_xlsx(vst_counts, file.path(contrast_dir, "VST_counts.xlsx"), "VST_Nonblind", row_names = TRUE)
   
   # ---- Return Results ----
   invisible(list(degs = DEGs_df, vst = vst_counts, dds = dds))
@@ -1317,10 +1374,10 @@ run_deseq2 <- function(meta_data, read_data, proj.params, n = 1) {
 # n <- # overlapping genes between input and collection
 # K <- # genes in pathway
 # N <- # genes in collection
-pathway_analysis <- function(DEGs_df, proj.params, output_path) {
+pathway_analysis <- function(DEGs_df, proj.params, output_dir) {
   
   # Check required proj.params attributes
-  required_attrs <- c("gmt.dir", "species")
+  required_attrs <- c("gmt_dir", "species")
   for (attr in required_attrs) {
     if (is.null(proj.params[[attr]])) {
       stop("⚠️ Missing required proj.params attribute: ", attr)
@@ -1330,13 +1387,13 @@ pathway_analysis <- function(DEGs_df, proj.params, output_path) {
     }
   }
   
-  if (!dir.exists(output_path)) {
-    dir.create(output_path, recursive = TRUE)
+  if (!dir.exists(output_dir)) {
+    dir.create(output_dir, recursive = TRUE)
   }
   
   set.seed(1234)
   
-  gmt_files <- list.files(file.path(proj.params$gmt.dir, proj.params$species), full.names = TRUE)
+  gmt_files <- list.files(file.path(proj.params$gmt_dir, proj.params$species), full.names = TRUE)
   
   # Initialize result dataframes 
   fgsea_df <- data.frame()
@@ -1415,7 +1472,7 @@ pathway_analysis <- function(DEGs_df, proj.params, output_path) {
                                       pAdjustMethod = "BH",
                                       TERM2GENE = pathway_gene_df,
                                       TERM2NAME = NA,
-                                      verbose = TRUE,
+                                      verbose = FALSE,
                                       seed = FALSE,
                                       by = "fgsea")
     
@@ -1553,7 +1610,7 @@ pathway_analysis <- function(DEGs_df, proj.params, output_path) {
     openxlsx::addWorksheet(wb, sheetName = names(gsea_res_list)[i])
     openxlsx::writeData(wb, sheet = names(gsea_res_list)[i], x = gsea_res_list[[i]], rowNames = FALSE)
   }
-  openxlsx::saveWorkbook(wb, file.path(output_path, "Pathway_results.xlsx"), overwrite = TRUE)
+  openxlsx::saveWorkbook(wb, file.path(output_dir, "Pathway_results.xlsx"), overwrite = TRUE)
   
   # Return results
   return(invisible(list(fgsea = fgsea_df, 
@@ -1579,18 +1636,26 @@ tf_analysis <- function(input, species = "Homo sapiens", top = 500) {
                                species == "Mus musculus" ~ "mouse",
                                TRUE ~ "rat")
   
-  # Load network models 
-  pathway_net <- decoupleR::get_progeny(organism = organism, top = top)
-  tf_net <- decoupleR::get_collectri(organism = organism, split_complexes = FALSE)
+  # Load network models
+  # get_collectri returns mor column without edge weights (-1 or +1)
+  # get_dorothea returns mor column with edge weights (-1 through +1)
+  # viper works better with edge weights but dorothea's edge weights are solely based on confidence
+  # get_collectri has only high confidence entries. So, get_collecttri is better.
+  progeny_pathway_net <- decoupleR::get_progeny(organism = organism, top = top)
+  collectri_tf_net <- decoupleR::get_collectri(organism = organism, split_complexes = FALSE)
+  #dorothea_tf_net <- decoupleR::get_dorothea(organism = organism, levels = c('A', 'B', 'C'))
   
   # Run decoupleR
   # stats <- c("aucell", fgsea", "gsva", "mdt", "mlm", "ora", "udt", "ulm", "viper", "wmean", "wsum")
   stats <- c("ulm", "mlm", "viper") # 3 best methods to get consensus
-  pathway_df <- decoupleR::decouple(mat = input, network = pathway_net,
+  pathway_df <- decoupleR::decouple(mat = input, network = progeny_pathway_net,
                                     statistics = stats, minsize = 5)
   
-  tf_df <- decoupleR::decouple(mat = input, network = tf_net,
+  tf_df <- decoupleR::decouple(mat = input, network = collectri_tf_net,
                                statistics = stats, minsize = 5)
+  
+  # tf_df <- decoupleR::decouple(mat = input, network = dorothea_tf_net,
+  #                              statistics = "viper", minsize = 5)
   
   # Remove insignificant entries
   pathway_sig <- pathway_df %>%
@@ -1617,7 +1682,7 @@ tf_analysis <- function(input, species = "Homo sapiens", top = 500) {
 # No "_" in Description column so that str_wrap works
 # Collection column needed
 # (combined_score, GeneRatio, k) OR (NES, leading_edge_size) columns needed
-plot_pathway <- function(pathway_df, vst_counts, meta_data, samples, method, output_path){
+plot_pathway <- function(pathway_df, vst_counts, meta_data, samples, method, output_dir){
   
   set.seed(1234)
   
@@ -1631,13 +1696,13 @@ plot_pathway <- function(pathway_df, vst_counts, meta_data, samples, method, out
   }
   
   # ---- Create output directories ----
-  bar_output_path <- file.path(output_path, method, "Bar_Plots")
-  dot_output_path <- file.path(output_path, method, "Dot_Plots")
-  heatmap_output_path <- file.path(output_path, method, "Heatmaps")
-  dirs <- c(output_path,
-            bar_output_path,
-            dot_output_path,
-            heatmap_output_path)
+  bar_output_dir <- file.path(output_dir, method, "Bar_Plots")
+  dot_output_dir <- file.path(output_dir, method, "Dot_Plots")
+  heatmap_output_dir <- file.path(output_dir, method, "Heatmaps")
+  dirs <- c(output_dir,
+            bar_output_dir,
+            dot_output_dir,
+            heatmap_output_dir)
   
   for (d in dirs) {
     if (!dir.exists(d)) {
@@ -1798,8 +1863,8 @@ plot_pathway <- function(pathway_df, vst_counts, meta_data, samples, method, out
     }
     
     if (length(heatmap_plot_list) > 0) {
-      pdf(file.path(heatmap_output_path, paste0("Heatmaps_", collections[i], "_", method, ".pdf")),
-          width = 10, height = 8)
+      pdf(file.path(heatmap_output_dir, paste0("Heatmaps_", collections[i], "_", method, ".pdf")),
+          width = 8.5, height = 11)
       for (ht in heatmap_plot_list) {
         grid::grid.newpage()
         grid::grid.draw(ht)
@@ -1809,7 +1874,7 @@ plot_pathway <- function(pathway_df, vst_counts, meta_data, samples, method, out
   }
   
   bar_plots <- cowplot::plot_grid(plotlist = bar_plot_list, ncol = 3, nrow = 3)
-  ggplot2::ggsave(filename = file.path(bar_output_path, paste0("Bar_plot_pathways_", method, ".tiff")),
+  ggplot2::ggsave(filename = file.path(bar_output_dir, paste0("Bar_plot_pathways_", method, ".tiff")),
                   plot = bar_plots,
                   device = "jpeg",
                   width = 3*7,
@@ -1819,7 +1884,7 @@ plot_pathway <- function(pathway_df, vst_counts, meta_data, samples, method, out
                   bg = "white")
   
   dot_plots <- cowplot::plot_grid(plotlist = dot_plot_list, ncol = 3, nrow = 3)
-  ggplot2::ggsave(filename = file.path(dot_output_path, paste0("Dot_plot_pathways_", method, ".tiff")),
+  ggplot2::ggsave(filename = file.path(dot_output_dir, paste0("Dot_plot_pathways_", method, ".tiff")),
                   plot = dot_plots,
                   device = "jpeg",
                   width = 3*7,
@@ -1829,14 +1894,14 @@ plot_pathway <- function(pathway_df, vst_counts, meta_data, samples, method, out
                   bg = "white")
 }
 
-plot_tf <- function(input, contrast, meta_data, samples, output_path, n_tfs = 20){
+plot_tf <- function(input, contrast, meta_data, samples, output_dir, n_tfs = 20){
   
   set.seed(1234)
   
   # ---- Create output directories ----
-  if (!dir.exists(output_path)) {
-    dir.create(output_path, recursive = TRUE)
-    message("📂 Created directory: ", output_path)
+  if (!dir.exists(output_dir)) {
+    dir.create(output_dir, recursive = TRUE)
+    message("📂 Created directory: ", output_dir)
   }
   
   # NOTE: wsum returns wsum, norm_wsum and corr_wsum.
@@ -1907,7 +1972,7 @@ plot_tf <- function(input, contrast, meta_data, samples, output_path, n_tfs = 20
   
   # Save combined heatmaps
   if (length(heatmap_plot_list) > 0) {
-    pdf(file.path(output_path, "Heatmap_TFs.pdf"),
+    pdf(file.path(output_dir, "Heatmap_TFs.pdf"),
         width = 10, height = 8)
     for (ht in heatmap_plot_list) {
       grid::grid.newpage()
@@ -1919,7 +1984,7 @@ plot_tf <- function(input, contrast, meta_data, samples, output_path, n_tfs = 20
   # Save combined barplots
   if (length(bar_plot_list) > 0) {
     bar_plots <- cowplot::plot_grid(plotlist = bar_plot_list, ncol = 1, nrow = length(bar_plot_list))
-    ggplot2::ggsave(filename = file.path(output_path, "Bar_plot_TFs.tiff"),
+    ggplot2::ggsave(filename = file.path(output_dir, "Bar_plot_TFs.tiff"),
                     plot = bar_plots,
                     device = "jpeg",
                     width = 10,
@@ -1936,24 +2001,22 @@ main_analysis <- function(meta_data, read_data, proj.params, trial) {
   
   # Compile raw counts if read_data not available
   if (is.null(read_data)) {
-    if (dir.exists(proj.params$counts.dir)) {
+    if (dir.exists(proj.params$counts_dir)) {
       read_data <- merge_counts(proj.params)
     } else {
-      stop("The specified count directory does not exist: ", proj.params$counts.dir)
+      stop("The specified count directory does not exist: ", proj.params$counts_dir)
     }
   }
   
   # Prepare input
   deseq2_inputs <- prepare_deseq2_input(meta_data, read_data, proj.params)
-  
   contrasts <- proj.params$deseq2$contrast
   
   # ---- Visualization: PCA plot ----
   meta_data <- deseq2_inputs$meta_data
   read_data <- deseq2_inputs$read_data
-  output_path <- proj.params$proj.dir
-  plot_pca(meta_data, read_data, output_path)
-  
+  output_dir <- proj.params$proj_dir
+  plot_pca(meta_data, read_data, output_dir)
   
   if(!trial){
     
@@ -1967,14 +2030,14 @@ main_analysis <- function(meta_data, read_data, proj.params, trial) {
       
       # ---- Visualization: MA Plot ----
       dds <- deseq2_results$dds
-      output_path <- proj.params$deseq2.dir[n]
-      plot_ma(dds, output_path)
+      output_dir <- proj.params$deseq2_dir[n]
+      plot_ma(dds, output_dir)
       
       # ---- Visualization: Volcano Plot ----
       DEGs_df <- deseq2_results$degs
       contrast <- proj.params$deseq2$contrasts[n]
-      output_path <- proj.params$deseq2.dir[n]
-      plot_volcano(DEGs_df, proj.params, contrast, output_path)
+      output_dir <- proj.params$deseq2_dir[n]
+      plot_volcano(DEGs_df, proj.params, contrast, output_dir)
       
       
       # ---- Visualization: Heatmap ----
@@ -1991,22 +2054,22 @@ main_analysis <- function(meta_data, read_data, proj.params, trial) {
         metadata_col <- meta_data %>% dplyr::filter(Sample_ID %in% samples)
         metadata_row <- NULL
         disp_genes <- c()
-        output_path <- proj.params$deseq2.dir[n]
+        output_dir <- proj.params$deseq2_dir[n]
         
         ph <- plot_heatmap(norm_counts, proj.params, metadata_col, metadata_row, disp_genes)
         
-        jpeg(file.path(output_path, "Heatmap.jpeg"), width = 5, height = 7, units = "in", res = 300)
+        jpeg(file.path(output_dir, "Heatmap.jpeg"), width = 5, height = 7, units = "in", res = 300)
         gridExtra::grid.arrange(grobs = list(ph$ph$gtable), ncol = 1)
         dev.off()
         
-        save_xlsx(ph$mat, file.path(output_path, "Heatmap_Matrix.xlsx"), "Heatmap_matrix", row_names = TRUE)
+        save_xlsx(ph$mat, file.path(output_dir, "Heatmap_Matrix.xlsx"), "Heatmap_matrix", row_names = TRUE)
       } 
       
       # ---- Pathway Analysis ----
       
       # Perform pathway analysis
-      output_path <- proj.params$pathway.dir[n]
-      gsea_res_list <- pathway_analysis(DEGs_df, proj.params, output_path)
+      output_dir <- proj.params$pathway_dir[n]
+      gsea_res_list <- pathway_analysis(DEGs_df, proj.params, output_dir)
       
       # Plot Bar, Dot, Heatmap for top 10 Up & Down Pathways
       top_pathways_gsea <- gsea_res_list$consensus %>%
@@ -2023,11 +2086,11 @@ main_analysis <- function(meta_data, read_data, proj.params, trial) {
         dplyr::slice_min(order_by = padj, n = 10, with_ties = FALSE) %>%
         dplyr::ungroup()
       
-      output_path <- proj.params$pathway.dir[n]
+      output_dir <- proj.params$pathway_dir[n]
       samples <- filter_samples_by_contrast(meta_data, contrast)
       samples <- intersect(colnames(vst_counts), samples)
-      plot_pathway(top_pathways_gsea, vst_counts, meta_data, samples, "GSEA", output_path)
-      plot_pathway(top_pathways_ora, vst_counts, meta_data, samples, "ORA", output_path)
+      plot_pathway(top_pathways_gsea, vst_counts, meta_data, samples, "GSEA", output_dir)
+      plot_pathway(top_pathways_ora, vst_counts, meta_data, samples, "ORA", output_dir)
       
       # ---- Transcription Factor (TF) Analysis ----
       
@@ -2051,22 +2114,22 @@ main_analysis <- function(meta_data, read_data, proj.params, trial) {
       
       # Plot Bar, Heatmap for top 20 Up and Down TFs
       contrast <- contrasts[n]
-      output_path <- proj.params$tf.dir[n]
+      output_dir <- proj.params$tf_dir[n]
       samples <- filter_samples_by_contrast(meta_data, contrast)
       samples <- intersect(colnames(vst_counts), samples)
-      plot_tf(tf_res_degs, contrast, meta_data, samples, output_path, n_tfs = 20)
-      plot_tf(tf_res_counts, contrast, meta_data, samples, output_path, n_tfs = 20)
+      plot_tf(tf_res_degs, contrast, meta_data, samples, output_dir, n_tfs = 20)
+      plot_tf(tf_res_counts, contrast, meta_data, samples, output_dir, n_tfs = 20)
     }
     
     # ---- Visualization: Dispersion Estimates ----
     dds <- deseq2_results$dds
-    output_path <- proj.params$proj.dir
-    plot_dispersion(dds, output_path)
+    output_dir <- proj.params$proj_dir
+    plot_dispersion(dds, output_dir)
     
     # ---- VST Counts (Blind) ----
     # NOTE: vst counts are affected by design ONLY when blind=FALSE
     dds <- deseq2_results$dds
-    output_path <- proj.params$proj.dir
+    output_dir <- proj.params$proj_dir
     vsd_blind <- DESeq2::vst(dds, blind = TRUE)
     vst_counts_blind <- SummarizedExperiment::assay(vsd_blind) %>%
       as.data.frame() %>%
@@ -2080,7 +2143,7 @@ main_analysis <- function(meta_data, read_data, proj.params, trial) {
       dplyr::select(-dplyr::starts_with("ENSEMBL"), -dplyr::starts_with("ENTREZ")) %>%
       as.matrix()
     
-    save_xlsx(vst_counts_blind, file.path(output_path, "VST_counts_blind.xlsx"), "VST_blind", row_names = TRUE)
+    save_xlsx(vst_counts_blind, file.path(output_dir, "VST_counts_blind.xlsx"), "VST_blind", row_names = TRUE)
     
     # ---- Perform LRT Test ----
     dds <- deseq2_results$dds
@@ -2091,7 +2154,7 @@ main_analysis <- function(meta_data, read_data, proj.params, trial) {
       add_annotation()
     
     # ---- Visualization: Heatmap ----
-    output_path <- proj.params$proj.dir
+    output_dir <- proj.params$proj_dir
     samples <- colnames(vst_counts_blind)
     sig_genes <- res_LRT %>% dplyr::filter(padj <= 0.05) %>% dplyr::pull(SYMBOL)
     norm_counts <- vst_counts_blind[sig_genes, samples, drop = FALSE]
@@ -2103,11 +2166,11 @@ main_analysis <- function(meta_data, read_data, proj.params, trial) {
       
       ph <- plot_heatmap(norm_counts, proj.params, metadata_col, metadata_row, disp_genes)
       
-      jpeg(file.path(output_path, "Heatmap.jpeg"), width = 5, height = 7, units = "in", res = 300)
+      jpeg(file.path(output_dir, "Heatmap.jpeg"), width = 5, height = 7, units = "in", res = 300)
       gridExtra::grid.arrange(grobs = list(ph$ph$gtable), ncol = 1)
       dev.off()
       
-      save_xlsx(ph$mat, file.path(output_path, "Heatmap_Matrix.xlsx"), "Heatmap_matrix", row_names = TRUE)
+      save_xlsx(ph$mat, file.path(output_dir, "Heatmap_Matrix.xlsx"), "Heatmap_matrix", row_names = TRUE)
     }
   }
 }
@@ -2440,41 +2503,289 @@ progeny_analysis <- function(norm_counts, assay = "RNA", species = "Homo sapiens
 
 # ---- SINGLE CELL & SPATIAL ANALYSIS RELATED FUNCTIONS ----
 
-read_cellranger <- function(sample, path){
+validate_inputs <- function(sample = NULL, gene.column = NULL, 
+                            bin = NULL, assay = NULL, n_pcs = NULL, pN = NULL, 
+                            seurat_object = NULL, seurat_list = NULL, 
+                            matrix_dir = NULL, output_dir = NULL,
+                            metafile = NULL, raw_metadata = NULL, 
+                            s_genes = NULL, g2m_genes = NULL,
+                            reference_samples = NULL, reduction = NULL,
+                            resolution = NULL) {
   
-  set.seed(1234)
+  # ---- 1. Parameter Integrity Checks (Pure Input Validation) ----
   
-  # Construct the full data directory path
-  data_dir <- base::file.path(path, sample)
-  
-  # Check if path exists
-  if (!dir.exists(data_dir)) {
-    stop("The directory '", data_dir, "' does not exist!")
+  # A. Check 'sample' string integrity
+  if (!is.null(sample)) {
+    if (!is.character(sample) || length(sample) != 1 || nchar(sample) == 0) {
+      stop("❌ INPUT ERROR: 'sample' must be a single, non-empty character string.")
+    }
   }
   
-  # Check for HDF5 (.h5) files
-  h5_files <- list.files(data_dir, pattern = "\\.h5$", full.names = TRUE, ignore.case = TRUE)
+  # B. Check 'matrix_dir' string integrity
+  if (!is.null(matrix_dir)) {
+    if (!is.character(matrix_dir) || length(matrix_dir) != 1 || nchar(matrix_dir) == 0) {
+      stop("❌ INPUT ERROR: 'matrix_dir' must be a single, non-empty character string.")
+    }
+  }
   
-  # Read the feature-barcode matrix with gene symbols
+  # C. Check 'assay' type and length
+  if (!is.null(assay)) {
+    if (!is.character(assay) || length(assay) != 1 || nchar(assay) == 0) {
+      stop("❌ INPUT ERROR: 'assay' must be a single, non-empty character string.")
+    }
+  }
+  
+  # D. Check 'gene.column' validity
+  if (!is.null(gene.column)) {
+    if (!is.numeric(gene.column) || length(gene.column) != 1 || !(gene.column %in% c(1, 2))) {
+      stop("❌ INPUT ERROR: 'gene.column' must be 1 (Ensembl IDs) or 2 (Gene symbols).")
+    }
+  }
+  
+  # E. Check 'pN' validity
+  if (!is.null(pN)) {
+    if (!is.numeric(pN) || length(pN) != 1 || pN <= 0 || pN > 1) {
+      stop("❌ INPUT ERROR: 'pN' must be a numeric value between 0 and 1 (exclusive of 0).")
+    }
+  }
+  
+  # F. Check 'n_pcs' validity
+  if (!is.null(n_pcs)) {
+    if (!is.numeric(n_pcs) || length(n_pcs) != 1 || n_pcs <= 0 || n_pcs %% 1 != 0 || n_pcs > 50) {
+      stop("❌ INPUT ERROR: 'n_pcs' must be a positive integer less than 50.")
+    }
+  }
+  
+  # G. Check 'bin' validity
+  if (!is.null(bin)) {
+    if (!is.numeric(bin) || length(bin) != 1 || !(bin %in% c(2, 8, 16))) {
+      stop("❌ INPUT ERROR: Invalid 'bin' size provided. Must be one of 2, 8, or 16.")
+    }
+  }
+  
+  # H. Check 's_genes' vector integrity
+  if (!is.null(s_genes)) {
+    if (!is.character(s_genes) || length(s_genes) == 0) {
+      stop("❌ INPUT ERROR: 's_genes' must be a non-empty character vector.")
+    }
+  }
+  
+  # I. Check 'g2m_genes' vector integrity
+  if (!is.null(g2m_genes)) {
+    if (!is.character(g2m_genes) || length(g2m_genes) == 0) {
+      stop("❌ INPUT ERROR: 'g2m_genes' must be a non-empty character vector.")
+    }
+  }
+  
+  # J. Check 'reference_samples' vector integrity (new)
+  if (!is.null(reference_samples)){
+    if (!is.character(reference_samples) || length(reference_samples) == 0) {
+      stop("❌ INPUT ERROR: 'reference_samples' must be a non-empty character vector.")
+    }
+  }
+  
+  # K. Check 'reduction' string integrity
+  if (!is.null(reduction)) {
+    if (!is.character(reduction) || length(reduction) != 1 || nchar(reduction) == 0) {
+      stop("❌ INPUT ERROR: 'reduction' must be a single, non-empty character string.")
+    }
+  }
+  
+  # L. Check 'resolution' validity
+  if (!is.null(resolution)) {
+    
+    # Define the specific, allowed values for resolution (customize this list)
+    allowed_res <- c(0.4, 0.6, 0.8, 1.0, 1.2, 1.4)
+    
+    # Check 1: Must be numeric or a character string coercible to numeric
+    if (!is.numeric(resolution) && !is.character(resolution)) {
+      stop("❌ INPUT ERROR: 'resolution' must be numeric or a character string representing a numeric value.")
+    }
+    
+    # Check 2: Attempt coercion and check for NA (failure to convert)
+    resolution_num <- as.numeric(resolution)
+    if (is.na(resolution_num) || length(resolution_num) != 1) {
+      # Check length here as well, since as.numeric converts c("0.6", "0.8") successfully.
+      stop("❌ INPUT ERROR: 'resolution' value must be a single item and successfully converted to numeric.")
+    }
+    
+    # Check 3: Ensure the value is one of the strictly allowed resolutions
+    if (!(resolution_num %in% allowed_res)) {
+      stop(paste0("❌ INPUT ERROR: 'resolution' must be one of the allowed values: ", 
+                  paste(allowed_res, collapse = ", ")))
+    }
+  }
+  
+  # ---- 2. Seurat Object and List Integrity Checks ----
+  
+  # H. Check Seurat object class (only if provided)
+  if (!is.null(seurat_object)) {
+    if (!inherits(seurat_object, "Seurat")) {
+      stop("❌ INPUT ERROR: 'seurat_object' must be a Seurat object.")
+    }
+    
+    # Check for Non-Empty Seurat Object
+    if (ncol(seurat_object) == 0) {
+      stop("❌ DATA ERROR: The input Seurat object is empty (0 cells).")
+    }
+    
+    if (!is.null(assay)) {
+      # First, check if the string is structurally sound (Done in Section 1)
+      # Second, check if the assay name exists in the object:
+      if (!(assay %in% names(seurat_object@assays))) {
+        stop(paste0("❌ ASSAY ERROR: The specified 'assay' (", assay, ") must be one of the valid assays in the Seurat object: ", paste(names(sample_seurat@assays), collapse = ", ")))
+      }
+    }
+  }
+  
+  # I. Check 'seurat_list' structure and naming (only if provided)
+  if (!is.null(seurat_list)) {
+    if (!is.list(seurat_list) || length(seurat_list) == 0) {
+      stop("❌ INPUT ERROR: 'seurat_list' must be a non-empty list of Seurat objects.")
+    }
+    if (is.null(names(seurat_list)) || any(nchar(names(seurat_list)) == 0)) {
+      stop("❌ INPUT ERROR: 'seurat_list' must be a *named* list with non-empty names.")
+    }
+    # Check all elements are Seurat objects
+    if (!all(vapply(seurat_list, inherits, logical(1), what = "Seurat"))) {
+      stop("❌ INPUT ERROR: All elements in 'seurat_list' must be Seurat objects.")
+    }
+  }
+  
+  # J. Check 'raw_metadata' integrity
+  if (!is.null(raw_metadata)) {
+    if (!is.data.frame(raw_metadata)) {
+      stop("❌ INPUT ERROR: 'raw_metadata' must be a data.frame.")
+    }
+    if (nrow(raw_metadata) == 0) {
+      stop("❌ DATA ERROR: 'raw_metadata' must be a non-empty data.frame (0 rows detected).")
+    }
+  }
+  
+  # ---- 3. File/Path Existence and Structure Checks ----
+  
+  if (!is.null(matrix_dir) && !is.null(sample)) {
+    
+    data_dir <- base::file.path(matrix_dir, sample)
+    
+    # J. Check for existence of the specific data directory
+    if (!dir.exists(data_dir)) {
+      stop("❌ PATH ERROR: The data directory '", data_dir, "' does not exist!")
+    }
+    
+    # K. Check for required file structure (HDF5 OR 3-file structure - for CellRanger)
+    h5_files <- list.files(data_dir, pattern = "\\.h5$", full.names = TRUE, ignore.case = TRUE)
+    expected_files_mtx <- c("matrix.mtx.gz", "barcodes.tsv.gz", "features.tsv.gz")
+    standard_files_found <- all(sapply(file.path(data_dir, expected_files_mtx), file.exists))
+    
+    if (length(h5_files) == 0 && !standard_files_found) {
+      stop("❌ FILE STRUCTURE ERROR: Directory '", data_dir, "' does not contain a valid 10X matrix.")
+    } else if (length(h5_files) > 1) {
+      warning("⚠️ FILE STRUCTURE WARNING: Multiple HDF5 files found. Only using the first one: '", basename(h5_files[1]), "'.")
+    }
+    
+    # # L. Check for REQUIRED Space Ranger files (for load_spaceranger)
+    # required_spatial_files <- c("filtered_feature_bc_matrix.h5", "tissue_positions_list.csv", "tissue_lowres_image.png")
+    # required_files_exist <- all(sapply(paste0(data_dir, "/", required_spatial_files), file.exists))
+    # 
+    # if (!required_files_exist) {
+    #   stop("❌ FILE STRUCTURE ERROR: The directory '", data_dir, "' is missing one or more of the required Space Ranger files: ", paste(required_spatial_files, collapse = ", "), ".")
+    # }
+  }
+  
+  # N. Check 'metafile' integrity
+  if (!is.null(metafile)) {
+    
+    # Check 1: 'metafile' parameter string integrity
+    if (!is.character(metafile) || length(metafile) != 1 || nchar(metafile) == 0) {
+      stop("❌ INPUT ERROR: 'metafile' path must be a single, non-empty character string.")
+    }
+    
+    # Check 2: File must exist
+    if (!file.exists(metafile)) {
+      stop("❌ FILE ERROR: External metadata file not found at: '", metafile, "'.") 
+    }
+    
+    # Check 3: File must be in xlsx format
+    if (!grepl("\\.xlsx$", metafile, ignore.case = TRUE)) {
+      stop("❌ FILE ERROR: 'metafile' is expected to be an XLSX file (ending in .xlsx).")
+    }
+  }
+  
+  # O. Check 'output_dir' integrity
+  if (!is.null(output_dir)) {
+    
+    # Check 1: 'output_dir' parameter string integrity
+    if (!is.character(output_dir) || length(output_dir) != 1 || nchar(output_dir) == 0) {
+      stop("❌ INPUT ERROR: 'output_dir' must be a single, non-empty character string.")
+    }
+    
+    # Check 2: Directory must exist
+    if (!dir.exists(output_dir)) {
+      stop("❌ PATH ERROR: Output path does not exist: ", output_dir)
+    }
+    
+    # Check 3: Directory must be writable
+    # file.access(path, mode=2) checks for write permission. Returns 0 on success.
+    if (file.access(output_dir, 2) != 0) {
+      # Use Sys.readlink for a potentially clearer error message if permissions are restricted
+      # tryCatch is used to ensure we get the correct system message if available.
+      err_message <- tryCatch(
+        {
+          paste("Output directory '", output_dir, "' is not writable. System message:", Sys.readlink(output_dir))
+        },
+        error = function(e) {
+          paste("Output directory '", output_dir, "' is not writable. Check file permissions.")
+        }
+      )
+      stop(paste("❌ PATH ERROR:", err_message))
+    }
+  }
+  
+}
+
+
+load_cellranger <- function(sample, matrix_dir, gene.column = 2){
+  
+  # Validate input parameters
+  validate_inputs(sample = sample, matrix_dir = matrix_dir, gene.column = gene.column)
+  
+  # ---- Read the feature-barcode matrix ----
   # gene.column = 1 → Ensembl IDs
   # gene.column = 2 → Gene symbols (required for mito/ribo/heme ratios)
+  
+  data_dir <- base::file.path(matrix_dir, sample)
+  
+  # Look for HDF5 files in the directory
+  h5_files <- list.files(data_dir, pattern = "\\.h5$", full.names = TRUE, ignore.case = TRUE)
+  
   counts <- NULL
+  
+  # If HDF5 files are found, try to read them
   if (length(h5_files) > 0) {
-    # Use the first .h5 file found
     message("HDF5 file detected. Reading '", basename(h5_files[1]), "' for sample '", sample, "'.")
+    
     counts <- tryCatch({
-      Seurat::Read10X_h5(filename = h5_files[1], 
-                         use.names = TRUE, 
+      # Read the gene expression matrix from the HDF5 file
+      Seurat::Read10X_h5(filename = h5_files[1],
+                         use.names = TRUE,
                          unique.features = TRUE)
     }, error = function(e) {
       stop("Failed to read HDF5 matrix from '", h5_files[1], "': ", e$message)
     })
+    
+    # Error check: Ensure the read returns a matrix, not a list
+    if (is.list(counts)) {
+      stop("HDF5 file returned a list. This function is for scRNA-seq only. Check the file content.")
+    }
+    
   } else {
-    # Fall back to standard 10X directory
+    # If no HDF5 files, fall back to the standard 10X directory
     message("No HDF5 file found. Reading standard 10X matrix from directory.")
+    
     counts <- tryCatch({
       Seurat::Read10X(data.dir = data_dir,
-                      gene.column = 2,  # gene symbols
+                      gene.column = gene.column, # Parameterized (Default: 2 for gene symbols)
                       cell.column = 1,
                       unique.features = TRUE,
                       strip.suffix = FALSE
@@ -2484,7 +2795,8 @@ read_cellranger <- function(sample, path){
     })
   }
   
-  # Create Seurat object
+  # ---- Create Seurat object ----
+  
   sample_seurat <- SeuratObject::CreateSeuratObject(counts = counts,
                                                     project = sample,
                                                     assay = "RNA",
@@ -2494,294 +2806,168 @@ read_cellranger <- function(sample, path){
                                                     min.cells = 0,
                                                     min.features = 0)
   
-  # Log matrix type
-  if (length(h5_files) > 0) {
-    message("HDF5 Feature Barcode Matrix imported for '", sample, "'.")
-  } else if (grepl("raw", path, ignore.case = TRUE)) {
-    message("Raw Feature Barcode Matrix imported for '", sample, "'.")
-  } else if (grepl("filt", path, ignore.case = TRUE)) {
-    message("Filtered Feature Barcode Matrix imported for '", sample, "'.")
-  } else {
-    message("Feature-barcode matrix (raw/filtered) imported for '", sample, "'.")
-  }
+  # ---- Log Output and Return Seurat Object ----
   
+  message("Successfully created Seurat object for ", sample)
   return(invisible(sample_seurat))
 }
 
-read_spaceranger <- function(sample, bin, path){
+load_spaceranger <- function(sample, bin, matrix_dir){
   
-  set.seed(1234)
+  # Validate input parameters
+  validate_inputs(sample = sample,  bin =  bin, matrix_dir = matrix_dir)
   
-  # Construct the full data directory path
-  data_dir <- base::file.path(path, sample)
+  # ---- Load Seurat object with filtered matrix ----
   
-  # Check if path exists
-  if (!dir.exists(data_dir)) {
-    stop("The directory '", data_dir, "' does not exist!")
-  }
+  data_dir <- base::file.path(matrix_dir, sample)
   
-  # Define expected matrix file path
-  bin_dir <- dplyr::case_when(b == 2 ~ "binned_outputs/square_002um",
-                              b == 8 ~ "binned_outputs/square_008um",
-                              b == 16 ~ "binned_outputs/square_016um")
-  matrix_file <- base::file.path(data_dir, bin_dir, "filtered_feature_bc_matrix.h5")
+  # Load10X_Spatial automatically finds the necessary files (images, coordinates, matrix)
+  sample_seurat <- tryCatch({
+    Seurat::Load10X_Spatial(data.dir = data_dir,
+                            filename = "filtered_feature_bc_matrix.h5",
+                            assay = "Spatial",
+                            slice = sample,
+                            bin.size = bin,
+                            filter.matrix = TRUE,
+                            to.upper = FALSE,
+                            image = NULL)
+  }, error = function(e) {
+    stop("Failed to load binned data from '", data_dir, "'. Please verify the Space Ranger output structure for bin size ", bin, ". Error: ", e$message)
+  })
   
-  # Check that matrix file exists
-  if (!file.exists(matrix_file)) {
-    stop("Matrix file 'filtered_feature_bc_matrix.h5' not found in: ", file.path(data_dir, bin_dir))
-  }
-  # Create Seurat object with filtered matrix
-  sample_seurat <- Seurat::Load10X_Spatial(data.dir = data_dir,
-                                           filename = "filtered_feature_bc_matrix.h5",
-                                           assay = "Spatial",
-                                           slice = sample,
-                                           bin.size = bin,
-                                           filter.matrix = TRUE,
-                                           to.upper = FALSE,
-                                           image = NULL)
+  # Add sample identifier to Seurat object
+  sample_seurat[["orig.ident"]] <- sample
   
-  # Add orig.ident manually as Load10X_Spatial() doesn't set project/sample name
-  sample_seurat@meta.data <- sample_seurat@meta.data %>% 
-    dplyr::mutate(orig.ident = sample)
+  # ---- Log Output and Return Seurat Object ----
   
-  message("Filtered Barcode Matrix imported for ", sample, " at bin size ", bin, "µm.")
-  
+  message("Successfully created Seurat object for ", sample, " at bin size ", bin)
   return(invisible(sample_seurat))
 }
 
-mark_empty_droplets_dropletutils <- function(sample_seurat){ 
+classify_dropletutils <- function(sample_seurat){ 
   
-  set.seed(1234)
-  
-  # Convert to SingleCellExperiment object
-  sce <- Seurat::as.SingleCellExperiment(x = sample_seurat)
-  
-  # Set reproducible seed for emptyDrops
+  # Set seed for reproducible stochastic processes (emptyDrops)
   set.seed(100)
   
-  # NOTE: If FDR > 0.05 for some droplets AND Limited == TRUE, it indicates that
-  # with more iterations, the FDR of these droplets can be reduced.
+  # Validate input parameters
+  validate_inputs(seurat_object = sample_seurat)
   
-  # Iteratively run emptyDrops until limited droplets with high FDR are resolved
+  # ---- Iterative emptyDrops Run ----
+  
+  # Convert Seurat Object to SingleCellExperiment (MUST contains all barcodes)
+  sce <- Seurat::as.SingleCellExperiment(x = sample_seurat)
+  
+  # Initialize Parameters for Iterative emptyDrops
+  # NOTE: If FDR > 0.05 AND Limited == TRUE, the FDR of these droplets can be 
+  # reduced with more iterations.
   niters <- 10000
   n_improve <- 1  # trigger loop
-  
+ 
+  # Iteratively run emptyDrops until limited droplets with high FDR are resolved
   while (n_improve > 0){
+    
+    # Run emptyDrops to classify droplets as empty or non-empty
     e.out <- DropletUtils::emptyDrops(m = SingleCellExperiment::counts(sce),
                                       niters = niters)
     
+    # Convert emptyDrops Output to Data Frame for easier filtering
     df <- as.data.frame(e.out)
-    n_improve <- nrow(df %>%
-                        dplyr::filter(Limited == TRUE, FDR > 0.05))
+    
+    # Check if there are any droplets that need more iterations
+    n_improve <- nrow(df %>%  dplyr::filter(Limited == TRUE, FDR > 0.05))
     message("emptyDrops check: ", n_improve, " droplets need more iterations (FDR > 0.05 & Limited=TRUE); niters = ", niters)
     niters <- niters + 10000
   }
   
   # Identify true (non-empty) cells with FDR ≤ 0.05
-  true_cells <- df %>%
-    dplyr::filter(FDR <= 0.05) %>% 
+  # NOTE: Filtering out NA ensures only tested barcodes are considered.
+  true_barcodes <- df %>%
+    dplyr::filter(FDR <= 0.05, !is.na(FDR)) %>% 
     rownames()
   
-  # Annotate metadata with droplet classification
-  sample_seurat@meta.data <- sample_seurat@meta.data %>%
-    dplyr::mutate(Cell = rownames(.)) %>%
-    dplyr::mutate(DropletUtils = dplyr::case_when(Cell %in% true_cells ~ "Non-Empty Droplet",
-                                                  TRUE ~ "Empty Droplet"))
+  # ---- Build classification vector ----
   
-  # Log output
-  ident <- as.character(unique(sample_seurat@meta.data$orig.ident))
-  message("DropletUtils classification complete for sample: '", ident, "'")
+  # All barcodes present in the Seurat object — includes empty droplets
+  all_barcodes <- colnames(sample_seurat)
   
+  # Vectorized classification
+  classification_vector <- dplyr::case_when(all_barcodes %in% true_barcodes ~ "Non-Empty Droplet",
+                                            TRUE ~ "Empty Droplet")
+  
+  # Assign names so Seurat maps the metadata correctly by barcode
+  names(classification_vector) <- all_barcodes
+  
+  # ---- Add metadata ----
+  
+  # Add the classification vector to the original Seurat object
+  sample_seurat <- SeuratObject::AddMetaData(object   = sample_seurat,
+                                             metadata = classification_vector,
+                                             col.name = "DropletUtils")
+  
+  # ---- Log Output and Return Seurat Object ----
+  
+  sample <- as.character(unique(sample_seurat@meta.data$orig.ident))
+  message("DropletUtils classification complete for sample: ", sample)
   return(invisible(sample_seurat))
 }
 
-mark_empty_droplets_cellranger <- function(sample_seurat, filt_matrix_path){
+classify_cellranger <- function(sample_seurat, filt_matrix_dir){
   
-  set.seed(1234)
+  # Validate input parameters
+  validate_inputs(seurat_object = sample_seurat, matrix_dir = filt_matrix_dir)
+
+  # ---- Read Filtered Matrix for Barcodes ----
   
-  # Get sample name
-  sample <- sample_seurat@meta.data$orig.ident %>% unique() %>% as.character()
+  # Get sample name from sample_seurat
+  sample <- as.character(unique(sample_seurat@meta.data$orig.ident))
   
-  # Read the filtered barcode-feature matrix output of CellRanger
-  sample_seurat_filt <- read_cellranger(sample, filt_matrix_path)
+  # Read the filtered matrix for the sample
+  sample_seurat_filt <- load_cellranger(sample, matrix_dir = filt_matrix_dir)
   
-  # Mark cells absent in filtered barcode-feature matrix as empty droplets
-  sample_seurat@meta.data <- sample_seurat@meta.data %>%
-    dplyr::mutate(Cell = rownames(.)) %>%
-    dplyr::mutate(CellRanger = dplyr::case_when(Cell %in% colnames(sample_seurat_filt) ~ "Non-Empty Droplet",
-                                                TRUE ~ "Empty Droplet"))
+  # ---- Build classification vector ----
   
-  # Log output
-  message("CellRanger empty droplets identified for sample: '", sample, "'")
+  # All barcodes present in the Seurat object — includes empty droplets
+  all_barcodes <- colnames(sample_seurat)
   
-  return(sample_seurat)
+  # Barcodes identified as 'cells' by Cell Ranger's internal algorithm
+  filtered_barcodes <- colnames(sample_seurat_filt)
+  
+  # Vectorized classification
+  classification_vector <- dplyr::case_when(all_barcodes %in% filtered_barcodes ~ "Non-Empty Droplet",
+                                            TRUE ~ "Empty Droplet")
+  
+  # Assign names so Seurat maps the metadata correctly by barcode
+  names(classification_vector) <- all_barcodes
+  
+  # ---- Add metadata ----
+  
+  # Add the classification vector to the original Seurat object
+  sample_seurat <- SeuratObject::AddMetaData(object   = sample_seurat,
+                                             metadata = classification_vector,
+                                             col.name = "CellRanger")
+
+  # ---- Log Output and Return Seurat Object ----
+  
+  message("CellRanger empty droplets identified for sample: ", sample)
+  return(invisible(sample_seurat))
 }
 
-doublet_finder <- function(sample_seurat){
+calc_qc_metrics <- function(sample_seurat, assay){
   
-  set.seed(1234)
+  # Validate input parameters
+  validate_inputs(seurat_object = sample_seurat, assay = assay)
   
-  # Populate missing columns with NA
-  required_cols <- c("DropletUtils", "CellRanger")
-  
-  for (col in required_cols) {
+  # Populate missing columns with "ND" instead of NA for safer subsetting
+  optional_cols <- c("DropletUtils", "CellRanger")
+  for (col in optional_cols) {
     if (!col %in% colnames(sample_seurat@meta.data)) {
-      sample_seurat@meta.data[[col]] <- NA  # assign NA if missing
+      sample_seurat <- Seurat::AddMetaData(object   = sample_seurat,
+                                           metadata = "ND",
+                                           col.name = col)
     }
   }
   
-  # Filter out empty droplets before doublet identification
-  subset_seurat <- subset(x = sample_seurat,
-                          subset = (DropletUtils == "Empty Droplet" & CellRanger == "Empty Droplet"),
-                          invert = TRUE)
-  
-  # Preprocess
-  subset_seurat <- subset_seurat %>% 
-    Seurat::NormalizeData() %>% 
-    Seurat::FindVariableFeatures() %>%
-    Seurat::ScaleData() %>%
-    Seurat::RunPCA()
-  
-  # Find significant PCs
-  stdev_pc <- subset_seurat@reductions$pca@stdev
-  percent_stdev_pc <- (stdev_pc / sum(stdev_pc)) * 100
-  cumulative_stdev_pc <- cumsum(percent_stdev_pc)
-  
-  pc1 <- which(cumulative_stdev_pc > 90 & percent_stdev_pc < 5)[1]
-  pc2 <- sort(which((percent_stdev_pc[1:(length(percent_stdev_pc)-1)] - 
-                       percent_stdev_pc[2:length(percent_stdev_pc)]) > 0.1),
-              decreasing = TRUE)[1] + 1
-  n_pcs <- min(pc1, pc2)
-  
-  # pK Identification (no prior info)
-  # Introduces artificial doublets in varying proportions into real dataset,
-  # preprocesses the data and calculates proportion of artificial nearest 
-  # neighbors. Output is a list of proportions of artificial nearest neighbors
-  # for varying combinations of pK and pN. Optimal pK is the max of bimodality
-  # coefficient (BCmvn) distribution
-  
-  # Run UMAP, neighbors, clustering for DoubletFinder paramSweep
-  subset_seurat <- subset_seurat %>%
-    Seurat::RunUMAP(dims = 1:n_pcs) %>%
-    Seurat::FindNeighbors(dims = 1:n_pcs) %>%
-    Seurat::FindClusters(resolution = 0.1)
-  
-  # Find optimal pK for DoubletFinder
-  sweep.res <- DoubletFinder::paramSweep(subset_seurat, PCs = 1:n_pcs, sct = FALSE)
-  sweep.stats <- DoubletFinder::summarizeSweep(sweep.res, GT=FALSE)
-  bcmvn <- DoubletFinder::find.pK(sweep.stats)
-  
-  optimal_pK <- bcmvn %>% 
-    dplyr::slice_max(order_by = BCmetric, n=1) %>%
-    dplyr::pull(pK) %>%
-    as.numeric()
-  #optimal_pK <- as.numeric(as.character(optimal_pK[[1]]))
-  
-  # Estimate expected homotypic doublets based on 10X multiplet rate
-  # https://kb.10xgenomics.com/hc/en-us/articles/360001378811-What-is-the-maximum-number-of-cells-that-can-be-profiled
-  # From the above link, we can see that the multiplet rate is 8*10^-6 per cell
-  multiplet_rate <- 8e-6
-  n_cells <- nrow(subset_seurat@meta.data)
-  n_exp <- round(multiplet_rate * n_cells)
-  
-  # Adjust for homotypic doublets
-  homotypic.prop <- DoubletFinder::modelHomotypic(subset_seurat@meta.data$seurat_clusters)
-  n_exp_adj <- round(n_exp * (1 - homotypic.prop))
-  
-  # Run DoubletFinder
-  subset_seurat <- DoubletFinder::doubletFinder(seu = subset_seurat,
-                                                PCs = 1:n_pcs,
-                                                pN = 0.25,  #default
-                                                pK = optimal_pK,
-                                                nExp = n_exp_adj)
-  
-  # Rename classification column to 'DoubletFinder'
-  colnames(subset_seurat@meta.data)[grepl(pattern = "DF.classifications", x = colnames(subset_seurat@meta.data))] <- "DoubletFinder"
-  
-  # Prepare classification dataframe for merging
-  doublet_df <- subset_seurat@meta.data %>% 
-    dplyr::select(DoubletFinder) %>%
-    tibble::rownames_to_column(var = "Cell") %>%
-    dplyr::mutate(DoubletFinder = stringr::str_to_title(DoubletFinder))
-  
-  # Merge classification back to original sample metadata
-  sample_metadata <- sample_seurat@meta.data %>%
-    dplyr::mutate(Cell = rownames(.)) %>%
-    dplyr::left_join(doublet_df, by=c("Cell"="Cell")) %>%
-    dplyr::mutate(DoubletFinder = dplyr::case_when(is.na(DoubletFinder) ~ "Empty Droplet",
-                                                   TRUE ~ DoubletFinder)) %>%
-    dplyr::mutate(index = Cell) %>%
-    tibble::remove_rownames() %>%
-    tibble::column_to_rownames(var = "index")
-  
-  # Assign updated metadata
-  sample_seurat@meta.data <- sample_metadata
-  
-  # Log output
-  ident <- as.character(unique(sample_seurat@meta.data$orig.ident))
-  message("DoubletFinder doublets identified for sample: '", ident, "'")
-  
-  return(invisible(sample_seurat))
-}
-
-scdbl_finder <- function(sample_seurat){
-  
-  set.seed(1234)
-  
-  # Populate missing columns with NA
-  required_cols <- c("DropletUtils", "CellRanger")
-  
-  for (col in required_cols) {
-    if (!col %in% colnames(sample_seurat@meta.data)) {
-      sample_seurat@meta.data[[col]] <- NA  # assign NA if missing
-    }
-  }
-  
-  # Filter out empty droplets before doublet identification
-  subset_seurat <- subset(x = sample_seurat,
-                          subset = (DropletUtils == "Empty Droplet" & CellRanger == "Empty Droplet"),
-                          invert = TRUE)
-  
-  # Convert to SingleCellExperiment
-  sce <- Seurat::as.SingleCellExperiment(x = subset_seurat)
-  
-  # Run scDblFinder
-  scDbl <- scDblFinder::scDblFinder(sce = sce, 
-                                    clusters = NULL,
-                                    samples = NULL,
-                                    dbr = NULL)
-  
-  # Extract classifications
-  dbl_df <- scDbl@colData@listData %>% 
-    data.frame() %>% 
-    dplyr::rename(scDblFinder = scDblFinder.class) %>% 
-    dplyr::mutate(Cell = scDbl@colData@rownames) %>%
-    dplyr::mutate(scDblFinder = stringr::str_to_title(scDblFinder)) %>%
-    dplyr::select(Cell, scDblFinder)
-  
-  # Merge into original metadata
-  sample_metadata <- sample_seurat@meta.data %>%
-    dplyr::mutate(Cell = rownames(.)) %>%
-    dplyr::left_join(dbl_df, by=c("Cell"="Cell")) %>%
-    dplyr::mutate(scDblFinder = dplyr::case_when(is.na(scDblFinder) ~ "Empty Droplet",
-                                                 TRUE ~ scDblFinder)) %>%
-    dplyr::mutate(index = Cell) %>%
-    tibble::remove_rownames() %>%
-    tibble::column_to_rownames(var = "index")
-  
-  # Assign updated metadata
-  sample_seurat@meta.data <-  sample_metadata
-  
-  # Log output
-  ident <- as.character(unique(sample_seurat@meta.data$orig.ident))
-  message("scDblFinder doublets identified for sample: '", ident, "'")
-  
-  return(invisible(sample_seurat))
-}
-
-calc_qc_metrics_sc_sp <- function(sample_seurat, assay){
-  
-  set.seed(1234)
+  # ---- Calculate Percentage Feature Sets (Mitochondrial, Ribosomal, Hemoglobin) ----
   
   # Compute mitochondrial percent
   sample_seurat <- Seurat::PercentageFeatureSet(object = sample_seurat,
@@ -2791,255 +2977,520 @@ calc_qc_metrics_sc_sp <- function(sample_seurat, assay){
   
   # Compute ribosomal percent
   sample_seurat <- Seurat::PercentageFeatureSet(object = sample_seurat,
-                                                pattern = "^[Rr][Pp][SsLl]", 
+                                                pattern = "^[Rr][Pp][SsLl]",
                                                 col.name = "RiboPercent",
                                                 assay = assay)
   
   # Compute hemoglobin percent
   sample_seurat <- Seurat::PercentageFeatureSet(object = sample_seurat,
-                                                pattern = "^[Hh][Bb][AaBb]-",                                                 
+                                                pattern = "^[Hh][Bb][AaBb]-",
                                                 col.name = "HemePercent",
                                                 assay = assay)
   
-  # Rename columns to be more intuitive and add the QC metrics:
-  # (i)    Cell      : unique identifiers corresponding to each cell i.e. barcodes
-  # (ii)   Sample    : sample names
-  # (iii)  nUMIs     : number of transcripts per cell
-  # (iv)   nGenes    : number of genes per cell
-  # (v)    nHTO_UMIs : number of HTO reads per cell
-  # (vi)   nHTOs     : number of HTO types per cell
-  # (vii)  MitoRatio : MitoPercent/100
-  # (viii) RiboRatio : RiboPercent/100 
-  # (ix)   HemeRatio : HemePercent/100
-  # (x)    Novelty   : log ratio of genes per UMI
+  # ---- Pull Metadata and add QC metrics ----
   
-  sample_metadata <- sample_seurat@meta.data %>% 
+  # (i)   Cell       : unique identifiers corresponding to each cell i.e. barcodes
+  # (ii)  Sample     : sample names
+  # (iii) nUMIs      : number of transcripts per cell
+  # (iv)  nGenes     : number of genes per cell
+  # (v)   nHTO_UMIs  : number of HTO reads per cell
+  # (vi)  nHTOs      : number of HTO types per cell
+  # (vii) MitoRatio   : MitoPercent / 100
+  # (viii) RiboRatio  : RiboPercent / 100
+  # (ix)  HemeRatio   : HemePercent / 100
+  # (x)   Novelty     : log ratio of genes per UMI
+  
+  sample_metadata <- sample_seurat@meta.data %>%
     tibble::rownames_to_column(var = "barcode") %>%
     dplyr::mutate(Cell = paste0(orig.ident, "_", barcode),
                   Sample = orig.ident,
-                  nUMIs = get(paste0("nCount_", assay)),
-                  nGenes = get(paste0("nFeature_", assay)),
+                  nUMIs = .data[[paste0("nCount_", assay)]],
+                  nGenes = .data[[paste0("nFeature_", assay)]],
                   MitoRatio = MitoPercent / 100,
                   RiboRatio = RiboPercent / 100,
                   HemeRatio = HemePercent / 100,
                   Novelty = log10(nGenes) / log10(nUMIs))
   
-  # Handle HTO metadata if present
-  hto_cols <- c("nCount_HTO", "nFeature_HTO", "HTO_Final")
-  if (any(hto_cols %in% colnames(sample_metadata))){
-    sample_metadata <- sample_metadata %>% 
+  # ---- Handle HTO Metadata (if present) ----
+  
+  if ("nCount_HTO" %in% colnames(sample_metadata)){
+    sample_metadata <- sample_metadata %>%
       dplyr::rename(nHTO_UMIs = nCount_HTO,
                     nHTOs = nFeature_HTO)
   }
   
-  # Add spatial coordinates if available
-  images <- names(sample_seurat@images)
+  # ---- Add Spatial Coordinates (if available) ----
+  
   if (length(sample_seurat@images) > 0){
+    
+    # Collect spatial coordinates into a single data frame
     df_coords <- data.frame()
-    for (n in 1:length(images)){
-      image <-  gsub(pattern=".002|0.008|.016|um", replacement="", x=images[n])
-      df <- data.frame("barcode" = sample_seurat@images[[n]]@boundaries$centroids@cells, 
-                       X = sample_seurat@images[[n]]@boundaries$centroids@coords[,1], 
-                       Y = sample_seurat@images[[n]]@boundaries$centroids@coords[,2])
-      
+    
+    for (image_name in names(sample_seurat@images)){
+      df <- data.frame(barcode = sample_seurat@images[[image_name]]@boundaries$centroids@cells,
+                       X = sample_seurat@images[[image_name]]@boundaries$centroids@coords[,1],
+                       Y = sample_seurat@images[[image_name]]@boundaries$centroids@coords[,2])
       df_coords <- dplyr::bind_rows(df_coords, df)
     }
     
-    sample_metadata <- sample_metadata %>% 
-      dplyr::left_join(df_coords, by=c("barcode"="barcode")) 
+    # Join coordinates based on barcode
+    sample_metadata <- sample_metadata %>%
+      dplyr::left_join(df_coords, by=c("barcode"="barcode"))
   }
   
-  # Select columns to keep
-  keep_cols <- c("Cell", "Sample", "nUMIs", "nGenes", "nHTO_UMIs", "nHTOs", 
-                 "HTO_Final", "MitoRatio", "RiboRatio", "HemeRatio", "Novelty",
-                 "DropletUtils", "CellRanger", "DoubletFinder", "scDblFinder", 
-                 "X", "Y", "barcode")
-  keep_cols <- base::intersect(keep_cols, colnames(sample_metadata))
+  # ---- Define Cutoffs and create Quality Column ----
   
-  # Restore rownames and subset columns
+  is_spatial <- length(names(sample_seurat@images)) > 0
+  
+  # Define cutoffs based on spatial or single-cell conditions
+  if (is_spatial) {
+    gene_cutoff     <- 25
+    umi_cutoff      <- 50
+    mito_cutoff     <- 0.2
+    novelty_cutoff  <- 0.8
+    ribo_cutoff     <- 0.05
+  } else {
+    gene_cutoff     <- 250
+    umi_cutoff      <- 500
+    mito_cutoff     <- 0.2
+    novelty_cutoff  <- 0.8
+    ribo_cutoff     <- 0.05
+  }
+  
+  # Log the applied cutoffs
+  message(sprintf(
+    "   - Cutoffs applied: nGenes ≥ %s, nUMIs ≥ %s, MitoRatio ≤ %s, Novelty ≥ %s",
+    gene_cutoff, umi_cutoff, mito_cutoff, novelty_cutoff
+  ))
+  
+  # Create Quality column, drop 'barcode' column and restore it as rownames
   sample_metadata <- sample_metadata %>%
-    dplyr::select(all_of(keep_cols)) %>%
+    dplyr::mutate(passes_qc = nGenes  >= gene_cutoff & 
+                    nUMIs   >= umi_cutoff &
+                    MitoRatio <= mito_cutoff &
+                    Novelty   >= novelty_cutoff,
+                  Quality = dplyr::case_when(
+                    DropletUtils == "Empty Droplet" & CellRanger == "Empty Droplet" ~ "Empty Droplet",
+                    !passes_qc                                                      ~ "Low Quality",
+                    TRUE                                                            ~ "High Quality")) %>%
     tibble::column_to_rownames(var = "barcode")
   
-  # Assign updated metadata
-  sample_seurat@meta.data <- sample_metadata
+  # ---- Add metadata ----
   
-  # Log output
-  ident <- as.character(unique(sample_seurat@meta.data$Sample))
-  message("Cell-level QC metrics calculated for sample: '", ident, "'")
+  # Add the new mertadata to the original Seurat object
+  sample_seurat <- SeuratObject::AddMetaData(object   = sample_seurat,
+                                             metadata = sample_metadata)
+                                             
+  # ---- Log Output and Return Seurat Object ----
   
+  sample <- as.character(unique(sample_seurat@meta.data$orig.ident))
+  message("Cell-level QC metrics calculated for sample: ", sample)
   return(invisible(sample_seurat))
 }
 
-mark_low_quality_sc_sp <- function(sample_seurat){
+classify_doubletfinder <- function(sample_seurat, n_pcs = NULL, pN = 0.25){
   
-  set.seed(1234)
+  # Set seed for reproducible stochastic processes (PCA, UMAP, Clustering, DoubletFinder)
+  set.seed(100)
   
-  # Select columns to keep
-  required_cols <- c("Cell", "Sample", "nUMIs", "nGenes", "nHTO_UMIs", "nHTOs", 
-                     "HTO_Final", "MitoRatio", "RiboRatio", "HemeRatio", "Novelty",
-                     "DropletUtils", "CellRanger", "DoubletFinder", "scDblFinder", 
-                     "X", "Y")
+  # Validate input parameters
+  validate_inputs(seurat_object = sample_seurat, n_pcs = n_pcs, pN = pN)
   
-  for (col in required_cols) {
+  # Ensure 'Quality' column is present in metadata
+  required_cols <- c("Quality")
+  if (!all(required_cols %in% colnames(sample_seurat@meta.data))) {
+    stop("Missing 'Quality' classification columns. Please run calc_qc_metrics first.")
+  }
+  
+  # ---- Function to suppress messages ----
+  quiet_msg <- function(x) {
+    suppressMessages(capture.output(x, file = NULL))
+    x
+  }
+  
+  # ---- Filter out Empty Droplets and Low quality cells ----
+  
+  subset_seurat <- subset(x = sample_seurat,
+                          subset = (Quality == "High Quality"))
+  
+  # Ensure enough cells remain
+  if (ncol(subset_seurat) < 50) {
+    stop("Fewer than 50 cells remain after filtering empty droplets. Skipping DoubletFinder.")
+  }
+
+  # ---- Preprocessing (Required for DoubletFinder) ----
+  
+  subset_seurat <- subset_seurat %>%
+    Seurat::NormalizeData(verbose = FALSE) %>%
+    Seurat::FindVariableFeatures(verbose = FALSE) %>%
+    Seurat::ScaleData(verbose = FALSE) %>%
+    Seurat::RunPCA(npcs = 50, verbose = FALSE)  # Run enough PCs for the sweep/clustering
+  
+  # ---- Find Optimal pK ----
+  
+  # Artificial doublets are introduced into the real dataset at varying proportions.
+  # Data is then preprocessed and the proportion of artificial nearest neighbors 
+  # (pANN) is computed for multiple combinations of pK and pN.
+  
+  # The optimal pK corresponds to the value yielding the maximum bimodality coefficient 
+  # (BCmvn), indicating the strongest separation between real and artificial doublets.
+  
+  # Find significant PCs
+  if (is.null(n_pcs)) {
+    stdev_pc <- subset_seurat@reductions$pca@stdev
+    percent_stdev_pc <- (stdev_pc / sum(stdev_pc)) * 100
+    cumulative_stdev_pc <- cumsum(percent_stdev_pc)
+    
+    pc1 <- which(cumulative_stdev_pc > 90 & percent_stdev_pc < 5)[1]
+    pc2 <- sort(which((percent_stdev_pc[1:(length(percent_stdev_pc)-1)] - 
+                         percent_stdev_pc[2:length(percent_stdev_pc)]) > 0.1),
+                decreasing = TRUE)[1] + 1
+    n_pcs <- min(pc1, pc2)
+  }
+  
+  # Run UMAP, FindNeighbors, and FindClusters is only needed for the sweep
+  subset_seurat <- subset_seurat %>%
+    Seurat::RunUMAP(dims = 1:n_pcs, verbose = FALSE) %>%
+    Seurat::FindNeighbors(dims = 1:n_pcs, verbose = FALSE) %>%
+    Seurat::FindClusters(resolution = 0.1, verbose = FALSE)
+  
+  # Run paramSweep
+  sweep.res <- quiet_msg(DoubletFinder::paramSweep(subset_seurat, PCs = 1:n_pcs, sct = FALSE))
+  sweep.stats <- quiet_msg(DoubletFinder::summarizeSweep(sweep.res, GT = FALSE))
+  bcmvn <- quiet_msg(DoubletFinder::find.pK(sweep.stats))
+  
+  # Find optimal pK using base R functions (safer than dplyr)
+  optimal_pK <- bcmvn$pK[which.max(bcmvn$BCmetric)]
+  optimal_pK <- as.numeric(as.character(optimal_pK))  # Ensure numeric
+  message("Optimal pK found: ", optimal_pK)
+  
+  # ---- Calculate Adjusted nExp (Expected Doublets) ----
+  
+  # https://kb.10xgenomics.com/hc/en-us/articles/360001378811-What-is-the-maximum-number-of-cells-that-can-be-profiled
+  # From the 10x Genomics documentation, the multiplet rate is ~8*10^-6 per cell
+  n_cells <- nrow(subset_seurat@meta.data)
+  multiplet_rate_per_cell <- 8e-6               # Increment in doublet fraction per additional recovered cell
+  multiplet_fraction <- 8e-6 * n_cells          # Fraction of cells expected to be doublets
+  n_exp <- round(multiplet_fraction * n_cells)  # Number of doublets
+  
+  # Adjust for homotypic doublets
+  homotypic.prop <- DoubletFinder::modelHomotypic(subset_seurat@meta.data$seurat_clusters)
+  n_exp_adj <- round(n_exp * (1 - homotypic.prop))
+  message("Expected doublets (nExp_adj): ", n_exp_adj)
+  
+  # ---- Run DoubletFinder ----
+  
+  subset_seurat <- DoubletFinder::doubletFinder(seu = subset_seurat,
+                                                PCs = 1:n_pcs,
+                                                pN = pN,  #0.25 default
+                                                pK = optimal_pK,
+                                                nExp = n_exp_adj)
+  
+  # Extract DoubletFinder classification column
+  df_col <- grep("^DF.classifications", colnames(subset_seurat@meta.data), value = TRUE)
+  
+  if (length(df_col) != 1) {
+    stop("Cannot uniquely identify the DoubletFinder classification column.")
+  }
+  
+  # ---- Build classification vector ----
+  
+  # All barcodes present in the Seurat object — includes empty droplets
+  all_barcodes <- colnames(sample_seurat)
+  
+  # Barcodes identified as 'low quality' as per cutoffs
+  quality_calls <- sample_seurat@meta.data[["Quality"]]
+  low_quality_barcodes <- rownames(sample_seurat@meta.data)[quality_calls == "Low Quality"]
+
+  # Barcodes identified as 'singlets' and 'doublets' by DoubletFinder's algorithm
+  df_calls <- subset_seurat@meta.data[[df_col]]
+  singlet_barcodes <- rownames(subset_seurat@meta.data)[df_calls == "singlet"]
+  doublet_barcodes <- rownames(subset_seurat@meta.data)[df_calls == "doublet"]
+  
+  # Vectorized classification
+  classification_vector <- dplyr::case_when(all_barcodes %in% low_quality_barcodes ~ "Low Quality",
+                                            all_barcodes %in% doublet_barcodes ~ "Doublet",
+                                            all_barcodes %in% singlet_barcodes ~ "Singlet",
+                                            TRUE ~ "Empty Droplet")
+  
+  # Assign names so Seurat maps the metadata correctly by barcode
+  names(classification_vector) <- all_barcodes
+  
+  # ---- Add metadata ----
+  
+  # Add the classification vector to the original Seurat object
+  sample_seurat <- Seurat::AddMetaData(object = sample_seurat,
+                                       metadata = classification_vector,
+                                       col.name = "DoubletFinder")
+  
+  # ---- Log Output and Return Seurat Object ----
+  
+  sample <- as.character(unique(sample_seurat@meta.data$orig.ident))
+  message("DoubletFinder doublets identified for sample: ", sample)
+  return(invisible(sample_seurat))
+}
+
+classify_scdblfinder <- function(sample_seurat){
+  
+  # Set seed for reproducible stochastic processes 
+  set.seed(100)
+  
+  # Validate input parameters
+  validate_inputs(seurat_object = sample_seurat)
+ 
+  # Ensure 'Quality' column is present in metadata
+  required_cols <- c("Quality")
+  if (!all(required_cols %in% colnames(sample_seurat@meta.data))) {
+    stop("Missing 'Quality' classification columns. Please run calc_qc_metrics first.")
+  }
+  
+  # ---- Function to suppress messages ----
+  quiet_msg <- function(x) {
+    suppressMessages(capture.output(x, file = NULL))
+    x
+  }
+  
+  # ---- Filter out Empty Droplets and Low quality cells ----
+  
+  subset_seurat <- subset(x = sample_seurat,
+                          subset = (Quality == "High Quality"))
+  
+  # Ensure enough cells remain
+  if (ncol(subset_seurat) < 50) {
+    stop("Fewer than 50 cells remain after filtering empty droplets. Skipping scDblFinder.")
+  }
+  
+  # ---- Run scDblFinder ----
+  
+  # Convert Seurat Object to SingleCellExperiment
+  sce <- Seurat::as.SingleCellExperiment(x = subset_seurat)
+  
+  sce <- quiet_msg(scDblFinder::scDblFinder(sce = sce,
+                                  clusters = NULL,
+                                  samples = NULL,
+                                  dbr = NULL))
+  
+  # ---- Build classification vector ----
+  
+  # All barcodes present in the Seurat object — includes empty droplets
+  all_barcodes <- colnames(sample_seurat)
+  
+  # Barcodes identified as 'low quality' as per cutoffs
+  quality_calls <- sample_seurat@meta.data[["Quality"]]
+  low_quality_barcodes <- rownames(sample_seurat@meta.data)[quality_calls == "Low Quality"]
+  
+  # Barcodes identified as 'singlets' and 'doublets' by scDblFinder's algorithm
+  df_calls <- base::tolower(as.character(sce$scDblFinder.class))   # scDblFinder classification column
+  singlet_barcodes <- colnames(sce)[df_calls == "singlet"]
+  doublet_barcodes <- colnames(sce)[df_calls == "doublet"]
+  
+  # Vectorized classification
+  classification_vector <- dplyr::case_when(all_barcodes %in% low_quality_barcodes ~ "Low Quality",
+                                            all_barcodes %in% doublet_barcodes ~ "Doublet",
+                                            all_barcodes %in% singlet_barcodes ~ "Singlet",
+                                            TRUE ~ "Empty Droplet")
+  
+  # Assign names so Seurat maps the metadata correctly by barcode
+  names(classification_vector) <- all_barcodes
+  
+  # ---- Add metadata ----
+  
+  # Add the classification vector to the original Seurat object
+  sample_seurat <- Seurat::AddMetaData(object = sample_seurat,
+                                       metadata = classification_vector,
+                                       col.name = "scDblFinder")
+  
+  # ---- Log Output and Return Seurat Object ----
+  
+  sample <- as.character(unique(sample_seurat@meta.data$orig.ident))
+  message("scDblFinder doublets identified for sample: ", sample)
+  return(invisible(sample_seurat))
+}
+
+filter_singlets <- function(sample_seurat){
+  
+  # Validate input parameters
+  validate_inputs(seurat_object = sample_seurat)
+  
+  # Populate missing columns with "ND" instead of NA for safer subsetting
+  optional_cols <- c("DropletUtils", "CellRanger", "HTO_Final")
+  for (col in optional_cols) {
     if (!col %in% colnames(sample_seurat@meta.data)) {
-      sample_seurat@meta.data[[col]] <- NA  # assign NA if missing
+      sample_seurat <- Seurat::AddMetaData(object   = sample_seurat,
+                                           metadata = "ND",
+                                           col.name = col)
     }
   }
   
-  # Define lenient cutoff thresholds for QC metrics
-  if(length(names(sample_seurat@images)) == 0){
-    
-    # Single-cell cutoffs
-    gene_cutoff <- 250
-    umi_cutoff <- 500
-    mito_cutoff <- 0.2
-    ribo_cutoff <- 0.05
-    novelty_cutoff <- 0.8
-    
-    sample_seurat@meta.data <- sample_seurat@meta.data %>% 
-      dplyr::mutate(QC = dplyr::case_when((DropletUtils == "Empty Droplet" & CellRanger == "Empty Droplet") ~ "Empty Droplet",
-                                          (DoubletFinder == "Doublet" & scDblFinder == "Doublet") ~ "Doublet",
-                                          (nGenes >= gene_cutoff & 
-                                             nUMIs >= umi_cutoff & 
-                                             MitoRatio <= mito_cutoff & 
-                                             Novelty >= novelty_cutoff) ~ "Singlet", #RiboRatio >= ribo_cutoff &
-                                          TRUE ~ "Low Quality"))
-  } else {
-    
-    # Spatial cutoffs (more lenient)
-    gene_cutoff <- 25   # reduced from 250 used for single cell
-    umi_cutoff <- 50    # reduced from 500 used for single cell
-    mito_cutoff <- 0.2
-    ribo_cutoff <- 0.05
-    novelty_cutoff <- 0.8
-    
-    sample_seurat@meta.data <- sample_seurat@meta.data %>% 
-      dplyr::mutate(QC = dplyr::case_when((nGenes >= gene_cutoff & 
-                                             nUMIs >= umi_cutoff & 
-                                             MitoRatio <= mito_cutoff & 
-                                             Novelty >= novelty_cutoff) ~ "Singlet", #RiboRatio >= ribo_cutoff &
-                                          TRUE ~ "Low Quality"))
+  # Ensure necessary columns exist for comprehensive QC
+  required_cols <- c("Quality", "DoubletFinder", "scDblFinder")
+  if (!all(required_cols %in% colnames(sample_seurat@meta.data))) {
+    stop("Missing required classification columns (Quality, DoubletFinder, scDblFinder). 
+         Please run calc_qc_metrics and both classify_doubletfinder/scdblfinder first.")
   }
   
-  # Log output
-  ident <- as.character(unique(sample_seurat@meta.data$Sample))
-  message("Good quality singlets identified for sample: '", ident, "'")
+  # Keep these columns (if available) in final object
+  keep_cols <- c("barcode", "Cell", "Sample", "QC", "nUMIs", "nGenes", 
+                 "MitoRatio", "RiboRatio", "HemeRatio", "Novelty", "Quality",
+                 "DropletUtils", "CellRanger", "DoubletFinder", "scDblFinder",
+                 "nHTO_UMIs", "nHTOs", "HTO_Final", "X", "Y")
   
-  return(invisible(sample_seurat))
+  # ---- Subset to retain only high-quality singlets ----
+  
+  # QC CONFIDENCE STRATEGY (Final Classification)
+  # This strategy defines the final 'QC' status based on a prioritized hierarchy 
+  # designed to balance specificity (for retention) and sensitivity (for removal).
+  #
+  # 1. Empty Droplets: Require BOTH DropletUtils AND CellRanger to agree ('&') 
+  #    to maximize **Specificity**. High confidence ensures true empty droplets 
+  #    are removed while avoiding accidental exclusion of low-UMI real cells.
+  #
+  # 2. Low Quality: Flagged by failure of initial quality metrics (e.g., MitoRatio, nUMIs).
+  #    These cells are prioritized for removal over doublet calls.
+  #
+  # 3. Doublets: Remove if EITHER DoubletFinder OR scDblFinder calls doublet ('|') 
+  #    to maximize **Sensitivity**. This ensures all suspicious cells are excluded, 
+  #    preventing doublets from contaminating downstream analyses.
+  #
+  # 4. Singlets: Any cell passing the Empty Droplet, Low Quality, and Doublet criteria.
+  
+  # Assign final classification (QC)
+  metadata <- sample_seurat@meta.data %>%
+    dplyr::mutate(QC = dplyr::case_when(DropletUtils == "Empty Droplet" & CellRanger == "Empty Droplet" ~ "Empty Droplet",
+                                        Quality == "Low Quality" ~ "Low Quality",
+                                        DoubletFinder == "Doublet" | scDblFinder == "Doublet" ~ "Doublet",
+                                        TRUE ~ "Singlet")) 
+  
+ 
+  # Select available columns
+  available_cols <- base::intersect(keep_cols, colnames(metadata))
+  metadata <- metadata %>%
+    dplyr::select(all_of(available_cols)) 
+  
+  # Assign the cleaned metadata back to the Seurat object
+  sample_seurat@meta.data <- metadata
+  
+  # Subset high quality singlets
+  sample_seurat <- base::subset(x = sample_seurat, QC == "Singlet")
+  
+  # ---- Log Output and Return Seurat Object, raw_metadata ----
+  
+  sample <- as.character(unique(sample_seurat@meta.data$orig.ident))
+  message("Retained high-quality singlets for sample: ", sample)
+  return(list(sample_seurat = sample_seurat,
+              raw_metadata  = metadata))
 }
 
-generate_plotdata <- function(sample_seurat, raw_metadata){
+merge_filtered <- function(seurat_list, assay, metafile, output_dir){
   
-  set.seed(1234)
+  # Set seed for reproducible stochastic processes
+  set.seed(100)
   
-  # Append metadata from current sample and filter out any rows with missing 
-  # Sample info. This will be used for QC plots later
-  raw_metadata <- dplyr::bind_rows(raw_metadata, sample_seurat@meta.data) %>%
-    dplyr::filter(!is.na(Sample))
+  # Validate input parameters
+  validate_inputs(seurat_list = seurat_list, assay = assay, 
+                  metafile = metafile, output_dir = output_dir)
   
-  # Log output
-  ident <- as.character(unique(sample_seurat@meta.data$Sample))
-  message("Raw metadata (for plotting) appended for sample: '", ident, "'")
+  # ---- Merge Seurat Objects ----
+ 
+  # Create sample ids from sample names
+  samples <- names(seurat_list)
+  sample_ids <- gsub(pattern = ".Spatial.*", replacement = "", x = samples)
   
-  return(invisible(raw_metadata))
-}
-
-filter_singlets_sc_sp <- function(sample_seurat){
-  
-  set.seed(1234)
-  
-  # Check for required column
-  if (!"QC" %in% colnames(sample_seurat@meta.data)) {
-    stop("Missing 'QC' column in metadata. Please run `mark_low_quality_sc_sp()` first.")
-  }
-  
-  # Subset to retain only singlets
-  sample_seurat <- base::subset(x = sample_seurat, subset = QC == "Singlet")
-  
-  # Log output
-  ident <- as.character(unique(sample_seurat@meta.data$Sample))
-  message("Retained high-quality singlets for sample: ", ident)
-  
-  return(invisible(sample_seurat))
-}
-
-merge_filtered_sc_sp <- function(samples, assay, proj.params, output_path){
-  
-  set.seed(1234)
-  
-  # Create a merged seurat object after all the above filtering
-  # NOTE: Samples will have the same barcodes. To keep track of cell identities
-  # (i.e. barcodes) coming from each sample after merging, we add a prefix
-  # (i.e. sample name) to each barcode using "add.cell.ids"
-  samples.seurat <- lapply(samples, get)
-  
-  # Merge seurat objects with unique prefixes
-  cell_prefixes <- gsub(pattern=".Spatial.*", replacement="", x=samples)
-  merged_seurat <- base::merge(x = samples.seurat[[1]],   #get(paste0(samples[1])
-                               y = samples.seurat[-1],    #lapply(paste0(samples[2:length(samples)]), get)
-                               add.cell.ids = cell_prefixes,
+  # NOTE: Since multiple samples can have same barcodes, add sample name to 
+  # barcodes to keep track of cell identities (i.e. barcodes) coming from each 
+  # sample after merging
+  merged_seurat <- base::merge(x = seurat_list[[1]],       # get(paste0(samples[1])
+                               y = seurat_list[-1],        # lapply(paste0(samples[2:length(samples)]), get)
+                               add.cell.ids = sample_ids,  # add unique prefix to barcodes
                                merge.data = FALSE)
   
-  # Remove HTO assay if present to avoid complications during integration
-  if ("HTO" %in% Assays(merged_seurat)){
+  # ---- Remove HTO assay (if present) ----
+  
+  if ("HTO" %in% Seurat::Assays(merged_seurat)){
     merged_seurat[["HTO"]] <- NULL
+    message("   - Removed HTO assay prior to integration.")
   }
   
-  # Add extra metadata if any to seurat object
-  if (file.exists(proj.params$meta.file)) {
-    extra_metadata <-  openxlsx::read.xlsx(xlsxFile = proj.params$meta.file) %>%
+  # ---- Load Extra Metadata ----
+  
+  extra_metadata <- tryCatch({
+    openxlsx::read.xlsx(xlsxFile = metafile) %>%
       dplyr::select(-dplyr::any_of("Comments"))
-  } else{
-    warning("Metadata file not found: ", proj.params$meta.file)
-    extra_metadata <- data.frame()
-  }
+  }, error = function(e) {
+    # This catches reading errors (e.g., corrupt file)
+    warning("Failed to read metadata file: ", e$message)
+    return(data.frame()) # Return empty data frame to skip merge
+  })
+  
+  # ---- Join Extra Metadata ----
   
   if (nrow(extra_metadata) > 0){
-    meta_data <- merged_seurat@meta.data
+    
+    meta_data <- merged_seurat@meta.data %>%
+      tibble::rownames_to_column(var = "temp_barcode_id")
     
     if (assay == "RNA"){
+      # For droplet-based RNA, join using Sample + HTO
       meta_data <- meta_data %>%
-        dplyr::mutate(Unique_ID = dplyr::case_when(!is.na(HTO_Final) ~ paste0(Sample, "_", HTO_Final), 
-                                                   is.na(HTO_Final) ~ paste0(Sample))) %>%
-        dplyr::left_join(extra_metadata, by = ("Unique_ID" = "Unique_ID"))
+        dplyr::mutate(Unique_ID = dplyr::case_when(HTO_Final != "ND" ~ paste0(Sample, "_", HTO_Final),
+                                                   TRUE ~ Sample)) %>%
+        dplyr::left_join(extra_metadata, by = c("Unique_ID" = "Unique_ID"))
     } else {
+      # For Spatial assays, join by Slide/Sample
       meta_data <- meta_data %>%
-        dplyr::left_join(extra_metadata, by = c("Sample" = "Slide")) %>% 
-        dplyr::filter(dplyr::between(X, Xmin, Xmax) & dplyr::between(Y, Ymin, Ymax))
+        dplyr::left_join(extra_metadata, by = c("Sample" = "Slide"))
+      
+      message("   - Extra metadata joined for Spatial analysis. (No cell filtering performed)")
     }
     
-    # Add row names before replacing metadata in Seurat object as dplyr::left_join() will remove row names.
-    if (!"Cell" %in% colnames(meta_data)) stop("Column 'Cell' containing rownames is not found in metadata after dplyr join.")
+    # Remove columns that are entirely NA
+    meta_data <- meta_data %>% dplyr::select(where(~!all(is.na(.))))
+    
+    # Re-assign metadata with original barcodes as rownames
     merged_seurat@meta.data <- meta_data %>%
-      dplyr::mutate(index = Cell) %>%
-      tibble::column_to_rownames(var = "index")  # VERY VERY IMPORTANT
+      tibble::column_to_rownames(var = "temp_barcode_id") 
+    
+    message("   - Extra metadata added successfully.")
+  } else {
+    message("   - No external metadata was loaded or joined.")
   }
   
-  # Save merged seurat object
+  # ---- Save Merged Seurat Object ----
+  
   if (assay == "RNA"){
-    filename <- file.path(output_path, "filtered.seurat.rds")
-  } else{  # For Spatial.008um and Spatial.016um assays
-    filename <- file.path(output_path, paste0("filtered.seurat.", assay, ".rds"))
+    filename <- file.path(output_dir, "filtered_seurat.rds")
+  } else{   # For Spatial.008um and Spatial.016um assays
+    filename <- file.path(output_dir, paste0("filtered_seurat.", assay, ".rds"))
   }
-  saveRDS(merged_seurat, file = filename)
   
-  # Log output
+  base::saveRDS(object = merged_seurat, file = filename)
+  
+  # ---- Log Output and Return Seurat Object ----
+  
   message("Filtered Seurat object saved to: ", filename)
-  
-  return(merged_seurat)
+  return(invisible(merged_seurat))
 }
 
-plot_qc <- function(raw_metadata, output_path){
+plot_qc <- function(raw_metadata, output_dir){
   
-  set.seed(1234)
+  # Validate input parameters
+  validate_inputs(raw_metadata = raw_metadata, output_dir = output_dir)
   
-  ### Helper function definitions
-  qc_levels <- c("Empty Droplet", "Doublet", "Low Quality", "Singlet")
+  # Ensure required columns exist in metadata
+  required_cols <- c("Sample", "QC", "nUMIs", "nGenes", "MitoRatio", "RiboRatio", "Novelty")
+  missing_cols <- setdiff(required_cols, colnames(raw_metadata))
+  if (length(missing_cols) > 0) {
+    stop("Missing required metadata columns: ", paste(missing_cols, collapse = ", "))
+  }
+  
+  # ---- Helper functions ----
+  
+  # Define classification levels and color palette
+  qc_levels <- c("Empty Droplet", "Doublet", "Singlet", "Low Quality")
   fill_colors <- c("Empty Droplet" = "#FFC61E", "Singlet" = "#2CA02C",
                    "Doublet" = "#1F77B4", "Low Quality" = "#D62728")
   
-  ### Visualize cell counts per sample
+  # Visualize cell counts per Sample
   cell_qc <- function(meta){
     
     df <- meta %>%
@@ -3047,31 +3498,33 @@ plot_qc <- function(raw_metadata, output_path){
       data.frame() %>%
       dplyr::mutate(QC = factor(QC, levels = qc_levels))
     
-    p <- ggplot(data = df, aes(x = Sample, y = n, fill = QC)) + 
-      # position = "dodge" for grouped; "stack" for stacked
-      # stat = "identity" if y axis defined; "count" if y axis determined based on X axis frequency
-      geom_bar(stat = "identity", position = position_dodge(0.9), , drop = FALSE) +             
-      theme_classic() +               # display with x and y axis lines and no gridlines
+    # position = "dodge" for grouped; "stack" for stacked
+    # stat = "identity" if y axis defined; "count" if y axis determined based on X axis frequency
+    p <- ggplot(data = df, aes(x = Sample, y = n, fill = QC)) +
+      geom_bar(stat = "identity", position = position_dodge(0.9), drop = FALSE) +
+      theme_classic() +
       custom_theme +
       labs(x = "Sample", y = "Cell Counts", title = "Number of Cells") +
       coord_cartesian(ylim = c(1,10000000), clip = "off", expand = FALSE) +
       scale_y_log10(breaks = c(10, 100, 1000, 10000, 100000, 1000000)) +
       scale_fill_manual(values = fill_colors) +
-      geom_text(aes(label = n, ymin = 0.1, ymax = 1), 
-                position = position_dodge(width = 0.9), y = 0.1, hjust = 0, angle = 90)
-    #geom_text(stat ="count", aes(label = after_stat(count)), y = 0, hjust = 0, angle = 90)
+      #geom_text(stat ="count", aes(label = after_stat(count)), y = 0, hjust = 0, angle = 90)
+      geom_text(mapping = aes(label = n, ymin = 0.1, ymax = 1), 
+                position = position_dodge(width = 0.9),
+                y = 0.1, hjust = 0, angle = 90)
     
     return(p)
   }
   
-  ### Visualize nUMIs, nGenes, MitoRatio, RiboRatio, Novelty per sample
+  # Visualize nUMIs, nGenes, MitoRatio, RiboRatio, Novelty per sample
   violin_qc <- function(meta, yvar, ylab, title, cutoff = NULL, ylog = TRUE, ylim = NULL) {
+               
     df <- meta %>%
       dplyr::mutate(QC = factor(QC, levels = qc_levels))
     
     p <- ggplot(data = df, aes(x = Sample, y = .data[[yvar]], fill = QC)) +
       geom_violin(position = position_dodge(0.9), scale = "width", drop = FALSE) +
-      geom_boxplot(position = position_dodge(0.9), width = 0.15, outlier.size = 0.5, drop = FALSE) +
+      geom_boxplot(position = position_dodge(0.9), width = 0.05, outlier.size = 0.5, drop = FALSE) +
       theme_classic() + custom_theme +
       labs(x = "Sample", y = ylab, title = title) +
       scale_fill_manual(values = fill_colors)
@@ -3083,7 +3536,7 @@ plot_qc <- function(raw_metadata, output_path){
     return(p)
   }
   
-  ### Visualize number of genes/cell, number of UMIs/cell & MitoRatio together.
+  # Visualize number of genes/cell, number of UMIs/cell & MitoRatio together.
   # Bottom left quadrant : Poor quality cells with low genes & UMIs per cell 
   # Top right quadrant   : Good quality cells with high genes & UMIs per cell
   # Bottom right quadrant: Cells with low genes but high UMIs per cell. These 
@@ -3093,480 +3546,914 @@ plot_qc <- function(raw_metadata, output_path){
     umi_cutoff <- 500
     gene_cutoff <- 250
     df <- meta %>%
+      # Filter out Empty Droplets for a cleaner scatter plot focusing on cells/doublets
+      dplyr::filter(QC != "Empty Droplet") %>%
       dplyr::mutate(QC = factor(QC, levels = qc_levels))
     
     ggplot(data = df, aes(x = nUMIs, y = nGenes, color = MitoRatio)) +
       geom_point(alpha = 0.5) +
-      theme_classic() + 
-      custom_theme + 
+      theme_classic() +
+      custom_theme +
       labs(x = "Number of UMIs", y = "Number of Genes",	 title = "UMIs vs Genes (Colored by MitoRatio)") +
       coord_cartesian(xlim = c(1, 1000000), ylim = c(1, 20000), clip = "off") +
       scale_x_log10(breaks = c(1, 10, 100, 1000, 10000, 100000, 1000000)) + 
       scale_y_log10(breaks = c(1, 10, 100, 1000, 10000, 100000)) + 
-      scale_color_viridis(option = "D", limits = c(0, 1)) + 		# limits sets max and min values of gradient
+      scale_color_viridis(option = "D", limits = c(0, 1)) +
       #facet_wrap(.~Sample, nrow = 4) +   #split the plot by X-axis label
-      facet_wrap(Sample ~ QC, ncol = 4) +
-      geom_vline(xintercept = umi_cutoff, linetype = "dashed") +    	#draw a vertical line at x=500 i.e.UMIs cutoff
-      geom_hline(yintercept = gene_cutoff, linetype = "dashed") +    #draw a horizontal line at y =250 i.e. Genes cutoff
-      stat_smooth(method=lm, color="yellow", se = FALSE)
+      facet_wrap(Sample ~ QC, ncol = 4, drop = FALSE) +
+      geom_vline(xintercept = umi_cutoff, linetype = "dashed") +
+      geom_hline(yintercept = gene_cutoff, linetype = "dashed") +
+      stat_smooth(method = lm, color = "yellow", se = FALSE)
   }
   
-  # === Plot generators
+  # ---- 💾 Generate and Save Plots ----
+
+  # Plot generators
   plot_list <- list(
-    Cell_Counts                = cell_qc,
-    UMI_Distribution           = function(x) violin_qc(x, "nUMIs", "Number of UMIs", "UMI Distribution", 500, TRUE, c(1, 1e6)),
-    Gene_Distribution          = function(x) violin_qc(x, "nGenes", "Number of Genes", "Gene Distribution", 250, TRUE, c(1, 30000)),
-    MitoRatio_Distribution     = function(x) violin_qc(x, "MitoRatio", "MitoRatio", "MitoRatio Distribution", 0.2, TRUE, c(1e-5, 1)),
-    RiboRatio_Distribution     = function(x) violin_qc(x, "RiboRatio", "RiboRatio", "RiboRatio Distribution", 0.05, TRUE, c(1e-4, 1)),
-    Novelty_Score_Distribution = function(x) violin_qc(x, "Novelty", "Novelty", "Novelty Score Distribution", 0.8, FALSE, c(0.3, 1)),
+    Cell_Counts                      = cell_qc,
+    UMI_Distribution                 = function(x) violin_qc(x, "nUMIs", "Number of UMIs", "UMI Distribution", 500, TRUE, c(1, 1e6)),
+    Gene_Distribution                = function(x) violin_qc(x, "nGenes", "Number of Genes", "Gene Distribution", 250, TRUE, c(1, 30000)),
+    MitoRatio_Distribution           = function(x) violin_qc(x, "MitoRatio", "MitoRatio", "MitoRatio Distribution", 0.2, FALSE, c(0, 1)), 
+    RiboRatio_Distribution           = function(x) violin_qc(x, "RiboRatio", "RiboRatio", "RiboRatio Distribution", 0.05, FALSE, c(0, 1)),
+    Novelty_Score_Distribution       = function(x) violin_qc(x, "Novelty", "Novelty", "Novelty Score Distribution", 0.8, FALSE, c(0, 1)),
     Genes_UMI_MitoRatio_Distribution = gene_umi_mito_qc)
   
-  # === Generate and save plots
+  # Generate and save plots
   for (plot_name in names(plot_list)) {
-    p <- plot_list[[plot_name]](raw_metadata)   #  p <- get(funcs[i])(raw_metadata)
+    p <- plot_list[[plot_name]](raw_metadata)    #  p <- get(funcs[i])(raw_metadata)
     ggplot2::ggsave(filename = paste0("QC_", plot_name, ".pdf"),
                     plot = p,
                     device = "pdf",
-                    path = output_path,
+                    path = output_dir,
                     width = 11,
                     height = 8,
                     dpi = 600,
                     units = "in")
   }
   
-  # Log output
-  message("QC plots generated and saved to: ", output_path)
+  # ---- Log output ----
+  
+  message("QC plots generated and saved to: ", output_dir)
 }
 
-sctransform_sc_sp <- function(filtered.seurat, assay, output_path){
+run_sctransform <- function(filtered_seurat, assay, s_genes, g2m_genes){
   
+  # Set seed for reproducible stochastic processes (PCA, UMAP)
   set.seed(1234)
   
-  stopifnot(is(filtered.seurat, "Seurat"))
-  if (!assay %in% names(filtered.seurat@assays)) {
-    stop("Assay '", assay, "' not found in Seurat object.")
+  # Validate input parameters
+  validate_inputs(seurat_object = filtered_seurat, assay = assay,
+                  s_genes = s_genes, g2m_genes = g2m_genes)
+  
+  # Calculate number of S, G2M genes present in seurat object
+  present_features <- rownames(filtered_seurat@assays[[assay]])
+  n_s_present <- length(intersect(s_genes, present_features))
+  n_s_total <- length(s_genes)
+  n_g2m_present <- length(intersect(g2m_genes, present_features))
+  n_g2m_total <- length(g2m_genes)
+  
+  if (n_s_present == 0) {
+    stop("Zero S-phase genes were found in Assay '", assay, "'. Cannot perform cell cycle scoring.")
+  } else {
+    message(n_s_present,"/", n_s_total, " S-phase genes were found and will be used for scoring.")
   }
   
-  message("Normalizing data before cell cycle scoring...")
-  filtered.seurat <- Seurat::NormalizeData(object = filtered.seurat,
+  if (n_g2m_present == 0) {
+    stop("Zero G2M-phase genes were found in Assay '", assay, "'. Cannot perform cell cycle scoring.")
+  } else {
+    message(n_g2m_present,"/", n_g2m_total, " G2M-phase genes were found and will be used for scoring.")
+  }
+  
+  # ---- Step 1: Normalizing data using LogNormalize for cell cycle scoring ----
+ 
+  filtered_seurat <- Seurat::NormalizeData(object = filtered_seurat,
                                            assay = assay,
                                            normalization.method = "LogNormalize",
                                            scale.factor = 10000,
                                            margin = 1,
-                                           verbose = TRUE)
+                                           verbose = FALSE)
   
-  message("Joining layers for cell cycle scoring...")
+  # ---- Step 2: Joining layers for complete data view before cell cycle scoring ----
+  
   # NOTE: CellCycleScoring uses a single data layer (i.e. log norm counts) but
   # currently, data layer for each sample is stored separately. Join them first.
-  filtered.seurat@assays[[assay]] <- SeuratObject::JoinLayers(filtered.seurat@assays[[assay]])
+  filtered_seurat@assays[[assay]] <- SeuratObject::JoinLayers(object = filtered_seurat@assays[[assay]])
   
-  message("Scoring cell cycle...")
-  filtered.seurat <- Seurat::CellCycleScoring(object = filtered.seurat,
-                                              s.features = intersect(s_genes,rownames(filtered.seurat@assays[[assay]]@features)),
-                                              g2m.features = intersect(g2m_genes, rownames(filtered.seurat@assays[[assay]]@features)),
+  # ---- Step 3: Scoring cell cycle ----
+  
+  filtered_seurat <- Seurat::CellCycleScoring(object = filtered_seurat,
+                                              s.features = intersect(s_genes, rownames(filtered_seurat@assays[[assay]]@features)),
+                                              g2m.features = intersect(g2m_genes, rownames(filtered_seurat@assays[[assay]]@features)),
                                               ctrl = NULL)
   
-  # Calculate CC.Score to regress out the difference between G2M & S scores
+  # ---- Step 4: Calculate CC.Score to regress out the difference between G2M & S scores ----
+  
   # https://satijalab.org/seurat/archive/v3.1/cell_cycle_vignette
-  filtered.seurat$CC.Score <- filtered.seurat$G2M.Score-filtered.seurat$S.Score
+  filtered_seurat$CC.Score <- filtered_seurat$G2M.Score - filtered_seurat$S.Score
   
-  message("Splitting assay by sample before SCTransform...")
+  # ---- Step 5: Splitting object by 'Sample' for batch-aware SCTransform ----
+  
   # NOTE: All cells within same batch MUST be analyzed together
-  filtered.seurat@assays[[assay]] <- base::split(x = filtered.seurat@assays[[assay]],
-                                                 f = filtered.seurat@meta.data[["Sample"]])
+  filtered_seurat@assays[[assay]] <- base::split(x = filtered_seurat@assays[[assay]],
+                                                 f = filtered_seurat@meta.data[["Sample"]])
   
-  message("Running SCTransform with CC.Score and MitoRatio regression...") 
+  # ---- Step 6: Running SCTransform with CC.Score and MitoRatio regression ----
+  
   # https://github.com/satijalab/seurat/issues/7342
-  sct.seurat <- Seurat::SCTransform(object = filtered.seurat,
+  sct_seurat <- Seurat::SCTransform(object = filtered_seurat,
                                     assay = assay,
                                     new.assay.name = "SCT",
                                     do.correct.umi = TRUE,
                                     ncells = 5000,
                                     variable.features.n = 3000,
-                                    vars.to.regress = c("CC.Score","MitoRatio"),
+                                    vars.to.regress = c("CC.Score", "MitoRatio"),
                                     do.scale = FALSE,
                                     do.center = TRUE,
                                     vst.flavor = "v2",
                                     return.only.var.genes = TRUE,
-                                    verbose = TRUE)
+                                    verbose = FALSE)
   
-  message("Filtering out ribosomal, mitochondrial, RIKEN, predicted genes from variable features...")
-  # NOTE: Do this to so PCA, UMAP and clustering are not influenced by these genes.
-  var_f <- sct.seurat@assays[["SCT"]]@var.features
-  var_f <- var_f[!grepl(pattern = "^[Rr][Pp][SsLl]|R[Ii][Kk]$|^[Mm][Tt]-|^G[Mm][0-9.]+$", 
+  # ---- Step 7: Preparing SCT Assay for Differential Expression (Finding Markers) ----
+  sct_seurat <- Seurat::PrepSCTFindMarkers(object = sct_seurat,
+                                           assay = "SCT",
+                                           verbose = FALSE)
+  
+  # ---- Step 8: Filtering out ribosomal, mitochondrial, RIKEN, predicted genes from variable features ----
+  
+  # NOTE: Do this so PCA, UMAP and clustering are not influenced by these genes.
+  var_f <- Seurat::VariableFeatures(sct_seurat, assay = "SCT")
+  var_f <- var_f[!grepl(pattern = "^[Rr][Pp][SsLl]|R[Ii][Kk]$|^[Mm][Tt]-|^G[Mm][0-9.]+$",
                         x = var_f)]
-  sct.seurat@assays[["SCT"]]@var.features <- var_f
+  Seurat::VariableFeatures(sct_seurat, assay = "SCT") <- var_f
+  #sct_seurat@assays[["SCT"]]@var.features <- var_f
   cat("\nFinal number of variable features:", length(var_f), "\n")
   
-  message("Scaling and running PCA on original assay...")
-  # NOTE: Needed for scVI integration
-  sct.seurat <- Seurat::ScaleData(object = sct.seurat, 
+  # ---- Step 9: Scaling and running PCA on original assay ----
+  
+  # NOTE: Necessary to populate the 'scale.data' slot and generate the 'pca' reduction 
+  # on the LogNormalized data. This is REQUIRED for seamless export 
+  # (e.g., via SeuratDisk/sceasy) to AnnData/Scanpy/scVI environments.
+  sct_seurat <- Seurat::ScaleData(object = sct_seurat,
                                   assay = assay,
-                                  features = VariableFeatures(sct.seurat))
-  sct.seurat <- Seurat::RunPCA(object = sct.seurat,
+                                  features = Seurat::VariableFeatures(sct_seurat, assay = "SCT"), # Use SCT features
+                                  verbose = FALSE)
+  sct_seurat <- Seurat::RunPCA(object = sct_seurat,
                                assay = assay,
-                               features = Seurat::VariableFeatures(sct.seurat),
-                               reduction.name = paste0(assay, ".pca"),
-                               reduction.key = "PC_")
+                               features = Seurat::VariableFeatures(sct_seurat, assay = "SCT"),
+                               reduction.name = paste0(tolower(assay), "_pca"),
+                               reduction.key = paste0(toupper(assay), "_PC_"),
+                               verbose = FALSE)
   
-  message("Running PCA on SCT assay...")
-  sct.seurat <- Seurat::RunPCA(object = sct.seurat,
+  # ---- Step 10: Running PCA on SCT assay ----
+  
+  sct_seurat <- Seurat::RunPCA(object = sct_seurat,
                                assay = "SCT",
-                               features = Seurat::VariableFeatures(sct.seurat),
-                               reduction.name = "sct.pca",
-                               reduction.key = "PC_")
+                               features = Seurat::VariableFeatures(sct_seurat, assay = "SCT"),
+                               reduction.name = "sct_pca",
+                               reduction.key = "SCT_PC_",
+                               verbose = FALSE)
   
-  # # Create .rds object for sct seurat object
-  # if (assay == "RNA"){
-  #   saveRDS(sct.seurat, file=paste0(output_path, "sct.seurat.rds"))
-  # } else{
-  #   # For Spatial.008um and Spatial.016um assays
-  #   saveRDS(sct.seurat, file=paste0(output_path, "sct.seurat.", assay, ".rds"))
-  # }
+  # ---- Log Output and Return Seurat Object ----
   
   message("SCTransform workflow completed successfully.")
-  return(invisible(sct.seurat))
+  return(invisible(sct_seurat))
 }
 
-integrate_sc_sp <- function(sct.seurat, assay, reference.samples, output_path){
+integrate_sct_data <- function(sct_seurat, assay, reference_samples=NULL){
   
+  # Set seed for reproducible stochastic processes (Harmony)
   set.seed(1234)
   
-  stopifnot(is(sct.seurat, "Seurat"))
-  if (!assay %in% names(sct.seurat@assays)) {
-    stop("Assay '", assay, "' not found in Seurat object.")
-  }
-  if (!"sct.pca" %in% names(sct.seurat@reductions)) {
-    stop("Reduction 'sct.pca' is missing. Please run PCA on SCT assay before integration.")
+  # Validate input parameters
+  validate_inputs(seurat_object = sct_seurat, assay = assay,
+                  reference_samples = reference_samples)
+  
+  # Ensure 'sct_pca' reduction exists in the Seurat object
+  if (!"sct_pca" %in% names(sct_seurat@reductions)) {
+    stop("Reduction 'sct_pca' is missing. Please run PCA on SCT assay before integration.")
   }
   
-  kweight <- min(sct.seurat@meta.data %>% 
+  # ---- Compute optimal k-weight ----
+  
+  kweight <- min(sct_seurat@meta.data %>% 
                    dplyr::count(Sample) %>% 
                    dplyr::select(n) %>% 
                    min()/2, 100) 
-  
-  message("Reference samples: ", paste(reference.samples, collapse = ", "))
   message("k.weight: ", kweight)
   
-  integrated.seurat <- sct.seurat
+  # ---- Determine maximum number of dimensions for integration ----
   
-  # NOTE: While Seurat::CCAIntegration(), Seurat::RPCAIntegration() &
-  # Seurat::JointPCAIntegration() all have dims=1:30 as default, only 
-  # Seurat::JointPCAIntegration() gives error when integrated.seurat has fewer 
-  # than 30 dims. So, we explicitly specify this.
-  # Determine the maximum number of dimensions available for integration
-  max_dims <- min(30, ncol(integrated.seurat@reductions$sct.pca@cell.embeddings))
+  # NOTE: Seurat::JointPCAIntegration() gives error when integrated_seurat has
+  # fewer than 30 dims. So, we explicitly specify this.
+  max_dims <- min(30, ncol(Seurat::Embeddings(sct_seurat, reduction = "sct_pca")))
+  #max_dims <- min(30, ncol(sct_seurat@reductions$sct_pca@cell.embeddings))
   
-  integration.methods <- c("CCA", "RPCA", "Harmony", "JointPCA")
+  # ---- Loop over integration methods ----
   
-  for (method in integration.methods){
+  # Initialize Seurat object for integration
+  integrated_seurat <- sct_seurat
+  DefaultAssay(integrated_seurat) <- "SCT"
+  
+  integration_methods <- c("CCA", "RPCA", "Harmony", "JointPCA")
+  
+  for (method in integration_methods){
     
-    message("Running ", method, " integration...")
+    # Set the name of the reduction after integration
+    reduction_name <- paste0("integ_", base::tolower(method))
     
-    reduction.name <- paste0("integrated.", tolower(method))
-    
-    integrated.seurat <- Seurat::IntegrateLayers(object = integrated.seurat,
+    # Perform the integration
+    integrated_seurat <- Seurat::IntegrateLayers(object = integrated_seurat,
                                                  method = paste0(method, "Integration"),
                                                  normalization.method = "SCT",
-                                                 orig.reduction = "sct.pca", 
-                                                 new.reduction =  reduction.name,
-                                                 reference = reference.samples,
+                                                 orig.reduction = "sct_pca", 
+                                                 new.reduction = reduction_name,
+                                                 reference = reference_samples,
                                                  k.weight = kweight,    # for RPCA
                                                  dims = 1:max_dims,
-                                                 verbose = TRUE)
+                                                 verbose = FALSE)
   }
+  
+  # ---- Optional integration for scVI and FastMNN ----
   
   # NOTE: scVI needs raw counts. Vignette also uses it on RNA assay
   # NOTE: We use variable features of SCT assay for integration.
   # NOTE: We use pca reduction from RNA assay (derived using variable features of SCT assay)
   # FastMNN throws error "Error in checkBatchConsistency(batches, cells.in.columns = TRUE)"
-  # for (method in c("scVI", "FastMNN")){
-  #   DefaultAssay(integrated.seurat) <- assay
-  #   integrated.seurat <- Seurat::IntegrateLayers(object = integrated.seurat,
+  
+  # for (method in c("scVI", "FastMNN")) {
+  #   DefaultAssay(integrated_seurat) <- assay
+  #   integrated_seurat <- Seurat::IntegrateLayers(object = integrated_seurat,
   #                                                method = paste0(r, "Integration"),
   #                                                normalization.method = "LogNormalize",
   #                                                orig.reduction = paste0(assay, ".pca"),
-  #                                                features = integrated.seurat@assays$SCT@var.features,
-  #                                                new.reduction = paste0("integrated.", base::tolower(method)),
-  #                                                reference = reference.samples,
+  #                                                features = integrated_seurat@assays$SCT@var.features,
+  #                                                new.reduction = base::tolower(method),
+  #                                                reference = reference_samples,
   #                                                k.weight = kweight,                                    # for RPCA
   #                                                conda_env = "/hpc/home/kailasamms/miniconda3/envs/R",  # for scVI
   #                                                verbose = FALSE)
   # }
   
-  # Merge layers after integration
-  integrated.seurat@assays[[assay]] <- SeuratObject::JoinLayers(integrated.seurat@assays[[assay]])
+  # ---- Merge layers after integration ----
   
-  # Optional RDS saving block (currently commented out)
-  rds_path <- if (assay == "RNA") {
-    file.path(output_path, "integrated.seurat.rds")
-  } else {
-    file.path(output_path, paste0("integrated.seurat.", assay, ".rds"))
-  }
-  saveRDS(integrated.seurat, file = rds_path)
+  # NOTE: Only applicable for RNA or Spatial assay, not for SCT assay
+  integrated_seurat@assays[[assay]] <- SeuratObject::JoinLayers(integrated_seurat@assays[[assay]])
   
-  message("Integration completed.")
-  return(invisible(integrated.seurat))
+  # ---- Log Output and Return Seurat Object ----
+  
+  message("Integration completed successfully.")
+  return(invisible(integrated_seurat))
 }
 
-cluster_sc_sp <- function(integrated.seurat, assay, output_path){
+cluster_integrated_data <- function(integrated_seurat, assay){
   
+  # Set seed for reproducible stochastic processes
   set.seed(1234)
   
-  #***************STEP 8A: FIND NEAREST NEIGHBORS FOR EVERY CELL***************#
+  # Validate input parameters
+  validate_inputs(seurat_object = integrated_seurat, assay = assay)
+
+  # ---- Find Nearest Neighbor for every cell ----
   
-  # Determine the K-nearest neighbor graph
-  for (r in c("CCA", "RPCA", "Harmony", "JointPCA")){
-    max_dims <- min(40, ncol(integrated.seurat@reductions[[paste0("integrated.", base::tolower(r))]]@cell.embeddings))
-    integrated.seurat <- Seurat::FindNeighbors(object = integrated.seurat,
-                                               reduction = paste0("integrated.", base::tolower(r)),
+  # Define constants for clarity and robustness
+  integration_methods <- c("CCA", "RPCA", "Harmony", "JointPCA")
+  resolutions <- c(0.4, 0.6, 0.8, 1.0, 1.2, 1.4)
+
+  # Loop over integration methods to calculate the nearest neighbors
+  for (method in integration_methods) {
+    
+    # Define the name of the reduction after integration
+    reduction_name <- paste0("integ_", base::tolower(method))
+    nn_name <- paste0(base::tolower(method), ".nn")
+    snn_name <- paste0(base::tolower(method), ".snn")
+    
+    # Determine max dimensions available for this reduction
+    max_dims <- min(40, ncol(Embeddings(integrated_seurat, reduction = reduction_name)))
+    #max_dims <- min(40, ncol(integrated_seurat@reductions[[reduction_name]]@cell.embeddings))
+    
+    DefaultAssay(integrated_seurat) <- "SCT"
+    
+    integrated_seurat <- Seurat::FindNeighbors(object = integrated_seurat,
+                                               reduction = reduction_name,
                                                dims = 1:max_dims,
                                                k.param = 30,
-                                               graph.name = c(paste0("graph_nn.", base::tolower(r)),
-                                                              paste0("graph_snn.", base::tolower(r))))
+                                               graph.name = c(nn_name, snn_name),
+                                               verbose = FALSE)
   }
   
-  #**********STEP 8B: SEPARATE CELLS INTO CLUSTERS BASED ON SNN GRAPH**********#
+  # ---- Separate cells into clusters based on SNN graph ----
   
-  # Determine the clusters for various resolutions
-  for (r in c("CCA", "RPCA", "Harmony", "JointPCA")){
-    for (res in c(0.4, 0.6, 0.8, 1, 1.2, 1.4)){
-      integrated.seurat <- Seurat::FindClusters(object = integrated.seurat,
+  # Loop over integration methods and clustering resolutions
+  for (method in integration_methods) {
+    for (res in resolutions) {
+      
+      snn_name <- paste0(base::tolower(method), ".snn")
+      cluster_name <- paste0(base::tolower(method), res)
+      
+      integrated_seurat <- Seurat::FindClusters(object = integrated_seurat,
                                                 resolution = res,
-                                                graph.name = paste0("graph_snn.", base::tolower(r)),
-                                                cluster.name = paste0("cluster.", res, ".", base::tolower(r)),
+                                                graph.name = snn_name,
+                                                cluster.name = cluster_name,
                                                 modularity.fxn = 1,
-                                                algorithm = 4)     #4=Leiden is best
+                                                algorithm = 4,     # 4 = Leiden algorithm (recommended)
+                                                verbose = FALSE)
     }
   }
   
-  #**********STEP 8C: PERFORM DIMENSIONAL REDUCTION FOR VISUALIZATION**********#
+  # ---- Perform Dimensional Reduction for visualization ----
   
-  # Run UMAP
-  for (r in c("CCA", "RPCA", "Harmony", "JointPCA")){ 
-    max_dims <- min(40, ncol(integrated.seurat@reductions[[paste0("integrated.", base::tolower(r))]]@cell.embeddings))
-    integrated.seurat <- Seurat::RunUMAP(object = integrated.seurat,
+  # Run UMAP for each integration method
+  for (method in integration_methods) {
+    
+    # Define the name of the reduction after integration
+    reduction_name <- paste0("integ_", base::tolower(method))
+    
+    # Determine max dimensions available for this reduction
+    max_dims <- min(40, ncol(Embeddings(integrated_seurat, reduction = reduction_name)))
+    #max_dims <- min(40, ncol(integrated_seurat@reductions[[reduction_name]]@cell.embeddings))
+    
+    integrated_seurat <- Seurat::RunUMAP(object = integrated_seurat,
                                          dims = 1:max_dims,
                                          n.neighbors = 30L,
-                                         reduction = paste0("integrated.", base::tolower(r)),
-                                         reduction.name = paste0("umap.", base::tolower(r)))
+                                         reduction = reduction_name,
+                                         reduction.name = paste0("umap_", base::tolower(method)),
+                                         verbose = FALSE)
   }
   
-  # # Create .rds object for integrated seurat object
-  # if (assay == "RNA"){
-  #   saveRDS(integrated.seurat, file=paste0(output_path, "integrated.seurat.rds"))
-  # } else{
-  #   # For Spatial.008um and Spatial.016um assays
-  #   saveRDS(integrated.seurat, file=paste0(output_path, "integrated.seurat.", assay, ".rds"))
-  # }
+  # ---- Log Output and Return Seurat Object ----
   
-  cat("Clustering completed", "\n")
-  return(integrated.seurat)
+  message("Clustering completed successfully.")
+  return(invisible(integrated_seurat))
 }
 
-remove_sparse_clusters_sc_sp <- function(integrated.seurat, assay, output_path){
+remove_sparse_clusters <- function(integrated_seurat, assay, output_dir){
+  
+  # Validate input parameters
+  validate_inputs(seurat_object = integrated_seurat, assay = assay,
+                  output_dir = output_dir)
+
+  # ---- Identify all cluster columns dynamically ----
+ 
+  # Define all possible starting prefixes based on your methods
+  prefixes <- c("cca", "rpca", "harmony", "jointpca")
+  pattern <- paste0("^(", paste(prefixes, collapse = "|"), ")")
+  
+  cluster_cols <- colnames(integrated_seurat@meta.data) %>%
+    stringr::str_subset(pattern) %>%
+    stringr::str_subset("[0-9]")
+  
+  # --- Find all sparse cells efficiently ---
+  sparse_cells <- character(0)
+  
+  for (col in cluster_cols) {
+    
+    # Use table() for fast frequency counting on the metadata column
+    cluster_counts <- table(integrated_seurat@meta.data[[col]])
+    
+    # Identify columns with counts <= 5
+    sparse_clusters_ids <- names(cluster_counts[cluster_counts <= 5])
+    
+    # If sparse clusters exist, identify the cells belonging to them
+    if (length(sparse_clusters_ids) > 0) {
+      
+      # Identify cells (barcodes) whose metadata value matches sparse_clusters_ids
+      cells_in_sparse_clusters <- rownames(integrated_seurat@meta.data)[integrated_seurat@meta.data[[col]] %in% sparse_clusters_ids]
+      
+      # Append cells found in sparse clusters to the master list
+      sparse_cells <- c(sparse_cells, cells_in_sparse_clusters)
+      
+      # Use warning/message to track progress (optional)
+      message("Found ", length(cells_in_sparse_clusters), " cells to remove from column: ", col)
+    }
+  }
+  
+  # --- Remove unique sparse cells ---
+  
+  unique_sparse_cells <- unique(sparse_cells)
+  all_cells <- SeuratObject::Cells(x = integrated_seurat)
+  keep_cells <- base::setdiff(all_cells, unique_sparse_cells)
+  
+  # Subsetting safely by barcode name (i.e. rownames)
+  if (length(unique_sparse_cells) > 0) {
+    integrated_seurat <- subset(x = integrated_seurat,
+                                cells = keep_cells)
+  }
+  cat("\nTotal unique cells removed due to sparse clustering:", length(unique_sparse_cells), "\n")
+  
+  
+  # --- Save integrated Object ---
+  
+  # Determine file name based on assay
+  output_filename <- if (assay == "RNA") {
+    "integrated_seurat.rds"
+  } else {
+    paste0("integrated_seurat.", assay, ".rds")
+  }
+  saveRDS(integrated_seurat, file = file.path(output_dir, output_filename))
+  
+  # ---- Log Output and Return Seurat Object ----
+  
+  message("Integrated Seurat object saved successfully after removing sparse cells.")
+  return(invisible(integrated_seurat))
+}
+  
+calc_optimal_resolution <- function(integrated_seurat, reduction, output_dir){
+  
+  # Validate input parameters
+  validate_inputs(seurat_object = integrated_seurat, reduction = reduction,
+                  output_dir = output_dir)
+  
+  # ---- Identify all cluster columns dynamically ----
+  
+  # Extract method name from reduction (e.g., "integrated_harmony" -> "harmony").
+  # This assumes the clustering columns were named as 'harmony0.8', 'cca0.6', etc.
+  method_name <- base::tolower(reduction)
+  method_name <- stringr::str_remove(method_name, "^(umap_|integrated_|sct_|pca_)*")
+  
+  # Define all possible starting prefixes based on your methods
+  cluster_cols <- colnames(integrated_seurat@meta.data) %>%
+    stringr::str_subset(method_name) %>%
+    stringr::str_subset("[0-9]")
+  
+  # Sort cluster columns by numeric resolution (MUST be sorted for SC3 stability score)
+  cluster_cols <- cluster_cols[order(as.numeric(stringr::str_extract(cluster_cols, "[0-9.]+")))]
+  
+  if (length(cluster_cols) == 0) {
+    stop("No clustering columns found with prefix '", method_name, "'.")
+  }
+  
+  # ---- Visualize clustering stability ----
+  
+  # Run clustree
+  clustree_plot <- clustree::clustree(x = integrated_seurat,
+                                      prefix = method_name)
+  
+  # Save clustree plot
+  ggplot2::ggsave(filename = paste0("Clustree_", method_name, ".pdf"),
+                  plot = clustree_plot,
+                  path = output_dir,
+                  device = "pdf",
+                  width = 8,
+                  height = 11,
+                  dpi = 300,
+                  units = "in")
+  
+  # ---- Quantify clustering stability ----
+  
+  # Extract and convert factor/character columns to numeric integer IDs.
+  cluster_df <- integrated_seurat@meta.data[, cluster_cols, drop = FALSE]
+  cluster_df[] <- lapply(cluster_df, function(x) as.integer(as.factor(x)))
+  cluster_matrix <- as.matrix(cluster_df)
+  
+  # Calculate SC3 stability
+  # NOTE: stability_mat only has resoltuion index like 1, 2, 3 instead of actual
+  # resolution names like "harmony0.4" etc...
+  stability_mat <- clustree:::calc_sc3_stability(cluster_matrix)
+  
+  # Compute mean stability per resolution and map resolution names
+  stability_df <- stability_mat %>%
+    as.data.frame() %>%
+    dplyr::mutate(across(.cols = everything(), .fns = as.numeric)) %>%
+    dplyr::group_by(resolution) %>%
+    dplyr::summarise(mean_stability = mean(stability, na.rm = TRUE), .groups = "drop") %>%
+    dplyr::mutate(resolution_name = colnames(cluster_matrix)[resolution])
+
+  # Pick the resolution with highest mean stability
+  optimal_res <- stability_df %>%
+    dplyr::slice_max(mean_stability) %>%
+    dplyr::pull(resolution_name)
+  
+  optimal_res_numeric <- as.numeric(stringr::str_extract(optimal_res, "[0-9.]+"))
+  
+  # Visualize stability across resolutions
+  stability_plot <- ggplot(stability_df, aes(x = resolution_name, y = mean_stability, group = 1)) +
+    geom_line(color = "blue") +
+    geom_point(size = 3, color = "red") +
+    theme_classic() +
+    labs(title = "Mean Cluster Stability per Resolution",
+         x = "Resolution",
+         y = "Mean SC3 Stability")
+  
+  # Save stability scores
+  ggplot2::ggsave(filename = paste0("Clustree_Stability_scores_", method_name, ".pdf"),
+                  plot = stability_plot,
+                  path = output_dir,
+                  device = "pdf",
+                  width = 8,
+                  height = 11,
+                  dpi = 300,
+                  units = "in")
+  
+  # ---- Log Output and Return Seurat Object ----
+  
+  message("Optimal resolution identified.")
+  return(invisible(optimal_res_numeric))
+}
+
+identify_markers <- function(integrated_seurat, resolution, reduction, output_dir){
+  
+  # Validate input parameters
+  validate_inputs(seurat_object = integrated_seurat, resolution = resolution,
+                  reduction = reduction, output_dir = output_dir)
+  
+  # ---- Detect appropriate assay for FindAllMarkers ----
+  
+  all_assays <- names(integrated_seurat@assays)
+  
+  if ("SCT" %in% all_assays) {
+    active_assay <- "SCT"
+  } else if ("RNA" %in% all_assays) {
+    active_assay <- "RNA"
+  } else if (length(all_assays) > 0) {
+    active_assay <- all_assays[1]
+    message("No SCT/RNA assay found. Using assay: ", active_assay)
+  } else {
+    stop("No assays found in Seurat object for DE analysis.")
+  }
+  
+  # Set active assay
+  DefaultAssay(integrated_seurat) <- active_assay
+  
+  # ---- Set Idents Robustly ----
+  
+  # Extract method name from reduction (e.g., "integrated_harmony" -> "harmony").
+  # This assumes the clustering columns were named as 'harmony0.8', 'cca0.6', etc.
+  method_name <- base::tolower(reduction)
+  method_name <- stringr::str_remove(method_name, "^(umap_|integrated_|sct_|pca_)*")
+  
+  # Construct the full cluster column name (e.g., "harmony0.8")
+  idents <- paste0(method_name, resolution)
+  
+  # Check if identifier column exists
+  if (!idents %in% colnames(integrated_seurat@meta.data)) {
+    stop(paste0("Cluster identifier column '", idents, "' not found in metadata. Ensure clustering was run and named correctly."))
+  }
+  
+  # Set active ident
+  Idents(object = integrated_seurat) <- idents
+  
+  # ---- Find ALL Markers ----
+  
+  all_markers <- Seurat::FindAllMarkers(object = integrated_seurat,
+                                        assay = active_assay,
+                                        logfc.threshold = 0.25, 
+                                        test.use = "wilcox",
+                                        slot = "data",
+                                        min.pct = 0.1,
+                                        min.diff.pct = -Inf,
+                                        only.pos = TRUE)
+  
+  if (nrow(all_markers) == 0) {
+    warning(paste0("No markers found for resolution ", resolution, " using method ", reduction, "."))
+    return(invisible(FALSE))
+  }
+  
+  # ---- Annotation and Filtering ----
+  
+  # Get annotations from ENSEMBL
+  annotations_list <- get_annotations()
+  
+  # Compute number of matching genes for each annotation list
+  matches <- sapply(annotations_list, function(x) length(intersect(x$SYMBOL, all_markers$gene)))
+  
+  # Pick the annotation list with the most matches
+  annotations <- annotations_list[[which.max(matches)]]
+  
+  sig_markers <- all_markers %>%
+    # Correct division by zero warning before calculating ratio
+    dplyr::mutate(pct.1 = dplyr::if_else(pct.1 == 0, 0.001, pct.1),
+                  pct.2 = dplyr::if_else(pct.2 == 0, 0.001, pct.2),
+                  ratio = pct.1 / pct.2) %>%
+    dplyr::filter(p_val_adj <= 0.05) %>%
+    # Annotation Join (assumes gene column needs renaming in the annotations list)
+    dplyr::left_join(y = annotations, by = c("gene" = "ENSEMBL_SYMBOL")) %>%
+    # Tidy up and remove potential duplicates introduced by annotation
+    dplyr::relocate(cluster, gene, CHR, avg_log2FC, p_val, p_val_adj, pct.1, pct.2, ratio, DESCRIPTION) %>%
+    dplyr::distinct(cluster, gene, avg_log2FC, pct.1, pct.2, .keep_all = TRUE)
+  
+  if (nrow(sig_markers) == 0) {
+    message(paste0("No significant markers (p_val_adj < 0.05) remain for resolution ", idents, ". Skipping saving."))
+    return(invisible(FALSE))
+  }
+  
+  # Find top markers for each major cluster
+  top_markers <- sig_markers %>%
+    dplyr::filter(avg_log2FC >= 0.58, p_val_adj <= 0.05) %>%
+    dplyr::group_by(cluster) %>%
+    dplyr::arrange(desc(avg_log2FC)) %>%
+    dplyr::slice_head(n = 30) %>%
+    ungroup()
+  
+  # ---- Create Ordered Marker Matrix ----
+  
+  mat <- sig_markers %>%
+    tidyr::pivot_wider(id_cols = cluster,
+                       names_from = gene,
+                       values_from = avg_log2FC,
+                       values_fill = 0) %>%
+    tibble::column_to_rownames("cluster") %>%
+    scale()   # column wise scaling so each gene has mean 0, stdev = 1
+  
+  # Cluster rows and columns
+  row_dist <- stats::dist(x = mat, method = "euclidean")      # distance between rows based on columns
+  row_clust <- hclust(row_dist)                               # clustering based on distance calculated
+  col_dist <- stats::dist(x = t(mat), method = "euclidean")
+  col_clust <- hclust(col_dist)
+  
+  # Reorder matrix
+  row_order <- rownames(mat[row_clust$order,])
+  col_order <- colnames(mat[,col_clust$order])
+  mat <- mat[row_order, col_order]
+  
+  # Truncate negative values and round
+  mat[mat < 0] <- 0
+  mat <- mat %>%
+    t() %>%               # transpose so genes are rows
+    as.data.frame() %>%   
+    dplyr::mutate(dplyr::across(where(is.numeric), ~round(., 2)))
+  
+  # ---- Log Output & save Markers to Excel ----
+  
+  filename <- paste0("Markers.All.", idents, ".xlsx")
+  wb <- openxlsx::createWorkbook()
+  
+  openxlsx::addWorksheet(wb = wb, sheetName = "Matrix")
+  openxlsx::writeData(wb = wb, sheet = "Matrix", x = mat, rowNames = TRUE)
+  openxlsx::addWorksheet(wb = wb, sheetName = "All_Markers")
+  openxlsx::writeData(wb = wb, sheet = "All_Markers", x = sig_markers)
+  openxlsx::addWorksheet(wb = wb, sheetName = "Top_Markers")
+  openxlsx::writeData(wb = wb, sheet = "Top_Markers", x = top_markers)
+  
+  openxlsx::saveWorkbook(wb = wb, file = file.path(output_dir, filename), overwrite = TRUE)
+  
+  message(paste0("Marker analysis complete. Results saved to: ", filename))
+}
+
+plot_umap <- function(integrated_seurat, reduction, color.col, filename, output_dir, split.col = NULL){
   
   set.seed(1234)
   
-  # Get all available resolutions at different reductions
-  col_id <- colnames(integrated.seurat@meta.data %>% 
-                       dplyr::select(starts_with("cluster.")))
-  
-  sparse_cells <- c()
-  for (id in col_id){
-    # Identify clusters which have less than 5 cells
-    sparse_clusters <- integrated.seurat@meta.data %>%
-      dplyr::count(get(id)) %>%
-      dplyr::filter(n <=5) %>%
-      dplyr::select(identity(1)) %>%
-      unlist(.,use.names=FALSE) %>%
-      as.character() %>%
-      as.numeric()
+  # Check original reduction
+  if (!(reduction %in% names(integrated_seurat@reductions))) {
+    message("Reduction '", reduction, "' is NOT present in the Seurat object.")
     
-    print(sparse_clusters)
+    # Check alternative reduction name
+    alt_reduction <- paste0("umap_", tolower(reduction))
     
-    # Identify the cells in these clusters
-    cells <- integrated.seurat@meta.data %>%
-      dplyr::filter(get(id) %in% sparse_clusters) %>%
-      dplyr::select(Cell) %>%
-      unlist(.,use.names=FALSE)
-    
-    # Create a list of cells identified in sparse clusters at all resolutions 
-    # and reductions
-    sparse_cells <- c(sparse_cells, cells)
+    if (alt_reduction %in% names(integrated_seurat@reductions)) {
+      message("Alternative reduction '", alt_reduction, "' is present. Using this instead.")
+      reduction <- alt_reduction
+    } else {
+      stop("Alternative reduction '", alt_reduction, "' is NOT present.")
+    }
   }
   
-  # Remove sparse_cells
-  integrated.seurat <- subset(x=integrated.seurat,
-                              subset = (Cell %in% unique(sparse_cells)),
-                              invert=TRUE)
-  
-  cat("\nCells removed:", length(unique(sparse_cells)), "\n")
-  
-  # Create .rds object for integrated seurat object
-  if (assay == "RNA"){
-    saveRDS(integrated.seurat, file=file.path(output_path, "integrated.seurat.rds"))
-  } else{
-    # For Spatial.008um and Spatial.016um assays
-    saveRDS(integrated.seurat, file=file.path(output_path, paste0("integrated.seurat.", assay, ".rds")))
+  # Determine groups for plotting
+  if (is.null(split.col)) {
+    # No splitting → single panel
+    groups <- "All"
+  } else if (length(split.col) == 1) {
+    # Single-column split → one panel per unique value
+    groups <- unique(integrated_seurat@meta.data[[split.col]])
+  } else {
+    # Multi-column split → one panel per column name (no subsetting)
+    groups <- split.col
   }
   
-  cat("Integrated seurat object saved after removing sparse clusters (below 5 cells)", "\n")
-  return(integrated.seurat) 
+  # Plot each group
+  all_plots <- list()
+  for (g in groups) {
+    
+    if (is.null(split.col)) {
+      
+      # No split → use full object
+      subset_obj <- integrated_seurat
+      
+      # Determine levels of color.col
+      all_levels <- unique(integrated_seurat@meta.data[[color.col]])
+      
+    } else if (length(split.col) == 1) {
+      
+      # Single-column split → subset by value
+      subset_obj <- integrated_seurat[, integrated_seurat@meta.data[[split.col]] == g]
+      
+      # Determine levels of color.col
+      all_levels <- unique(integrated_seurat@meta.data[[color.col]])
+      
+    } else{
+      
+      # multi-column split → use full object
+      subset_obj <- integrated_seurat
+      
+      # Determine levels of color.col
+      color.col <- g
+      all_levels <- unique(integrated_seurat@meta.data[[color.col]])
+      
+    }
+    
+    # Create plot name
+    group_label <- g
+    
+    # Fix factor levels for consistent coloring, in case a cell type is absent in one of the splits 
+    subset_obj@meta.data[[color.col]] <- factor(subset_obj@meta.data[[color.col]], levels = all_levels)
+    
+    p <- Seurat::DimPlot(object     = subset_obj,
+                         reduction  = reduction,
+                         cols       = custom_palette,
+                         label      = FALSE,
+                         group.by   = color.col,
+                         pt.size    = 0.2,
+                         label.size = 5,
+                         repel      = FALSE,
+                         raster     = FALSE) +
+      ggplot2::labs(color = "CLUSTERS", x = "UMAP_1", y = "UMAP_2", title = group_label) +
+      custom_theme +
+      ggplot2::coord_fixed(ratio = 1)  # 1 unit on x-axis = 1 unit on y-axis, ensuring a square aspect
+    
+    all_plots[[group_label]] <- p
+    
+  }
+  
+  # Automatically calculate ncol and nrow for cowplot
+  n_plots <- length(all_plots)
+  ncol_plots <- ceiling(sqrt(n_plots))
+  nrow_plots <- ceiling(n_plots / ncol_plots)
+  
+  # Combine all plots
+  combined_plot <- cowplot::plot_grid(plotlist = all_plots, ncol = ncol_plots, nrow = nrow_plots)
+  
+  # Save
+  ggplot2::ggsave(filename  = file.path(output_dir, paste0(filename, ".pdf")),
+                  plot      = combined_plot,
+                  width     = ncol_plots * 10, # extra 2 inch for legend
+                  height    = nrow_plots * 8, 
+                  units     = "in",
+                  limitsize = FALSE,
+                  bg        = "white")
 }
 
-plot_metrics_post_integration_sc_sp <- function(integrated.seurat, assay, output_path){
+plot_features <- function(integrated_seurat, features, reduction, filename, output_dir, split.col=NULL){
   
   set.seed(1234)
   
-  #                   Filename                       = c(reduction,             split.by,idents)  
-  plot.params <- list(Pre.Integration.PCA.           = c("sct.pca",            "Sample", "cluster.0.8.harmony"),
-                      Post.Integration.PCA.          = c("integrated.harmony", "Sample", "cluster.0.8.harmony"),
-                      UMAP.Sample.                   = c("umap.harmony",       "Sample", "cluster.0.8.harmony"),
-                      UMAP.Phase.                    = c("umap.harmony",       "Phase",  "cluster.0.8.harmony"),
-                      UMAP.All.Resolutions.CCA       = c("umap.cca",            NA,      "All"),
-                      UMAP.All.Resolutions.RPCA.     = c("umap.rpca",           NA,      "All"),
-                      UMAP.All.Resolutions.JointPCA. = c("umap.jointpca",       NA,      "All"),
-                      UMAP.All.Resolutions.Harmony.  = c("umap.harmony",        NA,      "All"),
-                      UMAP.Singlets.Doublets.        = c("umap.harmony",        NA,      "cluster.0.8.harmony"),
-                      UMAP.Numerical.Metrics.        = c("umap.harmony",        NA,      "cluster.0.8.harmony"))
-  
-  for (i in 1:length(plot.params)){
+  # Check original reduction
+  if (!(reduction %in% names(integrated_seurat@reductions))) {
+    message("Reduction '", reduction, "' is NOT present in the Seurat object.")
     
-    if(names(plot.params)[i] %in% c("Pre.Integration.PCA.", 
-                                    "Post.Integration.PCA.", "UMAP.Sample.", "UMAP.Phase.")){
-      
-      plot.seurat <- Seurat::SplitObject(object = integrated.seurat,
-                                         split.by = plot.params[[i]][2])
-      
-      purrr::map(.x = c(1:length(plot.seurat)),
-                 .f = function(x){  
-                   Idents(plot.seurat[[x]]) <- plot.params[[i]][3]   # define name of cluster
-                   Seurat::DimPlot(object = plot.seurat[[x]],
-                                   reduction = plot.params[[i]][1],  # define reduction to use
-                                   group.by = plot.params[[i]][3],   # define color of cluster
-                                   pt.size = 0.1,
-                                   order = TRUE,  # plot positive cells above negative cells
-                                   label = TRUE,
-                                   raster = FALSE,
-                                   combine = TRUE) +
-                     NoLegend() +
-                     custom_theme + 
-                     ggplot2::labs(title = names(plot.seurat)[x]) 
-                 }) %>% cowplot::plot_grid(plotlist=.,
-                                           align="hv",
-                                           axis="tblr",
-                                           nrow=ceiling(sqrt(length(plot.seurat))),
-                                           ncol=floor(sqrt(length(plot.seurat))),
-                                           rel_widths=1,
-                                           rel_heights=1,
-                                           greedy=TRUE,
-                                           byrow=TRUE)
-    }
+    # Check alternative reduction name
+    alt_reduction <- paste0("umap_", tolower(reduction))
     
-    else if(grepl(pattern="All.Resolutions", x=names(plot.params)[i])){
-      
-      purrr::map(.x = c(0.4, 0.6, 0.8, 1, 1.2, 1.4),
-                 .f = function(x){  
-                   idents <- paste0("cluster.", x, gsub(pattern="umap", replacement="", x=plot.params[[i]][1]))
-                   Idents(integrated.seurat) <- idents
-                   Seurat::DimPlot(object = integrated.seurat,
-                                   reduction = plot.params[[i]][1],
-                                   group.by = idents,
-                                   pt.size = 0.1,
-                                   order = TRUE,  # plot positive cells above negative cells
-                                   label = TRUE,
-                                   raster = FALSE,
-                                   combine = TRUE) +
-                     NoLegend() +
-                     custom_theme + 
-                     ggplot2::labs(title = base::gsub(pattern="cluster.", replacement="", x=idents))
-                 }) %>% cowplot::plot_grid(plotlist=.,
-                                           align="hv",
-                                           axis="tblr",
-                                           nrow=2,
-                                           ncol=3,
-                                           rel_widths=1,
-                                           rel_heights=1,
-                                           greedy=TRUE,
-                                           byrow=TRUE)
+    if (alt_reduction %in% names(integrated_seurat@reductions)) {
+      message("Alternative reduction '", alt_reduction, "' is present. Using this instead.")
+      reduction <- alt_reduction
+    } else {
+      stop("Alternative reduction '", alt_reduction, "' is NOT present.")
     }
-    
-    else if (names(plot.params)[i] == "UMAP.Singlets.Doublets."){
-      
-      purrr::map(.x = c("DropletUtils", "CellRanger", "DoubletFinder", "scDblFinder", "QC"),
-                 .f = function(x){ 
-                   Idents(integrated.seurat) <- plot.params[[i]][3]
-                   Seurat::DimPlot(object = integrated.seurat,
-                                   reduction =  plot.params[[i]][1],
-                                   group.by = x,
-                                   pt.size = 0.1,
-                                   order = c("Doublet"),  # plot doublets on above rest of cells
-                                   label = FALSE,
-                                   raster = FALSE,
-                                   combine = TRUE) +
-                     #NoLegend() +
-                     custom_theme + 
-                     ggplot2::labs(title = x)
-                 }) %>% cowplot::plot_grid(plotlist=.,
-                                           align="hv",
-                                           axis="tblr",
-                                           nrow=2,
-                                           ncol=3,
-                                           rel_widths=1,
-                                           rel_heights=1,
-                                           greedy=TRUE,
-                                           byrow=TRUE)
-    }
-    
-    else if (names(plot.params)[i] == "UMAP.Numerical.Metrics."){
-      
-      purrr::map(.x = c("nUMIs", "nGenes", "S.Score", "G2M.Score", "CC.Score", "MitoRatio"),
-                 .f = function(x){ 
-                   Idents(integrated.seurat) <- plot.params[[i]][3]
-                   Seurat::FeaturePlot(object = integrated.seurat,
-                                       slot = "data",
-                                       features = x,
-                                       reduction = plot.params[[i]][1],
-                                       pt.size = 0.1,
-                                       order = TRUE, 
-                                       label = FALSE,
-                                       raster = FALSE,
-                                       combine = TRUE) +
-                     ggplot2::labs(title = x, x="UMAP_1", y="UMAP_2") +
-                     custom_theme }) %>% cowplot::plot_grid(plotlist=.,
-                                                            align="hv",
-                                                            axis="tblr",
-                                                            nrow=2,
-                                                            ncol=3,
-                                                            rel_widths=1,
-                                                            rel_heights=1,
-                                                            greedy=TRUE,
-                                                            byrow=TRUE)
-    }
-    else {
-      ggplot() + geom_blank()
-      cat("Invalid params:", names(plot.params)[i], ":", plot.params[[i]][1], ":",  plot.params[[i]][2], ":", plot.params[[i]][3], "\n")
-    }
-    
-    # Save the plot
-    ggplot2::ggsave(filename = paste0(names(plot.params)[i], assay, ".tiff"),
-                    plot = last_plot(),
-                    device = "jpeg",
-                    path = output_path,
-                    scale = 1,
-                    width = dplyr::case_when(!is.na(plot.params[[i]][2]) ~ 4*floor(sqrt(length(plot.seurat))),
-                                             TRUE ~ 4*3),
-                    height = dplyr::case_when(!is.na(plot.params[[i]][2]) ~ 4*ceiling(sqrt(length(plot.seurat))),
-                                              TRUE ~ 4*2),
-                    units = c("in"),
-                    dpi = 600,
-                    limitsize = TRUE,
-                    bg = "white")
   }
+  
+  # Determine available features
+  available_features <- c(rownames(SeuratObject::GetAssayData(integrated_seurat, assay = "RNA", slot = "data")),
+                          colnames(integrated_seurat@meta.data))
+  existing_features <- intersect(features, available_features)
+  missing_features <- setdiff(features, existing_features)
+  
+  if (length(existing_features) == 0) {
+    stop("None of the provided features are found in the RNA assay or metadata. Nothing to plot.")
+  }
+  
+  if (length(missing_features) > 0) {
+    warning("The following feature(s) were not found and will be skipped: ", paste(missing_features, collapse = ", "))
+  }
+  
+  # Check split column
+  if (!is.null(split.col) && !split.col %in% colnames(integrated_seurat@meta.data)) {
+    stop(paste("Column", split.col, "not found in metadata."))
+  }
+  
+  # Determine groups for plotting
+  if (is.null(split.col)) {
+    groups <- "All"
+  } else {
+    groups <- unique(integrated_seurat@meta.data[[split.col]])
+  }
+  
+  # Loop over features and groups
+  all_plots <- list()
+  
+  for (feature in existing_features) {
+    
+    # Determine feature type
+    is_gene <- feature %in% rownames(SeuratObject::GetAssayData(integrated_seurat, assay = "RNA", slot = "data"))
+    is_metadata <- feature %in% colnames(integrated_seurat@meta.data)
+    
+    if (!is_gene & !is_metadata) next  # Skip missing feature
+    
+    for (g in groups) {
+      
+      # Subset object if splitting
+      if (g == "All") {
+        subset_obj <- integrated_seurat
+        group_label <- ""
+      } else {
+        subset_obj <- integrated_seurat[, integrated_seurat@meta.data[[split.col]] == g]
+        group_label <- g
+      }
+      
+      # Plot gene feature using FeaturePlot
+      if (is_gene) {
+        # Get expression data safely
+        expr_data <- SeuratObject::GetAssayData(subset_obj, assay = "RNA", slot = "data")
+        max_expr <- max(expr_data[feature, ], na.rm = TRUE)
+        min_expr <- 0
+      } else if (is_metadata) {
+        max_expr <- max(subset_obj@meta.data[[feature]])
+        min_expr <- min(subset_obj@meta.data[[feature]])
+      }
+      
+      cols <- rev(RColorBrewer::brewer.pal(11, "RdBu"))
+      p <- Seurat::FeaturePlot(object = subset_obj,
+                               features = feature,
+                               slot = "data",
+                               reduction = reduction,
+                               #cols = c("grey", viridis(n = 10, option = "C", direction = -1)),
+                               #cols =  c("#440154FF", viridis(n = 10, option = "C", direction = 1)),
+                               pt.size = 0.2,
+                               label = FALSE,
+                               order = TRUE,
+                               raster = FALSE,
+                               combine = TRUE) +
+        ggplot2::labs(title = paste0(feature, group_label), x = "UMAP_1", y = "UMAP_2") +
+        custom_theme +
+        {
+          if (min_expr < 0) {
+            # Case 1: Diverging Scale (Expression includes negative values)
+            # Use all colors, centered at 0
+            ggplot2::scale_colour_gradientn(
+              colours = cols,
+              values = scales::rescale(c(min_expr, 0, max_expr)),
+              limits = c(min_expr, max_expr))
+          } else {
+            # Case 2: Sequential Scale (All expression is >= 0)
+            # Start the scale at 0 (using the center color: cols[6])
+            ggplot2::scale_colour_gradientn(
+              colours = cols[6:11],
+              values = scales::rescale(c(0, max_expr)),
+              limits = c(0, max_expr)) # Start limits at 0 to match scale
+          }
+        }
+      
+      # Store plot
+      all_plots[[paste0(feature, group_label)]] <- p
+    }
+  }
+  
+  # Arrange plots in grid
+  n_plots <- length(all_plots)
+  ncol_plots <- ceiling(sqrt(n_plots))
+  nrow_plots <- ceiling(n_plots / ncol_plots)
+  
+  # Restrict unsupported combination
+  if (ncol_plots > 10 && nrow_plots > 10) {
+    stop("Image size too large. More than 100 plots cannot be viewed in a single figure")
+  }
+  
+  # Combine all plots
+  combined_plot <- cowplot::plot_grid(plotlist = all_plots, ncol = ncol_plots, nrow = nrow_plots)
+  
+  # Save output
+  ggplot2::ggsave(filename  = file.path(output_dir, paste0(filename, ".pdf")),
+                  plot      = combined_plot,
+                  width     = ncol_plots * 6,
+                  height    = nrow_plots * 6,
+                  units     = "in",
+                  limitsize = FALSE,
+                  bg        = "white")
+  
 }
 
-calc_scores <- function(integrated.seurat, assay, proj.params, output_path){
+plot_metrics_post_integration <- function(integrated_seurat, output_dir){
+  
+  features <- c("nUMIs", "nGenes", "S.Score", "G2M.Score", "CC.Score", "MitoRatio")
+  plot_features(integrated_seurat, features, reduction = "umap_harmony", filename = "UMAP.Numerical.Metrics", output_dir, split.col = NULL)
+  
+  plot_umap(integrated_seurat, reduction = "sct_pca",       color.col = "harmony0.8", filename = "Pre.Integ.PCA",  output_dir, split.col = "Sample")
+  plot_umap(integrated_seurat, reduction = "integ_harmony", color.col = "harmony0.8", filename = "Post.Integ.PCA", output_dir, split.col = "Sample")
+  plot_umap(integrated_seurat, reduction = "umap_harmony",  color.col = "harmony0.8", filename = "UMAP.Sample",    output_dir, split.col = "Sample")
+  plot_umap(integrated_seurat, reduction = "umap_harmony",  color.col = "harmony0.8", filename = "UMAP.Phase",     output_dir, split.col = "Phase")
+  plot_umap(integrated_seurat, reduction = "umap_cca",      color.col = NULL,         filename = "UMAP.CCA",       output_dir, split.col = paste0("cca",      seq(0.4, 1.4, by = 0.2)))
+  plot_umap(integrated_seurat, reduction = "umap_rpca",     color.col = NULL,         filename = "UMAP.RPCA",      output_dir, split.col = paste0("rpca",     seq(0.4, 1.4, by = 0.2)))
+  plot_umap(integrated_seurat, reduction = "umap_jointpca", color.col = NULL,         filename = "UMAP.JointPCA",  output_dir, split.col = paste0("jointpca", seq(0.4, 1.4, by = 0.2)))
+  plot_umap(integrated_seurat, reduction = "umap_harmony",  color.col = NULL,         filename = "UMAP.Harmony",   output_dir, split.col = paste0("harmony",  seq(0.4, 1.4, by = 0.2)))
+  plot_umap(integrated_seurat, reduction = "umap_harmony",  color.col = NULL,         filename = "UMAP.Cell.QC",   output_dir, split.col = c("DropletUtils", "CellRanger", 
+                                                                                                                                             "DoubletFinder", "scDblFinder", 
+                                                                                                                                             "Quality", "QC"))
+  
+}
+  
+  
+  
+  
+calc_module_scores <- function(integrated_seurat, assay, proj.params, output_dir){
   
   set.seed(1234)
   
@@ -3574,63 +4461,54 @@ calc_scores <- function(integrated.seurat, assay, proj.params, output_path){
   marker_df <- read.xlsx(xlsxFile = proj.params$cell.type.marker.file)
   
   # Set default assay
-  DefaultAssay(integrated.seurat) <- assay
+  DefaultAssay(integrated_seurat) <- assay
   
   # Iterate through each celltype and plot its module scores
   for (i in 1:ncol(marker_df)){
     
     features <- marker_df[[i]] %>% na.omit()
-    features <- rownames(integrated.seurat@assays[[assay]]$data)[tolower(rownames(integrated.seurat@assays[[assay]]$data)) %in% 
+    features <- rownames(integrated_seurat@assays[[assay]]$data)[tolower(rownames(integrated_seurat@assays[[assay]]$data)) %in% 
                                                                    tolower(features)]
     features <- list(sort(features))
     
     # Calculate module scores
     if (lengths(features) > 1){
-      integrated.seurat <- Seurat::AddModuleScore(object=integrated.seurat,
+      integrated_seurat <- Seurat::AddModuleScore(object=integrated_seurat,
                                                   features=features,
                                                   assay=assay,
                                                   slot="data",
                                                   name=make.names(colnames(marker_df)[i]))
       
       # names(features) <- make.names(colnames(marker_df)[i])
-      # integrated.seurat <- UCell::AddModuleScore_UCell(obj=integrated.seurat,
+      # integrated_seurat <- UCell::AddModuleScore_UCell(obj=integrated_seurat,
       #                                                  features=features,
       #                                                  assay="RNA",
       #                                                  slot="data",
       #                                                  name="_UCell")
     }
   }
-  
-  # Create .rds object for integrated seurat object
-  if (assay == "RNA"){
-    saveRDS(integrated.seurat, file=file.path(output_path, "integrated.seurat.rds"))
-  } else{
-    # For Spatial.008um and Spatial.016um assays
-    saveRDS(integrated.seurat, file=file.path(output_path, paste0("integrated.seurat.", assay, ".rds")))
-  }
-  
-  return(integrated.seurat)
+  return(integrated_seurat)
 }
 
-plot_scores <- function(integrated.seurat, assay, resolution, reduction, proj.params, output_path){
+plot_module_scores <- function(integrated_seurat, assay, resolution, reduction, proj.params, output_dir){
   
   set.seed(1234)
   
   # Read marker file
   marker_df <- read.xlsx(xlsxFile = proj.params$cell.type.marker.file)
   
-  modules <- intersect(colnames(integrated.seurat@meta.data), paste0(make.names(colnames(marker_df)),1))
+  modules <- intersect(colnames(integrated_seurat@meta.data), paste0(make.names(colnames(marker_df)),1))
   
   # Change active.ident
   idents <- paste0("cluster.", resolution, ".", base::tolower(reduction))
-  Idents(object = integrated.seurat) <- idents
+  Idents(object = integrated_seurat) <- idents
   
   # Set default assay
-  DefaultAssay(integrated.seurat) <- assay
+  DefaultAssay(integrated_seurat) <- assay
   
   module_score_seurat <- function(module){
     
-    Seurat::FeaturePlot(object = integrated.seurat,
+    Seurat::FeaturePlot(object = integrated_seurat,
                         slot = "data",
                         features = module,
                         reduction = paste0("umap.", base::tolower(reduction)),
@@ -3660,7 +4538,7 @@ plot_scores <- function(integrated.seurat, assay, resolution, reduction, proj.pa
   ggplot2::ggsave(filename = "Module_plot.jpg",
                   plot = combined_plot,
                   device = "jpeg",
-                  path = output_path,
+                  path = output_dir,
                   width = 8.5*4,
                   height = 11*2,
                   units = c("in"),
@@ -3669,85 +4547,64 @@ plot_scores <- function(integrated.seurat, assay, resolution, reduction, proj.pa
                   bg = "white")
 }
 
-identify_markers_sc_sp <- function(integrated.seurat, assay, resolution, reduction, output_path){
+annotate_sc_sp <- function(integrated_seurat, assay, resolution, reduction, output_dir){
   
   set.seed(1234)
   
-  # Set default assay
-  DefaultAssay(integrated.seurat) <- assay
+  # Get columns containing module scores fro each cell type
+  score_cols <- integrated_seurat@meta.data %>% 
+    dplyr::select(ends_with("1")) %>% 
+    colnames()
   
-  # Change active.ident
-  idents <- paste0("cluster.", resolution, ".", base::tolower(reduction))
-  Idents(object=integrated.seurat) <- idents
+  # Extract numeric score matrix
+  score_mat <- as.matrix(integrated_seurat@meta.data[, score_cols])
   
-  # Find ALL markers
-  all_markers <- Seurat::FindAllMarkers(object=integrated.seurat,
-                                        assay=assay,
-                                        logfc.threshold=0.25,
-                                        test.use="wilcox",
-                                        slot="data",
-                                        min.pct=0.1,
-                                        min.diff.pct= -Inf,
-                                        only.pos=TRUE)
+  # Get index of max per row
+  max_idx <- max.col(score_mat, ties.method = "first")
   
-  # Get annotations from ENSEMBL
-  annotations_list <- get_annotations()
-  if (length(intersect(annotations_list[[1]]$SYMBOL, all_markers$gene)) > 
-      length(intersect(annotations_list[[2]]$SYMBOL, all_markers$gene))){
-    annotations <- annotations_list[[1]]
-  } else {
-    annotations <- annotations_list[[2]]
+  # Map to column names
+  integrated_seurat@meta.data$Est.Cell.Type <- colnames(score_mat)[max_idx]
+  
+  # Identify col to be used for annotation
+  cluster.col <- paste0("cluster.", resolution, ".", base::tolower(reduction))
+  
+  # ---- Cluster-level summary ----
+  cluster_summary <- integrated_seurat@meta.data %>%
+    dplyr::count(cluster = .data[[cluster.col]], Est.Cell.Type, name = "Cell.Count") %>%
+    dplyr::arrange(cluster, desc(Cell.Count)) %>%
+    dplyr::group_by(cluster) %>%
+    dplyr::summarize(
+      Total.Cells = sum(Cell.Count),
+      Primary.Cell.Count = Cell.Count[1],
+      Secondary.Cell.Count = if_else(length(Cell.Count) > 1, Cell.Count[2], NA_integer_),
+      Primary.Cell.Percent  = Primary.Cell.Count / Total.Cells * 100,
+      Secondary.Cell.Percent  = Secondary.Cell.Count / Total.Cells * 100,
+      Primary.Cell.Type = Est.Cell.Type[1],
+      Secondary.Cell.Type = if_else(length(Cell.Count) > 1, Est.Cell.Type[2], NA_character_),
+      Difference.Percent = Primary.Cell.Percent - Secondary.Cell.Percent,
+      .groups = "drop") %>%
+    as.data.frame() %>%
+    dplyr::mutate(Confidence = case_when(Primary.Cell.Percent >= 80 ~ "HIGH",
+                                         (Primary.Cell.Percent >= 60 & Secondary.Cell.Percent < 30 )~ "MEDIUM",
+                                         TRUE ~ "LOW"))
+  
+  cluster_info <- cluster_summary %>% 
+    dplyr::select(cluster, Primary.Cell.Type, Secondary.Cell.Type, Primary.Cell.Percent, Secondary.Cell.Percent, Confidence)
+  
+  integrated_seurat@meta.data <- integrated_seurat@meta.data %>% 
+    dplyr::left_join(cluster_info, by = setNames("cluster", cluster.col))
+  rownames(integrated_seurat@meta.data) <- integrated_seurat@meta.data$Cell
+  
+  # Create .rds object for integrated seurat object
+  if (assay %in% c("RNA", "SCT")){
+    saveRDS(integrated_seurat, file=file.path(output_dir, "integrated_seurat.ann.rds"))
+  } else{
+    # For Spatial.008um and Spatial.016um assays
+    saveRDS(integrated_seurat, file=file.path(output_dir, paste0("integrated_seurat.", assay, ".ann.rds")))
   }
   
-  # Add gene descriptions
-  all_markers <- all_markers %>% 
-    dplyr::mutate(pct.1=dplyr::if_else(pct.1 == 0, 0.001, pct.1),
-                  pct.2=dplyr::if_else(pct.2 == 0, 0.001, pct.2),
-                  ratio=pct.1/pct.2) %>%
-    dplyr::left_join(y=annotations, by=c("gene"="ENSEMBL_SYMBOL")) %>%
-    dplyr::relocate(cluster, gene, CHR, avg_log2FC, p_val, p_val_adj, pct.1, pct.2, ratio, DESCRIPTION) %>%
-    dplyr::distinct(cluster, gene, avg_log2FC, pct.1, pct.2, .keep_all = TRUE)
-  
-  # Find top markers for each major cluster
-  top_markers <- all_markers %>%
-    dplyr::filter(avg_log2FC >= 0.58 & p_val_adj < 0.05) %>%
-    dplyr::group_by(cluster) %>%
-    dplyr::arrange(desc(avg_log2FC)) %>%  #desc(ratio)
-    dplyr::slice_head(n=30) %>%
-    ungroup()
-  
-  # Create a matrix of markers in heatmap format
-  mat <- all_markers %>% 
-    dplyr::filter(p_val_adj < 0.05) %>%
-    tidyr::pivot_wider(id_cols=cluster, names_from = gene, values_from = avg_log2FC, values_fill = 0.0) %>%
-    tibble::column_to_rownames("cluster") %>%
-    scale()   # column wise scaling so each gene has mean 0, stdev = 1
-  
-  row_dist <- stats::dist(x=mat, method = "euclidean", diag = TRUE, upper = TRUE)  # distance between rows based on columns
-  row_clust <- hclust(row_dist)                                                    # clustering based on distance calculated
-  row_order <- rownames(mat[row_clust$order,])
-  col_dist <- stats::dist(x=t(mat), method = "euclidean", diag = TRUE, upper = TRUE)
-  col_clust <- hclust(col_dist)
-  col_order <- colnames(mat[,col_clust$order])
-  mat <- mat[row_order, col_order]
-  
-  mat[mat < 0] <- 0 
-  mat <- mat %>% 
-    t() %>%
-    data.frame() %>% 
-    mutate(across(where(is.numeric), ~round(., 2)))
-  
-  # Save all the markers
-  filename <- paste0(proj, ".Markers.All.", idents, ".xlsx")
-  wb <- openxlsx::createWorkbook()
-  openxlsx::addWorksheet(wb=wb, sheetName="Matrix")
-  openxlsx::writeData(wb=wb, sheet="Matrix", x=mat, rowNames = TRUE)
-  openxlsx::addWorksheet(wb=wb, sheetName="All_Markers")
-  openxlsx::writeData(wb=wb, sheet="All_Markers", x=all_markers)
-  openxlsx::addWorksheet(wb=wb, sheetName="Top_Markers")
-  openxlsx::writeData(wb=wb, sheet="Top_Markers", x=top_markers)
-  openxlsx::saveWorkbook(wb=wb, file=file.path(output_path, filename), overwrite=TRUE)
-} 
+  return(integrated_seurat)
+}
 
 ### Annotate based on clusters variable defined by user
 # clusters <- list("Hepatocytes"         = c(),
@@ -3770,7 +4627,7 @@ identify_markers_sc_sp <- function(integrated.seurat, assay, resolution, reducti
 #                  "Epithelial.IV"       = c(),
 #                  "Unclassified"        = c())
 
-annotate_manual_sc_sp <- function(integrated.seurat, assay, clusters, resolution, reduction, output_path){
+annotate_manual_sc_sp <- function(integrated_seurat, assay, clusters, resolution, reduction, output_dir){
   
   set.seed(1234)
   
@@ -3779,7 +4636,7 @@ annotate_manual_sc_sp <- function(integrated.seurat, assay, clusters, resolution
   # Make sure you have assigned all clusters to one of the cell types
   # NOTE: "integrated_snn_res.1.4" etc are stored as factors. 
   # So, use as.character() and then as.numeric() to get accurate cluster values
-  list_1 <- integrated.seurat@meta.data %>% 
+  list_1 <- integrated_seurat@meta.data %>% 
     dplyr::count(get(idents)) %>% 
     dplyr::select(identity(1)) %>% 
     unlist(use.names=FALSE) %>% 
@@ -3797,7 +4654,7 @@ annotate_manual_sc_sp <- function(integrated.seurat, assay, clusters, resolution
     
     # Extract metadata from Seurat object, assign appropriate resolution to
     # seurat_clusters column and add Cell.Type, Cell.Subtype columns
-    data <- integrated.seurat@meta.data %>% 
+    data <- integrated_seurat@meta.data %>% 
       dplyr::mutate(seurat_clusters=get(idents),
                     Cell.Type=NA, Cell.Subtype=NA)
     
@@ -3815,14 +4672,14 @@ annotate_manual_sc_sp <- function(integrated.seurat, assay, clusters, resolution
     cat("\n")
     
     # Import the metadata into Seurat object
-    integrated.seurat@meta.data <- data
+    integrated_seurat@meta.data <- data
     
     # Create .rds object for integrated seurat object
     if (assay == "RNA"){
-      saveRDS(integrated.seurat, file=file.path(output_path, "integrated.seurat.ann.rds"))
+      saveRDS(integrated_seurat, file=file.path(output_dir, "integrated_seurat.ann.rds"))
     } else{
       # For Spatial.008um and Spatial.016um assays
-      saveRDS(integrated.seurat, file=file.path(output_path, paste0("integrated.seurat.", assay, ".ann.rds")))
+      saveRDS(integrated_seurat, file=file.path(output_dir, paste0("integrated_seurat.", assay, ".ann.rds")))
     }
     
   } else {
@@ -3831,29 +4688,31 @@ annotate_manual_sc_sp <- function(integrated.seurat, assay, clusters, resolution
     cat("\nThese clusters have duplicate annotation:\t", list_2[duplicated(list_2)])
   }
   
-  return(integrated.seurat)
+  return(integrated_seurat)
 } 
 
-estimate_cell_type <- function(integrated.seurat){
+# Use to check how good your markers are able to calc module score for each cell
+# and how accurately they align with known cell annotations
+estimate_cell_type <- function(integrated_seurat){
   
   set.seed(1234)
   
   # Get columns containing module scores fro each cell type
-  score_cols <- integrated.seurat@meta.data %>% 
+  score_cols <- integrated_seurat@meta.data %>% 
     dplyr::select(ends_with("1")) %>% 
     colnames()
   
   # Extract numeric score matrix
-  score_mat <- as.matrix(integrated.seurat@meta.data[, score_cols])
+  score_mat <- as.matrix(integrated_seurat@meta.data[, score_cols])
   
   # Get index of max per row
   max_idx <- max.col(score_mat, ties.method = "first")
   
   # Map to column names
-  integrated.seurat@meta.data$Est.Cell.Type <- colnames(score_mat)[max_idx]
+  integrated_seurat@meta.data$Est.Cell.Type <- colnames(score_mat)[max_idx]
   
   cleaned_score_cols <- gsub("1$", "", score_cols)
-  cell.types <- unique(integrated.seurat@meta.data$Cell.Type)
+  cell.types <- unique(integrated_seurat@meta.data$Cell.Type)
   
   # Key:value dataframe
   map_df <- list("Epithelial1" = c("Epithelial.I", "Epithelial.II"),
@@ -3873,38 +4732,38 @@ estimate_cell_type <- function(integrated.seurat){
                  "Mast1" = c("Mast"))
   
   
-  integrated.seurat@meta.data <- integrated.seurat@meta.data %>%
+  integrated_seurat@meta.data <- integrated_seurat@meta.data %>%
     dplyr::mutate(Confidence = ifelse(mapply(function(est, true){
       true %in% map_df[[est]]}, Est.Cell.Type, Cell.Type), "HIGH", "LOW"))
   
   
-  return(integrated.seurat) 
+  return(integrated_seurat) 
 }
 
-plot_dot_plot <- function(integrated.seurat, idents, features, filename, output_path, gene_y_axis = FALSE, split.col = NULL){
+plot_dot_plot <- function(integrated_seurat, idents, features, filename, output_dir, gene_y_axis = FALSE, split.col = NULL){
   
   set.seed(1234)
   
   # Re-order the active ident alphabetically
-  Idents(integrated.seurat) <- idents
-  Idents(integrated.seurat) <- base::factor(x = integrated.seurat@active.ident, 
-                                            levels= sort(levels(integrated.seurat@active.ident)))
+  Idents(integrated_seurat) <- idents
+  Idents(integrated_seurat) <- base::factor(x = integrated_seurat@active.ident, 
+                                            levels= sort(levels(integrated_seurat@active.ident)))
   
   # Determine grouping variable
   if (is.null(split.col)) {
     groups <- "All"
   } else {
-    groups <- unique(integrated.seurat@meta.data[[split.col]])
+    groups <- unique(integrated_seurat@meta.data[[split.col]])
   }
   
   # Loop over groups
   plot_list <- list()
   for (g in groups) {
     if (g == "All") {
-      subset_obj <- integrated.seurat
+      subset_obj <- integrated_seurat
       plot_title <- "All"
     } else {
-      subset_obj <- integrated.seurat[, integrated.seurat@meta.data[[split.col]] == g]
+      subset_obj <- integrated_seurat[, integrated_seurat@meta.data[[split.col]] == g]
       plot_title <- g
     }
     
@@ -3935,7 +4794,7 @@ plot_dot_plot <- function(integrated.seurat, idents, features, filename, output_
   }
   
   # Per panel dimensions
-  n_y <- length(unique(integrated.seurat@active.ident))  
+  n_y <- length(unique(integrated_seurat@active.ident))  
   height_per_element <- 0.5
   width_per_element <- 0.2 
   if (gene_y_axis){
@@ -3955,15 +4814,13 @@ plot_dot_plot <- function(integrated.seurat, idents, features, filename, output_
   total_height <- height_panel * nrow_plots
   total_width  <- width_panel * ncol_plots
   
-  
-  
   # Combine all plots
   combined_plot <- cowplot::plot_grid(plotlist = plot_list, 
                                       ncol = ncol_plots, 
                                       nrow = nrow_plots)
   
   # Save combined plot
-  ggsave(filename = file.path(output_path, paste0(filename,".pdf")),
+  ggsave(filename = file.path(output_dir, paste0(filename,".pdf")),
          plot = combined_plot,
          width = total_width,
          height = total_height,
@@ -3972,56 +4829,24 @@ plot_dot_plot <- function(integrated.seurat, idents, features, filename, output_
          bg        = "white")
 }
 
-find_top_features <- function(integrated.seurat, assay, proj.params){
-  
-  set.seed(1234)
-  
-  marker_df <- openxlsx::read.xlsx(file.path(proj.params$cell.type.marker.file))
-  expr_data <- Seurat::GetAssayData(object = integrated.seurat, assay = assay, layer = "data")
-  
-  top_features <- lapply(marker_df, FUN = function(f){
-    
-    # Subset features and expression data
-    f <- f[base::tolower(f) %in% base::tolower(SeuratObject::Features(integrated.seurat))] %>% 
-      na.omit() %>%
-      as.vector()
-    
-    if(length(f) == 0) return(NULL)
-    
-    expr_sub <- expr_data[f, , drop = FALSE]
-    
-    # Find top 3 expressing markers
-    rowMeans(expr_sub, na.rm = TRUE) %>% 
-      sort(., decreasing = TRUE) %>% 
-      head(3) %>% 
-      names()
-  })
-  
-  # Keep only cell types present in your dataset
-  celltypes_in_seurat <- unique(integrated.seurat$Cell.Type)
-  top_features <- top_features[intersect(names(top_features), celltypes_in_seurat)]
-  
-  return(unlist(top_features, use.names = FALSE))
-}
-
-plot_dot_custom <- function(integrated.seurat, assay, proj.params, ident.1, ident.2, features, filename, output_path, split.col=NULL){
+plot_dot_custom <- function(integrated_seurat, assay, proj.params, ident.1, ident.2, features, filename, output_dir, CellType.col = "Cell.Type", split.col=NULL){
   
   set.seed(1234)
   
   # Keep only cell types present in your dataset and marker file
   marker_df <- openxlsx::read.xlsx(file.path(proj.params$cell.type.marker.file))
-  celltypes_in_seurat <- unique(integrated.seurat$Cell.Type)
+  celltypes_in_seurat <- unique(integrated_seurat[[CellType.col]])
   celltypes_to_keep <- intersect(colnames(marker_df), celltypes_in_seurat)
   
   # Determine groups based on split.col
-  groups <- if (!is.null(split.col) && split.col %in% colnames(integrated.seurat@meta.data)) {
-    as.character(unique(integrated.seurat@meta.data[[split.col]]))
+  groups <- if (!is.null(split.col) && split.col %in% colnames(integrated_seurat@meta.data)) {
+    as.character(unique(integrated_seurat@meta.data[[split.col]]))
   } else {
     "All"
   }
   
   # Determine features present in data set
-  features <- features[base::tolower(features) %in% base::tolower(SeuratObject::Features(integrated.seurat))] %>% 
+  features <- features[base::tolower(features) %in% base::tolower(SeuratObject::Features(integrated_seurat))] %>% 
     na.omit() %>%
     as.vector()
   
@@ -4033,22 +4858,22 @@ plot_dot_custom <- function(integrated.seurat, assay, proj.params, ident.1, iden
     
     # Subset object
     if (g == "All") {
-      subset_obj <- integrated.seurat
+      subset_obj <- integrated_seurat
       plot_title <- ""
     } else {
-      subset_obj <- integrated.seurat[, integrated.seurat@meta.data[[split.col]] == g]
+      subset_obj <- integrated_seurat[, integrated_seurat@meta.data[[split.col]] == g]
       plot_title <- g
     }
     
     # Determine levels based on ident.1
-    levels <- if (!is.null(ident.1) && ident.1 %in% colnames(integrated.seurat@meta.data)) {
+    levels <- if (!is.null(ident.1) && ident.1 %in% colnames(integrated_seurat@meta.data)) {
       subset_obj@meta.data[[ident.1]] %>% unique() %>% as.character()
     } else {
       stop(ident.1, " missing in metadata")
     }
     
     # Determine levels.extra based on ident.2
-    levels.extra <- if (!is.null(ident.2) && ident.2 %in% colnames(integrated.seurat@meta.data)) {
+    levels.extra <- if (!is.null(ident.2) && ident.2 %in% colnames(integrated_seurat@meta.data)) {
       subset_obj@meta.data[[ident.2]] %>% unique() %>% as.character()
     } else {
       levels.extra <- NA # set NA so loop runs once later below
@@ -4130,6 +4955,14 @@ plot_dot_custom <- function(integrated.seurat, assay, proj.params, ident.1, iden
       x_var <- "features.plot"
     }
     
+    # Calculate panel dimensions
+    height_per_element <- 0.5
+    width_per_element <- 0.5
+    height_panel <- length(unique(dotplot_data[[y_var]])) * height_per_element + 2
+    width_panel <- length(unique(dotplot_data[[x_var]])) * width_per_element + 6
+    x_label_size <- 72 * width_per_element * 0.5
+    y_label_size <- 72 * height_per_element * 0.5  # 0.5 scaling so it doesnt get too large
+   
     # Create ggplot
     p <- ggplot(data = dotplot_data, 
                 mapping = aes(x = !!sym(x_var), y = !!sym(y_var), 
@@ -4143,16 +4976,13 @@ plot_dot_custom <- function(integrated.seurat, assay, proj.params, ident.1, iden
       scale_size_area(max_size = 15) + #min_size = 1) +
       custom_theme +
       theme_classic() +
-      theme(axis.text.x = element_text(angle = 90, hjust = 1, vjust = 0.5))
+      theme(axis.text.x = element_text(angle = 90, hjust = 1, vjust = 0.5, size = x_label_size ),
+            axis.text.y = element_text(size = y_label_size),
+            legend.text  = element_text(size = 0.8 * y_label_size),   # slightly smaller than y-axis labels
+            legend.title = element_text(size = y_label_size))
     
     plot_list[[plot_title]] <- p
   }
-  
-  # Calculate panel dimensions
-  height_per_element <- 0.5
-  width_per_element <- 0.2
-  height_panel <- length(unique(dotplot_data[[y_var]])) * height_per_element + 2
-  width_panel <- length(unique(dotplot_data[[x_var]])) * width_per_element + 6
   
   # Determine layout
   n_plots <- length(plot_list)
@@ -4168,7 +4998,7 @@ plot_dot_custom <- function(integrated.seurat, assay, proj.params, ident.1, iden
   
   # Save plot
   filename <- gsub("[/\\?<>\\:*|\"]", "_", filename)
-  ggsave(filename = file.path(output_path, paste0(filename,".pdf")),
+  ggsave(filename = file.path(output_dir, paste0(filename,".pdf")),
          plot = combined_plot,
          width = total_width,
          height = total_height,
@@ -4177,153 +5007,41 @@ plot_dot_custom <- function(integrated.seurat, assay, proj.params, ident.1, iden
          bg = "white")
 }
 
-plot_umap <- function(integrated.seurat, reduction, color.col, filename, output_path, split.col = NULL){
+find_top_features <- function(integrated_seurat, assay, proj.params){
   
   set.seed(1234)
   
-  # Determine levels of color.col
-  all_levels <- unique(integrated.seurat@meta.data[[color.col]])
+  marker_df <- openxlsx::read.xlsx(file.path(proj.params$cell.type.marker.file))
+  expr_data <- Seurat::GetAssayData(object = integrated_seurat, assay = assay, layer = "data")
   
-  # Determine groups
-  if (is.null(split.col)) {
-    groups <- "All"
-  } else {
-    groups <- unique(integrated.seurat@meta.data[[split.col]])
-  }
-  
-  # Loop over groups
-  all_plots <- list()
-  for (g in groups) {
-    if (g == "All") {
-      subset_obj <- integrated.seurat
-      group_label <- ""
-    } else {
-      subset_obj <- integrated.seurat[, integrated.seurat@meta.data[[split.col]] == g]
-      group_label <- g
-    }
+  top_features <- lapply(marker_df, FUN = function(f){
     
-    # Fix factor levels for consistent coloring, in case a cell type is absent in one of the splits 
-    subset_obj@meta.data[[color.col]] <- factor(subset_obj@meta.data[[color.col]], levels = all_levels)
+    # Subset features and expression data
+    f <- f[base::tolower(f) %in% base::tolower(SeuratObject::Features(integrated_seurat))] %>% 
+      na.omit() %>%
+      as.vector()
     
-    p <- Seurat::DimPlot(object = subset_obj,
-                         reduction = reduction, #paste0("umap.", tolower(reduction)),
-                         cols      = custom_palette,
-                         label     = FALSE,
-                         group.by  = color.col,
-                         pt.size   = 0.2,
-                         label.size= 5,
-                         repel     = FALSE,
-                         raster    = FALSE) +
-      ggplot2::labs(color = "CLUSTERS", x = "UMAP_1", y = "UMAP_2", title = group_label) +
-      custom_theme +
-      ggplot2::coord_fixed(ratio = 1)  # 1 unit on x-axis = 1 unit on y-axis, ensuring a square aspect
+    if(length(f) == 0) return(NULL)
     
-    all_plots[[group_label]] <- p
-  }
+    expr_sub <- expr_data[f, , drop = FALSE]
+    
+    # Find top 3 expressing markers
+    rowMeans(expr_sub, na.rm = TRUE) %>% 
+      sort(., decreasing = TRUE) %>% 
+      head(3) %>% 
+      names()
+  })
   
-  # Automatically calculate ncol and nrow for cowplot
-  n_plots <- length(all_plots)
-  ncol_plots <- ceiling(sqrt(n_plots))
-  nrow_plots <- ceiling(n_plots / ncol_plots)
+  # Keep only cell types present in your dataset
+  celltypes_in_seurat <- unique(integrated_seurat$Cell.Type)
+  top_features <- top_features[intersect(names(top_features), celltypes_in_seurat)]
   
-  # Combine all plots
-  combined_plot <- cowplot::plot_grid(plotlist = all_plots, ncol = ncol_plots, nrow = nrow_plots)
-  
-  # Save
-  ggplot2::ggsave(filename  = file.path(output_path, paste0(filename, ".pdf")),
-                  plot      = combined_plot,
-                  width     = ncol_plots * 10, # 2 inch for legend
-                  height    = nrow_plots * 8, 
-                  units     = "in",
-                  limitsize = FALSE,
-                  bg        = "white")
+  return(unlist(top_features, use.names = FALSE))
 }
 
-plot_features <- function(integrated.seurat, features, reduction, filename, output_path, split.col=NULL){
-  
-  set.seed(1234)
-  
-  # Input checks
-  existing_features <- intersect(features, rownames(integrated.seurat@assays$RNA))
-  missing_features <- setdiff(features, existing_features)
-  
-  if (length(existing_features) == 0) {
-    stop("None of the provided features are found in the RNA assay. Nothing to plot.")
-  }
-  
-  if (length(missing_features) > 0) {
-    warning("The following feature(s) were not found and will be skipped: ", paste(missing_features, collapse = ", "))
-  }
-  
-  if (!is.null(split.col) && !split.col %in% colnames(integrated.seurat@meta.data)) {
-    stop(paste("Column", split.col, "not found in metadata."))
-  }
-  
-  # Determine groups
-  if (is.null(split.col)) {
-    groups <- "All"
-  } else {
-    groups <- unique(integrated.seurat@meta.data[[split.col]])
-  }
-  
-  # Loop over groups and features
-  all_plots <- list()
-  for (feature in existing_features) { 
-    for (g in groups) {
-      if (g == "All") {
-        subset_obj <- integrated.seurat
-        group_label <- ""
-      } else {
-        subset_obj <- integrated.seurat[, integrated.seurat@meta.data[[split.col]] == g]
-        group_label <- paste0(" (", g, ")")
-      }
-      
-      max_expr <- max(subset_obj@assays$RNA@data[feature, ], na.rm = TRUE)
-      p <- Seurat::FeaturePlot(object = subset_obj,
-                               slot = "data",
-                               features = feature,
-                               reduction = reduction, #paste0("umap.", tolower(reduction)),
-                               #cols = c("grey", viridis(n = 10, option = "C", direction = -1)),
-                               pt.size = 0.2,
-                               label = FALSE,
-                               order = TRUE,
-                               raster = FALSE,
-                               combine = TRUE) +
-        ggplot2::labs(title = paste0(feature, group_label), x="UMAP_1", y="UMAP_2") +
-        custom_theme +
-        ggplot2::scale_colour_gradientn(
-          colours = rev(RColorBrewer::brewer.pal(11, "RdBu"))[5:11],
-          limits = c(0, max(max_expr, 1e-2)))
-      
-      all_plots[[paste0(feature, group_label)]] <- p
-    }
-  }
-  
-  # Automatically calculate ncol and nrow for cowplot
-  n_plots <- length(all_plots)
-  ncol_plots <- ceiling(sqrt(n_plots))
-  nrow_plots <- ceiling(n_plots / ncol_plots)
-  
-  # Restrict unsupported combination
-  if (ncol_plots > 10 && nrow_plots > 10) {
-    stop("Image size too large. More than 100 plots cannot be viewed in single figure")
-  }
-  
-  # Combine all plots
-  combined_plot <- cowplot::plot_grid(plotlist = all_plots, ncol = ncol_plots, nrow = nrow_plots)
-  
-  # Save
-  ggplot2::ggsave(filename  = file.path(output_path, paste0(filename, ".jpg")),
-                  plot      = combined_plot,
-                  width     = ncol_plots * 6,
-                  height    = nrow_plots * 6,
-                  units     = "in",
-                  limitsize = FALSE,
-                  bg        = "white")
-}
 
 # Input is seurat object of a single slide with columns X, Y, Sample, Group
-plot_spatial_map <- function(plot.seurat, x1, y1, x2, y2, suffix, output_path){
+plot_spatial_map <- function(plot.seurat, x1, y1, x2, y2, suffix, output_dir){
   
   set.seed(1234)
   
@@ -4375,7 +5093,7 @@ plot_spatial_map <- function(plot.seurat, x1, y1, x2, y2, suffix, output_path){
   ggplot2::ggsave(filename=paste0("Sample.Map.", Sample, ".", suffix, ".tiff"),
                   plot=p1+p2,
                   device="jpeg",
-                  path=output_path,
+                  path=output_dir,
                   width=25,
                   height=8.5,
                   units=c("in"),
@@ -4384,7 +5102,7 @@ plot_spatial_map <- function(plot.seurat, x1, y1, x2, y2, suffix, output_path){
                   bg="white")
 }  
 
-tabulate_frequency <- function(integrated.seurat, split.cols, output_path){
+tabulate_frequency <- function(integrated_seurat, split.cols, output_dir){
   
   set.seed(1234)
   
@@ -4392,9 +5110,9 @@ tabulate_frequency <- function(integrated.seurat, split.cols, output_path){
   wb <- createWorkbook()
   
   for (split.col in split.cols){
-    if(!is.null(integrated.seurat@meta.data[[split.col]] %>% unique())){
+    if(!is.null(integrated_seurat@meta.data[[split.col]] %>% unique())){
       
-      counts <- integrated.seurat@meta.data %>% 
+      counts <- integrated_seurat@meta.data %>% 
         dplyr::count(.data[[split.col]], Cell.Type) %>% 
         dplyr::group_by(.data[[split.col]]) %>% 
         dplyr::mutate(Percent = round(100 * n / sum(n), 2)) %>%
@@ -4410,39 +5128,39 @@ tabulate_frequency <- function(integrated.seurat, split.cols, output_path){
   }
   
   # Save workbook
-  saveWorkbook(wb, file = file.path(output_path, "Population_Frequencies.xlsx"), overwrite = TRUE)
+  saveWorkbook(wb, file = file.path(output_dir, "Population_Frequencies.xlsx"), overwrite = TRUE)
 }
 
-prep_pseudobulk <- function(integrated.seurat, comparison.col, assay = "RNA"){
+prep_pseudobulk <- function(integrated_seurat, comparison.col, assay = "RNA"){
   
   set.seed(1234)
   
   # Input checks
-  if (!inherits(integrated.seurat, "Seurat")) {
-    stop("'integrated.seurat' must be a Seurat object.")
+  if (!inherits(integrated_seurat, "Seurat")) {
+    stop("'integrated_seurat' must be a Seurat object.")
   }
-  if (!comparison.col %in% colnames(integrated.seurat@meta.data)) {
+  if (!comparison.col %in% colnames(integrated_seurat@meta.data)) {
     stop(paste0("'", comparison.col, "' not found in metadata columns."))
   }
-  if (!"Sample" %in% colnames(integrated.seurat@meta.data)) {
+  if (!"Sample" %in% colnames(integrated_seurat@meta.data)) {
     stop("'Sample' column is required in metadata.")
   }
-  if (!assay %in% names(integrated.seurat@assays)) {
+  if (!assay %in% names(integrated_seurat@assays)) {
     stop(paste0("Assay '", assay, "' not found in Seurat object."))
   }
   
   # Initialize storage
-  counts_matrix <- integrated.seurat@assays[[assay]]$counts
+  counts_matrix <- integrated_seurat@assays[[assay]]$counts
   meta_data_full <- data.frame()
   read_data_full <- data.frame(SYMBOL = rownames(counts_matrix))
   
   # Extract unique groups from comparison.col that will be compared in DE analysis
-  groups <- unique(integrated.seurat@meta.data[[comparison.col]])
+  groups <- unique(integrated_seurat@meta.data[[comparison.col]])
   groups <- groups[!is.na(groups)]  # remove NA groups if present
   
   # Loop through each group
   for (g in groups) {
-    subset.seurat <- integrated.seurat[, integrated.seurat@meta.data[[comparison.col]] == g]
+    subset.seurat <- integrated_seurat[, integrated_seurat@meta.data[[comparison.col]] == g]
     
     # Generate metadata
     meta_data <- subset.seurat@meta.data %>%
@@ -4501,12 +5219,12 @@ prep_pseudobulk <- function(integrated.seurat, comparison.col, assay = "RNA"){
   return(list(meta_data = meta_data_full, read_data = read_data_full))
 }
 
-find_degs_seurat <- function(integrated.seurat, comparison.col, output_path, celltype.col = "Cell.Type", assay = "RNA"){
+find_degs_seurat <- function(integrated_seurat, comparison.col, output_dir, celltype.col = "Cell.Type", assay = "RNA"){
   
   set.seed(1234)
   
   # Setup log file
-  log_file <- file.path(output_path, "find_degs_seurat.log")
+  log_file <- file.path(output_dir, "find_degs_seurat.log")
   log_con <- file(log_file, open = "wt")
   log_msg <- function(...) {
     msg <- paste0(...)
@@ -4524,8 +5242,8 @@ find_degs_seurat <- function(integrated.seurat, comparison.col, output_path, cel
   skipped <- c()
   
   # Define cell types and comparisons
-  celltype_levels <- unique(integrated.seurat@meta.data[[celltype.col]])
-  comparison_levels <- unique(integrated.seurat@meta.data[[comparison.col]])
+  celltype_levels <- unique(integrated_seurat@meta.data[[celltype.col]])
+  comparison_levels <- unique(integrated_seurat@meta.data[[comparison.col]])
   comparisons <- utils::combn(x = comparison_levels, m = 2, simplify = FALSE)
   
   for(celltype in celltype_levels){
@@ -4535,7 +5253,7 @@ find_degs_seurat <- function(integrated.seurat, comparison.col, output_path, cel
       reference <- comparison[2]
       
       # Subset Seurat object
-      subset_obj <- integrated.seurat[, integrated.seurat@meta.data[[celltype.col]] == celltype]
+      subset_obj <- integrated_seurat[, integrated_seurat@meta.data[[celltype.col]] == celltype]
       subset_obj <- subset_obj[, subset_obj@meta.data[[comparison.col]] %in% c(target, reference)]
       
       # Count cells
@@ -4612,7 +5330,7 @@ find_degs_seurat <- function(integrated.seurat, comparison.col, output_path, cel
         return.seurat = TRUE
       )
       
-      raw_counts <- as.data.frame(as.matrix(GetAssayData(deg_obj, assay = assay, slot = "counts"))) 
+      raw_counts <- as.data.frame(as.matrix(SeuratObject::GetAssayData(deg_obj, assay = assay, slot = "counts"))) 
       counts_list[[paste0(celltype, ".", target, ".vs.", reference)]] <- raw_counts %>%
         tibble::rownames_to_column(var = "SYMBOL")
       
@@ -4691,11 +5409,11 @@ find_degs_seurat <- function(integrated.seurat, comparison.col, output_path, cel
   openxlsx::writeData(wb, "DEGs_MAST", all_MAST)
   openxlsx::addWorksheet(wb, "DEGs_Wilcox")
   openxlsx::writeData(wb, "DEGs_Wilcox", all_Wilcox)
-  openxlsx::saveWorkbook(wb, file.path(output_path, "Seurat_DEGs.xlsx"), overwrite = TRUE)
+  openxlsx::saveWorkbook(wb, file.path(output_dir, "Seurat_DEGs.xlsx"), overwrite = TRUE)
   
   
-  if (length(counts_list) > 0) save_list_to_xlsx(counts_list, file.path(output_path, "Seurat_Raw_Counts.xlsx"))
-  if (length(vst_counts_list) > 0) save_list_to_xlsx(vst_counts_list, file.path(output_path, "Seurat_VST_Counts.xlsx"))
+  if (length(counts_list) > 0) save_list_to_xlsx(counts_list, file.path(output_dir, "Seurat_Raw_Counts.xlsx"))
+  if (length(vst_counts_list) > 0) save_list_to_xlsx(vst_counts_list, file.path(output_dir, "Seurat_VST_Counts.xlsx"))
   
   # ---- Report skipped ----
   if (length(skipped) > 0) {
@@ -5126,20 +5844,7 @@ plot_facets <- function(facet_df, stratify_var, surv_curve, cox_df, surv_type, f
                        labels = NULL,
                        label_size = 14,
                        label_fontface = "bold")
-    
-    # # File name for plot 
-    # facet_group <- if(is.na(facet_group)) ""
-    # method <- survival_params$stratify_criteria
-    # stratify_var <- survival_params$stratify_var
-    # file_name <- paste0(c("KM_curve", stratify_var, facet_group, method, ".pdf"), collapse = "_")
-    # file_name <- base::gsub(pattern = "/", replacement = "-", x = file_name)
-    
-    # # Save the plot
-    # ggplot2::ggsave(filename = file.path(survival_params$output_path, file_name),
-    #                 plot = last_plot(),
-    #                 device = "pdf",
-    #                 width = 7, height = 7, units = "in")
-    
+
     return(p)
   }
 }
@@ -5149,8 +5854,8 @@ survival_analysis <- function(meta_data, expr_data = NULL, survival_params) {
   # ---- Input checks & parameter extraction ----
   
   # Create output directory if missing
-  if (!dir.exists(survival_params$output_path)) {
-    dir.create(survival_params$output_path, recursive = TRUE)
+  if (!dir.exists(survival_params$output_dir)) {
+    dir.create(survival_params$output_dir, recursive = TRUE)
   }
   
   rownames(expr_data) <- make.names(rownames(expr_data))
@@ -5238,8 +5943,8 @@ survival_analysis <- function(meta_data, expr_data = NULL, survival_params) {
   
   meta_data <- meta_data %>% 
     dplyr::mutate(Sample_ID = make.names(names = Sample_ID), 
-                  Time = as.numeric(Time)) %>%
-    dplyr::filter(Time > 0 & !is.na(Time)) %>%
+                  !!time_col := as.numeric(.data[[time_col]])) %>%
+    dplyr::filter(.data[[time_col]] > 0 & !is.na(.data[[time_col]])) %>%
     dplyr::distinct(Sample_ID, .keep_all = TRUE)
   
   # ---- Prepare expression data ----
@@ -5367,7 +6072,7 @@ survival_analysis <- function(meta_data, expr_data = NULL, survival_params) {
   all_emmeans_df <- tibble::tibble()
   
   # Open PDF for all KM plots
-  pdf(file = file.path(survival_params$output_path, "KM_curves.pdf"),
+  pdf(file = file.path(survival_params$output_dir, "KM_curves.pdf"),
       width = 7, height = 7)  # open PDF device
   
   # Loop over each gene
@@ -5390,10 +6095,8 @@ survival_analysis <- function(meta_data, expr_data = NULL, survival_params) {
       if (dplyr::n_distinct(facet_df[[model_col]]) < 2) {
         message("Skipping facet (single group): ", facet_group)
         next
-      } else if (dplyr::n_distinct(facet_df[[model_col]]) == 2){
-        # VERY VERY IMPORTANT: ggsurvplot() colors in alphabetical order. 
-        # 1st color "#d73027" ~ high expr, 2nd color "#0c2c84" ~ low expr.
-        survival_params$color_palette <- c("#d73027","#0c2c84")
+      } else if (base::setequal(x = unique(facet_df[[model_col]]), y = c("HIGH", "LOW"))) {
+        survival_params$color_palette <- c(HIGH = "#d73027", LOW = "#0c2c84")
       }
       
       # Create a survival object (Alive = 0, Dead = 1)
@@ -5440,7 +6143,7 @@ survival_analysis <- function(meta_data, expr_data = NULL, survival_params) {
   openxlsx::writeData(wb, sheet = "emmeans_stats", x = all_emmeans_df)
   openxlsx::addWorksheet(wb, sheetName = "surv_df")
   openxlsx::writeData(wb, sheet = "surv_df", x = surv_df)
-  openxlsx::saveWorkbook(wb, file = file.path(survival_params$output_path, "Survival_Stats.xlsx"),
+  openxlsx::saveWorkbook(wb, file = file.path(survival_params$output_dir, "Survival_Stats.xlsx"),
                          overwrite = TRUE)
 }
 
@@ -5475,11 +6178,11 @@ survival_params <- list(
   
   # Output
   prefix           = "",
-  output_path      = "C:/Users/kailasamms/OneDrive - Cedars-Sinai Health System/Desktop"
+  output_dir      = "C:/Users/kailasamms/OneDrive - Cedars-Sinai Health System/Desktop"
 )
 
 # Run to understand how to define parameters for the survival function
-df <- show_survival_scenarios()
+show_survival_scenarios()
 
 # Run your survival analysis
 #survival_analysis(meta_data, expr_data, survival_params)
@@ -5666,7 +6369,7 @@ prep_expr_df <- function(log_norm_counts, meta_data, plot_genes, survival_params
 
 # NOTE:  Output of calc_surv_stats is list. 
 # It also generate survival plot with risk table
-calc_surv_stats <- function(df, group, prefix, output_path){
+calc_surv_stats <- function(df, group, prefix, output_dir){
   
   # If all samples belong to one group (like LOW or HIGH or males or female),
   # then quit the function as comparison cannot be done
@@ -5847,7 +6550,7 @@ calc_surv_stats <- function(df, group, prefix, output_path){
       ggplot2::ggsave(filename = f_name,
                       plot = last_plot(),
                       device = "pdf",
-                      path = output_path,
+                      path = output_dir,
                       width = 7,
                       height = 7,
                       units = c("in"),
@@ -5891,7 +6594,7 @@ calc_surv_stats <- function(df, group, prefix, output_path){
 }
 
 # NOTE: Output of plot_survival is list(df,ls)
-plot_survival <- function(expr_df, gene, survival_params, prefix, output_path){
+plot_survival <- function(expr_df, gene, survival_params, prefix, output_dir){
   
   # Create an empty dataframe to store expr_df and classification from calculate_cutoffs()
   survival_data <- data.frame(model = " ")
@@ -5992,7 +6695,7 @@ plot_survival <- function(expr_df, gene, survival_params, prefix, output_path){
     }
     
     # Calculate survival stats for each group
-    cox_stats <- calc_surv_stats(df, group, prefix, output_path)
+    cox_stats <- calc_surv_stats(df, group, prefix, output_dir)
     
     ##### Save the data from output of calc_surv_stats()
     stats$group               <- c(stats$group,               cox_stats$group)
@@ -6019,6 +6722,41 @@ plot_survival <- function(expr_df, gene, survival_params, prefix, output_path){
 # "Measuring gene set expression" in "Materials & stratify_criteria" section.
 
 # ---- CRISPR FUNCTIONS ----
+
+prep_crispr_guides <- function(data, output_dir){
+  
+  # Ensure required columns are present
+  required_cols <- c("ID", "Seq", "Gene")
+  
+  if (!all(required_cols %in% colnames(data))) {
+    stop("Input data must contain columns: ID, Seq, Gene")
+  }
+  
+  # Define a simple reverse complement function
+  reverse_complement <- function(seq) {
+    seq_chars <- unlist(strsplit(seq, split = ""))
+    comp <- c(A = "T", T = "A", G = "C", C = "G")
+    rc <- rev(comp[seq_chars])
+    paste(rc, collapse = "")
+  }
+  
+  # Compute reverse complements
+  data <- data %>%
+    dplyr::mutate(Rev_Seq = vapply(Seq, reverse_complement, character(1)),
+                  Mageck_format = paste(ID, Seq, Gene, sep = ","),
+                  Mageck_format_rev = paste(ID, Rev_Seq, Gene, sep = ",")
+    )
+  
+  # Write to Excel
+  wb <- openxlsx::createWorkbook()
+  openxlsx::addWorksheet(wb, sheetName = "Guides")
+  openxlsx::writeData(wb, sheet = "Guides", x = data, rowNames = FALSE)
+  openxlsx::saveWorkbook(wb, 
+                         file = file.path(output_dir, "CRISPR_Guides.xlsx"), 
+                         overwrite = TRUE)
+  
+  message("CRISPR guide data saved to ", file.path(output_dir, "CRISPR_Guides.xlsx"))
+}
 
 # Dataframe as input
 # Column "Gene" MUST be present
@@ -6280,7 +7018,7 @@ plot_venn <- function(data, path, suffix){
 # All possible intersections will be displayed in bottom graph
 plot_upset <- function(listInput = NULL, selected_sets = NULL,
                        min_intersection_size = NULL, filename = "Upset_Plot",
-                       output_path = getwd()) {
+                       output_dir = getwd()) {
   
   # Default example list if none provided
   if (is.null(listInput)) {
@@ -6334,13 +7072,13 @@ plot_upset <- function(listInput = NULL, selected_sets = NULL,
   ggplot_obj <- ggplotify::as.ggplot(p)
   
   # Save plot
-  ggsave(filename = file.path(output_path, paste0(filename, ".jpg")),
+  ggsave(filename = file.path(output_dir, paste0(filename, ".jpg")),
          plot = ggplot_obj,
          height = 11,
          width = 11
   )
   
-  message("UpSet plot saved to: ", file.path(output_path, paste0(filename, ".jpg")))
+  message("UpSet plot saved to: ", file.path(output_dir, paste0(filename, ".jpg")))
   
   return(ggplot_obj)
 }
@@ -6348,13 +7086,13 @@ plot_upset <- function(listInput = NULL, selected_sets = NULL,
 # ---- DEPRECATED FUNCTIONS ----
 
 # DEPRECATED (used during Seurat v3)
-v3_sctransform_singlecell <- function(filtered.seurat){
+v3_sctransform_singlecell <- function(filtered_seurat){
   
   # Seurat v5 stores counts of each sample in separate layers. Merge them.
-  filtered.seurat@assays$RNA <- SeuratObject::JoinLayers(filtered.seurat@assays$RNA)
+  filtered_seurat@assays$RNA <- SeuratObject::JoinLayers(filtered_seurat@assays$RNA)
   
   # Split each sample into a seurat object to get a list of seurat object
-  split.seurat <- Seurat::SplitObject(object = filtered.seurat,
+  split.seurat <- Seurat::SplitObject(object = filtered_seurat,
                                       split.by = "Sample")
   
   # Remove samples with less than 50 cells so that RunPCA() doesnt give error
@@ -6368,7 +7106,7 @@ v3_sctransform_singlecell <- function(filtered.seurat){
                                                normalization.method = "LogNormalize",
                                                scale.factor = 10000,
                                                margin = 1,
-                                               verbose = TRUE)
+                                               verbose = FALSE)
     
     # Perform cell cycle scoring
     split.seurat[[i]]  <- Seurat::CellCycleScoring(object = split.seurat[[i]],
@@ -6418,14 +7156,16 @@ v3_sctransform_singlecell <- function(filtered.seurat){
                                         ndims.print = 1,
                                         nfeatures.print = 1,
                                         reduction.name = "pca",
-                                        reduction.key = "PC_")
+                                        reduction.key = "PC_",
+                                        verbose = FALSE)
     
     # Perform dimensional reduction using UMAP on PCA dimensions
     split.seurat[[i]] <- Seurat::RunUMAP(object = split.seurat[[i]],
                                          dims = 1:40,
                                          reduction = "pca",
                                          reduction.name = "umap",
-                                         reduction.key = "UMAP_")
+                                         reduction.key = "UMAP_",
+                                         verbose = FALSE)
     
   }
   
@@ -6474,7 +7214,7 @@ v3_integrate_singlecell <- function(sct, ref_samples){
     min()
   
   # Find half of number of cells in sample with least cell count
-  kweight2 <- filtered.seurat@meta.data %>%
+  kweight2 <- filtered_seurat@meta.data %>%
     dplyr::count(Sample) %>%
     dplyr::filter(n >=50) %>%
     dplyr::select(n) %>%
@@ -6499,7 +7239,7 @@ v3_integrate_singlecell <- function(sct, ref_samples){
   #************************STEP 7F: INTEGRATE THE DATA*************************#
   # NOTE: weight.reduction=NULL means new PCA will be calculated & used to
   # calculate anchor weights
-  integrated.seurat.rpca <- Seurat::IntegrateData(anchorset=integ_anchors.rpca,
+  integrated_seurat.rpca <- Seurat::IntegrateData(anchorset=integ_anchors.rpca,
                                                   new.assay.name="integrated",
                                                   normalization.method="SCT",
                                                   features=NULL,
@@ -6510,24 +7250,24 @@ v3_integrate_singlecell <- function(sct, ref_samples){
                                                   sd.weight=1)
   
   #**STEP 7G: RUN PCA USING 3000 INTEGRATION FEATURES & UMAP USING FIRST 40 PCs**#
-  integrated.seurat <- Seurat::RunPCA(object=integrated.seurat,
+  integrated_seurat <- Seurat::RunPCA(object=integrated_seurat,
                                       assay="integrated",
                                       features=NULL)
   
-  integrated.seurat <- Seurat::RunUMAP(object=integrated.seurat,
+  integrated_seurat <- Seurat::RunUMAP(object=integrated_seurat,
                                        dims=1:40,
                                        reduction="pca")
-  return(integrated.seurat)
+  return(integrated_seurat)
 }
 
 # DEPRECATED (used during Seurat v3)
 ### Generate whitelist for CITESeq
 # Input is filtered seurat object
 # Output is a list of csv files - one per batch containing valid barcodes
-v3_generate_whitelist <- function(filtered.seurat, output_path){
+v3_generate_whitelist <- function(filtered_seurat, output_dir){
   
   # Extract barcodes and split by "_"
-  bc <- filtered.seurat@meta.data$Cell
+  bc <- filtered_seurat@meta.data$Cell
   
   # Adjust this based on how your samples are named
   # NOTE: There will be multiple samples within each batch
@@ -6684,3 +7424,614 @@ SpatialFeaturePlotBlend <- function(cells_obj, column_1, column_2, combine=TRUE)
     return(p)
   }
 }
+
+# ---- NOTES ----
+
+#******************************************************************************#
+#                         TO SUBSET DATA OR NOT BEFORE DESEQ2                          
+#******************************************************************************#
+
+# https://master.bioconductor.org/packages/release/workflows/vignettes/rnaseqGene/inst/doc/rnaseqGene.html
+# https://hbctraining.github.io/DGE_workshop/lessons/08_DGE_LRT.html
+
+# NOTE: If any one group has high within-group variability in PCA plot, we 
+# SHOULD exclude those samples by sub-setting before creating dds object and 
+# calculating dispersion estimates. Else, use full dataset for modelling.
+
+# NOTE: 
+# One factor   : design ~ Condition
+# Two factors  : design ~ Condition + Treatment + Condition:Treatment (OR) design ~ Condition*Treatment
+# Three factors: design ~ Cell.Line + Condition + Treatment + Condition:Treatment +.. (OR) design ~ Cell.Line*Condition*Treatment
+# Using * will include all possible interaction terms and is RECOMMENDED
+# The results are the same irrespective of the order i.e 
+# Cell.Line*Condition*Treatment gives same results as Cell.Line*Treatment*Condition
+
+# NOTE: If you have Cell.Line, Treatment, Condition variables and want to 
+# include them in design, ideally design MUST be ~ Cell.Line*Treatment*Condition.
+# However, if one cell line doesnt have a specific treatment, then DESeq2 will
+# throw "Full model martix is less than full rank" error. So, ALWAYS create a 
+# new column "Comparisons" in meta_data and use design ~ Comparisons ALWAYS.
+# Populate the "Comparisons" column in meta_data by concatenating as below:
+# paste0(Cell.Line, Treatment, Condition, sep=".") 
+
+# NOTE: contrast terms CANNOT start with numbers. So, if you have cell line name
+# "22RV1" rename it as "RV1_22" etc
+
+# NOTE: You MUST have atleast 2 replicates per group. Else, DESeq2 will throw
+# "Error in base::colMeans(x, na.rm = na.rm, dims = dims, ...) : 'x' must be an
+# array of at least two dimensions"
+
+# for (n in 1:length(DEG.params$contrast)){
+#   
+#   if (DEG.params$deseq2.batch.correct == TRUE){
+#     
+#     # Perform DESeq2() using sva modelled surrogate variables
+#     # Create DESeq2 object with surrogate variables in design
+#     sva.formula_string <- formula_string
+#     sva_dds <- batch_correct_sva(meta_data, read_data, sva.formula_string)
+#     sva_dds <- run_deseq2(sva_dds, meta_data, DEG.params, n, "sva", degs_dir)
+#     
+#     # Perform DESeq2() using combat corrected counts
+#     # Create DESeq2 object with appropiate variables in design
+#     # Get combat corrected raw reads
+#     read_data_combat <- batch_correct_combat(meta_data, read_data, combat.formula_string)
+#     combat.formula_string <- formula_string
+#     combat_dds <- DESeq2::DESeqDataSetFromMatrix(countData=read_data_combat,
+#                                                  colData=meta_data, 
+#                                                  design=~1)
+#     design(combat_dds) <- as.formula(combat.formula_string)
+#     dds <- run_deseq2(combat_dds, meta_data, DEG.params, n, "combat", degs_dir)
+#   }
+# }
+
+# You have 3 groups A, B & C but want to perform DEG between group A and B only.
+# Should you exclude group C samples and perform DEG analysis??
+# NOTE: Subsetting data affects (i) sizeFactors (ii) Dispersion estimates and
+# hence the final DEGs
+
+# The links below explain when data needs to be subset.
+# https://support.bioconductor.org/p/108471/
+# https://support.bioconductor.org/p/81038/
+# https://support.bioconductor.org/p/9156036/
+# https://support.bioconductor.org/p/69341/
+
+# The authors of DESeq2 and EdgeR recommend NOT to subset meta_data & 
+# read_data but rather use contrasts to get DEGs between groups
+# You should subset your data ONLY when one of the groups has large variance 
+# (like group C) in link below
+# https://master.bioconductor.org/packages/release/bioc/vignettes/DESeq2/inst/doc/DESeq2.html#if-i-have-multiple-groups-should-i-run-all-together-or-split-into-pairs-of-groups
+
+# Dispersion of gene X in group A ~ Variance of gene X in group A/mean of gene X group A
+# Dispersion of gene X in group B ~ Variance of gene X in group B/mean of gene X group B
+# Dispersion of gene X in group C ~ Variance of gene X in group C/mean of gene X group C
+# Dispersion of gene X for experiment ~ (Dispersion of gene X in groups A, B, C)
+# Samples within Group A and B have low variance in overall expression profile 
+# (clustered closely in PCA plot) but samples in group C have different
+# expression profile. So, the final dispersion estimates of most genes will be 
+# affected a lot by group C. In such a scenario, if we are only doing DEG 
+# comparison between groups A & B, then we can subset only group A and B samples
+# before doing DESeq2. 
+# SO, CHECK PCA PLOT FOR EVERY EXPERIMENT TO DETERMINE IF DATA NEED TO BE SUBSET.
+
+# meta_data <- meta %>% dplyr::filter(get(Variable) %in% c(Comparisons$Target[n], Comparisons$Reference[n]))
+# corrected_read_data <- read %>% dplyr::select(rownames(meta_data))
+# NOTE: sizefactors MUST be calculated ONLY using samples being compared for 
+# differential expression. So, make sure read_data and meta_data ONLY have
+# samples being compared for differential expression.
+
+# dds <- DESeq2::DESeqDataSetFromMatrix(countData=corrected_read_data, colData=meta_data, design=~ Tissue + Age)
+# dds <- DESeq(dds, test="LRT", reduced=~ Tissue)
+# res <- DESeq2::results(object=dds)
+
+# Study effect of Treatment ignoring effect of Sex
+#dds <- DESeqDataSetFromMatrix(countData=corrected_read_data, colData=meta_data, design=~ Treatment)
+
+# Study effect of Treatment after removing effect of Sex (assumes equal effect of Sex on different treatments)
+#dds <- DESeqDataSetFromMatrix(countData=corrected_read_data, colData=meta_data, design=~ Sex + Treatment)
+
+# Study effect of Sex on treatment?
+# Study effect of Treatment after removing effect of Sex (assumes different effect of Sex on different treatments)
+#dds <- DESeqDataSetFromMatrix(countData=corrected_read_data, colData=meta_data, design=~ Sex + Treatment + Sex:Treatment)
+
+# #*******************************DIAGNOSTIC TESTS DESEQ2 *******************************#
+
+# YET TO IMPLEMENT
+
+# meta_data MUST be xlsx file, MUST have "Sample_ID" column with sample names
+# without any duplication
+# Example: If samples were isolated on different days & prepared using different
+# kits, "Batch" column must have values like "1_Ribo", "1_Poly-A", "2_Ribo", etc
+# NOTE: Make sure there are no white spaces in the Target and Reference columns
+# in excel file. R will change any white space (" ") to dot ("."). So, replace 
+# white space (" ") with underscore ("_") before importing into R.
+
+# NOTE: The normalized counts you get from sva_dds and DESeq2 dds are NOT batch 
+# corrected and they will be identical. Both DESeq2() and svaseq() ONLY model
+# for batch factors/surrogate variables in the design formula, they DO NOT 
+# modify counts like combatseq. The normalized counts you get from combatseq
+# are batch corrected. 
+
+# for (n in 1:length(Comparisons$Variable)){
+#   
+#   # This generates a new column "id" that has info on samples being comparared
+#   meta_data_comp <- meta_data %>%
+#     dplyr::mutate(id=get(Comparisons$Variable[n]))
+#   
+#   #combat_corrected_read_data <- combatseq_batch(read_data, meta_data_comp)
+#   #sva_dds <- svaseq_batch(read_data, meta_data_comp)
+#   
+#   # Perform DESeq2() using in-built batch modelling
+#   approach <- "DESeq2_modelled"
+#   if (length(unique(meta_data_comp$Batch)) > 1){
+#     dds <- DESeq2::DESeqDataSetFromMatrix(countData=read_data,
+#                                           colData=meta_data_comp, 
+#                                           design=~ Batch+id)
+#   } else {
+#     dds <- DESeq2::DESeqDataSetFromMatrix(countData=read_data,
+#                                           colData=meta_data_comp, 
+#                                           design=~ id)
+#   }
+#   dds <- run_deseq2(dds, meta_data_comp, annotations, Comparisons, n, approach, prefix, results_path)
+#   deseq2_norm_counts(dds, annotations, approach, suffix) # batch corrected if you more than 1 batch
+#   plot_qc(dds, meta_data_comp, approach, suffix)
+#   
+#   # Perform DESeq2() using combat corrected read counts
+#   if (!identical(read_data, combat_corrected_read_data)){
+#     approach <- "combat_corrected"
+#     combat_dds <- DESeq2::DESeqDataSetFromMatrix(countData=combat_corrected_read_data,
+#                                                  colData=meta_data_comp, 
+#                                                  design=~ id)
+#     combat_dds <- run_deseq2(combat_dds, meta_data_comp, annotations, Comparisons, n, lfc.cutoff, padj.cutoff, suffix)
+#     combatseq_norm_counts(combat_dds, annotations, approach, suffix)  #combat batch corrected
+#     plot_qc(combat_dds, meta_data_comp, approach, suffix)
+#   }
+#   
+#   # Perform DESeq2() using sva modelled surrogate variables SV1 and SV2
+#   approach <- "sva_modelled"
+#   sva_dds <- run_deseq2(sva_dds, meta_data_comp, annotations, Comparisons, n, lfc.cutoff, padj.cutoff, approach, suffix)
+#   # calc_norm_counts(sva_dds, annotations, approach, suffix)   # uncorrected
+#   svaseq_norm_counts(sva_dds, annotations, approach, suffix)   # sva seq batch corrected
+#   plot_qc(sva_dds, meta_data_comp, approach, suffix)
+# }
+
+
+# # (i) To view counts of specific gene across samples
+# plotCounts(dds, gene=which.min(res$padj), intgroup=Variable)           # gene with lowest padj
+# plotCounts(dds, gene=which.min(res$log2FoldChange), intgroup=Variable) # gene with lowest log2FC
+# plotCounts(dds, gene=which.max(res$log2FoldChange), intgroup=Variable) # gene with highest log2FC
+# plotCounts(dds, gene="ENSMUSG00000030598", intgroup=Variable)          # a specific gene
+# 
+
+# # To identify the genes interactively, run the 2 lines below. 
+# # Then click on multiple dots and click Finish. A list of genes will be displayed 
+# # idx <- identify(res$baseMean, res$log2FoldChange)
+# # rownames(res)[idx]
+
+# # (iv) Hierarchical clustering of samples using rld or vst
+# rld_mat <- DESeq2::assay(rld)     # extract the matrix from a DESeq2 object
+# rld_cor <- cor(x=rld_mat,       # compute pairwise correlation values
+#                y=NULL,
+#                use="everything",
+#                method="pearson") 
+# 
+# # Check the output of cor(), make note of the rownames and colnames
+# head(rld_cor)
+# 
+# vst_mat <- assay(vst)  
+# vst_cor <- cor(vst_mat) 
+# 
+# # Check the output of cor(), make note of the rownames and colnames
+# head(vst_cor)    
+# 
+# for (process in c("rld", "vst")){
+#   
+#   pheatmap::pheatmap(mat=get(paste0(process, "_cor")),
+#                      color=colorRampPalette(rev(brewer.pal(n=11, name ="RdYlBu")))(100),
+#                      breaks=NA, 
+#                      border_color="white", #"grey60",
+#                      cellwidth=NA, 
+#                      cellheight=NA, 
+#                      scale="none",   
+#                      cluster_rows=TRUE,   #cluster the rows
+#                      cluster_cols=TRUE,   #cluster the columns
+#                      clustering_distance_rows="euclidean",
+#                      clustering_distance_cols="euclidean",
+#                      clustering_method="complete",
+#                      legend=TRUE, 
+#                      legend_breaks=NA,
+#                      legend_labels=NA, 
+#                      #annotation_row=,  
+#                      #annotation_col=, 
+#                      annotation_colors=dplyr::if_else(nrow(col_annotation)+nrow(row_annotation) > 0, ann_colors, NA),
+#                      annotation_legend=TRUE,
+#                      annotation_names_row=TRUE,
+#                      annotation_names_col=TRUE,
+#                      show_rownames=dplyr::if_else(nrow(mat)<80, TRUE, FALSE, missing=NULL), 
+#                      show_colnames=dplyr::if_else(ncol(mat)<30, TRUE, FALSE, missing=NULL),
+#                      fontsize=8, 
+#                      fontsize_row=8, 
+#                      fontsize_col=8,
+#                      angle_col=c("270", "0", "45", "90", "315"),
+#                      fontsize_number=0.8*fontsize, 
+#                      #labels_row=display_row,
+#                      #labels_col=display_col,
+#                      filename=paste0(diagnostics_path, "Diagnostic_Correlation_Heatmap_using_", process, "_", celltype, ".pdf"))
+# }
+# 
+# # (v) Checking if mean < variance (for NB model) or Mean=Variance (for Poisson model). 
+# # Each point is a gene denoted by (x,y) where 
+# # x=mean_count of gene across all samples & y=variance_count of gene across all samples
+# 
+# mean_counts <- apply(read_data[,], 1, mean)
+# variance_counts <- apply(read_data[,], 1, var)
+# df <- data.frame(mean_counts, variance_counts)
+# ggplot(df) +
+#   geom_point(aes(x=mean_counts, y=variance_counts)) +
+#   geom_line(aes(x=mean_counts, y=mean_counts, color="red")) +
+#   scale_y_log10() +
+#   scale_x_log10()
+# 
+# ggplot2::ggsave(filename=paste0("Diagnostic_Scatter_plot_", celltype, ".pdf"),
+#                 plot=last_plot(),
+#                 device="pdf",
+#                 path=diagnostics_path,
+#                 scale=1,
+#                 #width=8.5,
+#                 #height=11,
+#                 units=c("in"),
+#                 dpi=300,
+#                 limitsize=TRUE,
+#                 bg="white")
+# 
+# # # (vii) Plot p-value histogram
+# # hist(res$pvalue, col="lightblue", breaks=20)
+
+# # # (ix) Plot a histogram for one of the samples to see how the counts are distributed. Adjust xlim if needed
+# # ggplot(read_data, aes(x=results.S10_R1_trimmed.fastq.gz.csv)) +
+# #   geom_histogram(stat="bin", bins=200) +
+# #   xlim(-5,1000) +
+# #   xlab("Raw expression counts") +
+# #   ylab("Number of genes") +
+# #   scale_color_brewer(palette="Dark2")
+# # 
+# # # (x) Extract counts, size factors, etc.. from dds
+# # dds <- estimateSizeFactors(dds)         #redundant if you already ran dds <- DESeq(dds)
+# # counts <- counts(dds)                   #counts[i,j]=raw_count of gene i in sample j
+# # sizefactors <- sizeFactors(dds)         #sizefactors[j]=median (counts[,j]/geometric_mean(counts[i,]))
+# # colSums(counts(dds))                    #Total number of raw counts per sample
+# # colSums(counts(dds, normalized=TRUE))   #Total number of normalized counts per sample
+
+# ---- CODE TESTING ---- 
+# 
+# DEG.params  <- list(Variable    = c("Comparisons"),
+#                     Target      = c("ARCaPM.4Gy.NDRG1_mut"),
+#                     Reference   = c("ARCaPM.0Gy.NDRG1_mut"),
+#                     contrast    = c("ARCaPM.NDRG1_mut.4Gy-ARCaPM.NDRG1_mut.0Gy"),
+#                     lfc.cutoff  = 0,
+#                     padj.cutoff = 0.1,
+#                     design      = "Cell.Line*Treatment*Condition", #"Comparisons", #"0+Condition:Treatment"
+#                     design.ref  = c("Condition:WT", "Treatment:0Gy", "Comparisons:ARCaPM.0Gy.WT"),
+#                     deseq2.batch.correct = FALSE,
+#                     proj        = "RNASeq_Manish_22RV1_ARCaPM",
+#                     species     = "Homo sapiens")
+# 
+# meta_data <- meta_data %>% filter(Cell.Line != "22RV1")
+# n <- 1
+# 
+# 
+# dds.new <- run_deseq2(dds, meta_data, DEG.params, n, approach, data_dir)
+# design(dds) <- as.formula(~Comparisons)
+# dds.old <- run_deseq2_old(dds, meta_data, DEG.params, n, approach, data_dir)
+# 
+# 
+# # The following 3 approaches give identical results
+# 
+# # Method 1 => Similar way of defining contrasts like method2. Easy to compare 
+# # samples but difference of difference not possible
+# design <- "0+Condition:Treatment" 
+# dds.test <- dds
+# contrast1 <- c("Condition", "NDRG1_mut.Treatment4Gy", "NDRG1_mut.Treatment0Gy")
+# contrast2 <- c("Condition", "NDRG1_mut.Treatment4Gy", "WT.Treatment0Gy")
+# contrast3 <- c("Condition", "NDRG1_mut.Treatment4Gy", "WT.Treatment4Gy")
+# contrast4 <- c("Condition", "NDRG1_mut.Treatment0Gy", "WT.Treatment4Gy")
+# contrast5 <- c("Condition", "NDRG1_mut.Treatment0Gy", "WT.Treatment0Gy")
+# contrast6 <- c("Condition", "WT.Treatment4Gy", "WT.Treatment0Gy")
+# res1 <- DESeq2::results(dds, contrast = contrast1)
+# res2 <- DESeq2::results(dds, contrast = contrast2)
+# res3 <- DESeq2::results(dds, contrast = contrast3)
+# res4 <- DESeq2::results(dds, contrast = contrast4)
+# res5 <- DESeq2::results(dds, contrast = contrast5)
+# res6 <- DESeq2::results(dds, contrast = contrast6)
+# 
+# # Method 2= > combine COndition and Treatment to new column Comparisons. 
+# # Similar way of defining contrasts like method1. Easy to compare 
+# # samples but difference of difference not possible
+# design <- "Comparisons"
+# contrast1A <- c("Comparisons", "ARCaPM.4Gy.NDRG1_mut", "ARCaPM.0Gy.NDRG1_mut")
+# contrast2A <- c("Comparisons", "ARCaPM.4Gy.NDRG1_mut", "ARCaPM.0Gy.WT")
+# contrast3A <- c("Comparisons", "ARCaPM.4Gy.NDRG1_mut", "ARCaPM.4Gy.WT")
+# contrast4A <- c("Comparisons", "ARCaPM.0Gy.NDRG1_mut", "ARCaPM.4Gy.WT")
+# contrast5A <- c("Comparisons", "ARCaPM.0Gy.NDRG1_mut", "ARCaPM.0Gy.WT")
+# contrast6A <- c("Comparisons", "ARCaPM.4Gy.WT", "ARCaPM.0Gy.WT")
+# res1A <- DESeq2::results(dds, contrast = contrast1A)
+# res2A <- DESeq2::results(dds, contrast = contrast2A)
+# res3A <- DESeq2::results(dds, contrast = contrast3A)
+# res4A <- DESeq2::results(dds, contrast = contrast4A)
+# res5A <- DESeq2::results(dds, contrast = contrast5A)
+# res6A <- DESeq2::results(dds, contrast = contrast6A)
+# 
+# # Method 3 => conventional design, contrast needs to calculated for each sample
+# # difference of difference is easy
+# design <- "Condition+Treatment+Condition:Treatment"
+# dds.standard <- dds
+# mod_mat <- model.matrix(design(dds), colData(dds))
+# NDRG1_0Gy <- colMeans(mod_mat[dds$Condition == "NDRG1_mut" & dds$Treatment == "0Gy",])
+# NDRG1_4Gy <- colMeans(mod_mat[dds$Condition == "NDRG1_mut" & dds$Treatment == "4Gy",])
+# WT_0Gy <- colMeans(mod_mat[dds$Condition == "WT" & dds$Treatment == "0Gy",])
+# WT_4Gy <- colMeans(mod_mat[dds$Condition == "WT" & dds$Treatment == "4Gy",])
+# 
+# contrast1B <- NDRG1_4Gy - NDRG1_0Gy 
+# contrast2B <- NDRG1_4Gy - WT_0Gy
+# contrast3B <- NDRG1_4Gy - WT_4Gy
+# contrast4B <- NDRG1_0Gy - WT_4Gy 
+# contrast5B <- NDRG1_0Gy - WT_0Gy
+# contrast6B <- WT_4Gy - WT_0Gy
+# contrast7B <- (NDRG1_4Gy - NDRG1_0Gy) - (WT_4Gy - WT_0Gy)
+# contrast8B <- 
+#   
+#   res1B. <- DESeq2::results(dds, contrast = contrast1B)
+# res2B. <- DESeq2::results(dds, contrast = contrast2B)
+# res3B. <- DESeq2::results(dds, contrast = contrast3B)
+# res4B. <- DESeq2::results(dds, contrast = contrast4B)
+# res5B. <- DESeq2::results(dds, contrast = contrast5B)
+# res6B. <- DESeq2::results(dds, contrast = contrast6B)
+# res7B. <- DESeq2::results(dds, contrast = contrast7B)
+# 
+# 
+# # Check for differences in results
+# df1 <- data.frame(res1) %>% dplyr::mutate_all(~(round(.,2)))
+# df1A <- data.frame(res1A) %>% dplyr::mutate_all(~(round(.,2)))
+# df1B <- data.frame(res1B) %>% dplyr::mutate_all(~(round(.,2)))
+# 
+# df2 <- data.frame(res2) %>% dplyr::mutate_all(~(round(.,2)))
+# df2A <- data.frame(res2A) %>% dplyr::mutate_all(~(round(.,2)))
+# df2B <- data.frame(res2B) %>% dplyr::mutate_all(~(round(.,2)))
+# 
+# df3 <- data.frame(res3) %>% dplyr::mutate_all(~(round(.,2)))
+# df3A <- data.frame(res3A) %>% dplyr::mutate_all(~(round(.,2)))
+# df3B <- data.frame(res3B) %>% dplyr::mutate_all(~(round(.,2)))
+# 
+# df4 <- data.frame(res4) %>% dplyr::mutate_all(~(round(.,2)))
+# df4A <- data.frame(res4A) %>% dplyr::mutate_all(~(round(.,2)))
+# df4B <- data.frame(res4B) %>% dplyr::mutate_all(~(round(.,2)))
+# 
+# df5 <- data.frame(res5) %>% dplyr::mutate_all(~(round(.,2)))
+# df5A <- data.frame(res5A) %>% dplyr::mutate_all(~(round(.,2)))
+# df5B <- data.frame(res5B) %>% dplyr::mutate_all(~(round(.,2)))
+# 
+# df6 <- data.frame(res6) %>% dplyr::mutate_all(~(round(.,2)))
+# df6A <- data.frame(res6A) %>% dplyr::mutate_all(~(round(.,2)))
+# df6B <- data.frame(res6B) %>% dplyr::mutate_all(~(round(.,2)))
+# 
+# # Display only rows and columns that are different
+# dplyr::full_join(df1[rowSums(df1-df1A, na.rm=TRUE) !=0, ] %>%tibble::rownames_to_column("SYMBOL"), 
+#                  df1A[rowSums(df1-df1A, na.rm=TRUE) !=0, ] %>% tibble::rownames_to_column("SYMBOL"),
+#                  by=c("SYMBOL"="SYMBOL")) %>%
+#   dplyr::transmute(SYMBOL              = SYMBOL,
+#                    baseMean.diff       = baseMean.x-baseMean.y,
+#                    log2FoldChange.diff = log2FoldChange.x-log2FoldChange.y,
+#                    lfcSE.diff          = lfcSE.x-lfcSE.y,
+#                    stat.diff           = stat.x-stat.y,
+#                    pvalue.diff         = pvalue.x-pvalue.y,
+#                    padj.diff           = padj.x-padj.y)
+# 
+# dplyr::full_join(df2[rowSums(df2-df2A, na.rm=TRUE) !=0, ] %>%tibble::rownames_to_column("SYMBOL"), 
+#                  df2A[rowSums(df2-df2A, na.rm=TRUE) !=0, ] %>% tibble::rownames_to_column("SYMBOL"),
+#                  by=c("SYMBOL"="SYMBOL")) %>%
+#   dplyr::transmute(SYMBOL              = SYMBOL,
+#                    baseMean.diff       = baseMean.x-baseMean.y,
+#                    log2FoldChange.diff = log2FoldChange.x-log2FoldChange.y,
+#                    lfcSE.diff          = lfcSE.x-lfcSE.y,
+#                    stat.diff           = stat.x-stat.y,
+#                    pvalue.diff         = pvalue.x-pvalue.y,
+#                    padj.diff           = padj.x-padj.y)
+# 
+# dplyr::full_join(df3[rowSums(df3-df3A, na.rm=TRUE) !=0, ] %>%tibble::rownames_to_column("SYMBOL"), 
+#                  df3A[rowSums(df3-df3A, na.rm=TRUE) !=0, ] %>% tibble::rownames_to_column("SYMBOL"),
+#                  by=c("SYMBOL"="SYMBOL")) %>%
+#   dplyr::transmute(SYMBOL              = SYMBOL,
+#                    baseMean.diff       = baseMean.x-baseMean.y,
+#                    log2FoldChange.diff = log2FoldChange.x-log2FoldChange.y,
+#                    lfcSE.diff          = lfcSE.x-lfcSE.y,
+#                    stat.diff           = stat.x-stat.y,
+#                    pvalue.diff         = pvalue.x-pvalue.y,
+#                    padj.diff           = padj.x-padj.y)
+# 
+# dplyr::full_join(df4[rowSums(df4-df4A, na.rm=TRUE) !=0, ] %>%tibble::rownames_to_column("SYMBOL"), 
+#                  df4A[rowSums(df4-df4A, na.rm=TRUE) !=0, ] %>% tibble::rownames_to_column("SYMBOL"),
+#                  by=c("SYMBOL"="SYMBOL")) %>%
+#   dplyr::transmute(SYMBOL              = SYMBOL,
+#                    baseMean.diff       = baseMean.x-baseMean.y,
+#                    log2FoldChange.diff = log2FoldChange.x-log2FoldChange.y,
+#                    lfcSE.diff          = lfcSE.x-lfcSE.y,
+#                    stat.diff           = stat.x-stat.y,
+#                    pvalue.diff         = pvalue.x-pvalue.y,
+#                    padj.diff           = padj.x-padj.y)
+# 
+# dplyr::full_join(df5[rowSums(df5-df5A, na.rm=TRUE) !=0, ] %>%tibble::rownames_to_column("SYMBOL"), 
+#                  df5A[rowSums(df5-df5A, na.rm=TRUE) !=0, ] %>% tibble::rownames_to_column("SYMBOL"),
+#                  by=c("SYMBOL"="SYMBOL")) %>%
+#   dplyr::transmute(SYMBOL              = SYMBOL,
+#                    baseMean.diff       = baseMean.x-baseMean.y,
+#                    log2FoldChange.diff = log2FoldChange.x-log2FoldChange.y,
+#                    lfcSE.diff          = lfcSE.x-lfcSE.y,
+#                    stat.diff           = stat.x-stat.y,
+#                    pvalue.diff         = pvalue.x-pvalue.y,
+#                    padj.diff           = padj.x-padj.y)
+# 
+# dplyr::full_join(df6[rowSums(df6-df6A, na.rm=TRUE) !=0, ] %>%tibble::rownames_to_column("SYMBOL"), 
+#                  df6A[rowSums(df6-df6A, na.rm=TRUE) !=0, ] %>% tibble::rownames_to_column("SYMBOL"),
+#                  by=c("SYMBOL"="SYMBOL")) %>%
+#   dplyr::transmute(SYMBOL              = SYMBOL,
+#                    baseMean.diff       = baseMean.x-baseMean.y,
+#                    log2FoldChange.diff = log2FoldChange.x-log2FoldChange.y,
+#                    lfcSE.diff          = lfcSE.x-lfcSE.y,
+#                    stat.diff           = stat.x-stat.y,
+#                    pvalue.diff         = pvalue.x-pvalue.y,
+#                    padj.diff           = padj.x-padj.y)
+# 
+# dplyr::full_join(df1[rowSums(df1-df1B, na.rm=TRUE) !=0, ] %>%tibble::rownames_to_column("SYMBOL"), 
+#                  df1B[rowSums(df1-df1B, na.rm=TRUE) !=0, ] %>% tibble::rownames_to_column("SYMBOL"),
+#                  by=c("SYMBOL"="SYMBOL")) %>%
+#   dplyr::transmute(SYMBOL              = SYMBOL,
+#                    baseMean.diff       = baseMean.x-baseMean.y,
+#                    log2FoldChange.diff = log2FoldChange.x-log2FoldChange.y,
+#                    lfcSE.diff          = lfcSE.x-lfcSE.y,
+#                    stat.diff           = stat.x-stat.y,
+#                    pvalue.diff         = pvalue.x-pvalue.y,
+#                    padj.diff           = padj.x-padj.y)
+# 
+# dplyr::full_join(df2[rowSums(df2-df2B, na.rm=TRUE) !=0, ] %>%tibble::rownames_to_column("SYMBOL"), 
+#                  df2B[rowSums(df2-df2B, na.rm=TRUE) !=0, ] %>% tibble::rownames_to_column("SYMBOL"),
+#                  by=c("SYMBOL"="SYMBOL")) %>%
+#   dplyr::transmute(SYMBOL              = SYMBOL,
+#                    baseMean.diff       = baseMean.x-baseMean.y,
+#                    log2FoldChange.diff = log2FoldChange.x-log2FoldChange.y,
+#                    lfcSE.diff          = lfcSE.x-lfcSE.y,
+#                    stat.diff           = stat.x-stat.y,
+#                    pvalue.diff         = pvalue.x-pvalue.y,
+#                    padj.diff           = padj.x-padj.y)
+# 
+# dplyr::full_join(df3[rowSums(df3-df3B, na.rm=TRUE) !=0, ] %>%tibble::rownames_to_column("SYMBOL"), 
+#                  df3B[rowSums(df3-df3B, na.rm=TRUE) !=0, ] %>% tibble::rownames_to_column("SYMBOL"),
+#                  by=c("SYMBOL"="SYMBOL")) %>%
+#   dplyr::transmute(SYMBOL              = SYMBOL,
+#                    baseMean.diff       = baseMean.x-baseMean.y,
+#                    log2FoldChange.diff = log2FoldChange.x-log2FoldChange.y,
+#                    lfcSE.diff          = lfcSE.x-lfcSE.y,
+#                    stat.diff           = stat.x-stat.y,
+#                    pvalue.diff         = pvalue.x-pvalue.y,
+#                    padj.diff           = padj.x-padj.y)
+# 
+# dplyr::full_join(df4[rowSums(df4-df4B, na.rm=TRUE) !=0, ] %>%tibble::rownames_to_column("SYMBOL"), 
+#                  df4B[rowSums(df4-df4B, na.rm=TRUE) !=0, ] %>% tibble::rownames_to_column("SYMBOL"),
+#                  by=c("SYMBOL"="SYMBOL")) %>%
+#   dplyr::transmute(SYMBOL              = SYMBOL,
+#                    baseMean.diff       = baseMean.x-baseMean.y,
+#                    log2FoldChange.diff = log2FoldChange.x-log2FoldChange.y,
+#                    lfcSE.diff          = lfcSE.x-lfcSE.y,
+#                    stat.diff           = stat.x-stat.y,
+#                    pvalue.diff         = pvalue.x-pvalue.y,
+#                    padj.diff           = padj.x-padj.y)
+# 
+# dplyr::full_join(df5[rowSums(df5-df5B, na.rm=TRUE) !=0, ] %>%tibble::rownames_to_column("SYMBOL"), 
+#                  df5B[rowSums(df5-df5B, na.rm=TRUE) !=0, ] %>% tibble::rownames_to_column("SYMBOL"),
+#                  by=c("SYMBOL"="SYMBOL")) %>%
+#   dplyr::transmute(SYMBOL              = SYMBOL,
+#                    baseMean.diff       = baseMean.x-baseMean.y,
+#                    log2FoldChange.diff = log2FoldChange.x-log2FoldChange.y,
+#                    lfcSE.diff          = lfcSE.x-lfcSE.y,
+#                    stat.diff           = stat.x-stat.y,
+#                    pvalue.diff         = pvalue.x-pvalue.y,
+#                    padj.diff           = padj.x-padj.y)
+# 
+# dplyr::full_join(df6[rowSums(df6-df6B, na.rm=TRUE) !=0, ] %>%tibble::rownames_to_column("SYMBOL"), 
+#                  df6B[rowSums(df6-df6B, na.rm=TRUE) !=0, ] %>% tibble::rownames_to_column("SYMBOL"),
+#                  by=c("SYMBOL"="SYMBOL")) %>%
+#   dplyr::transmute(SYMBOL              = SYMBOL,
+#                    baseMean.diff       = baseMean.x-baseMean.y,
+#                    log2FoldChange.diff = log2FoldChange.x-log2FoldChange.y,
+#                    lfcSE.diff          = lfcSE.x-lfcSE.y,
+#                    stat.diff           = stat.x-stat.y,
+#                    pvalue.diff         = pvalue.x-pvalue.y,
+#                    padj.diff           = padj.x-padj.y)
+# 
+# 
+# 
+# res1 <- DESeq2::lfcShrink(dds=dds.test, res=res1, type="ashr")
+# res1B <- DESeq2::lfcShrink(dds=dds.standard, res=res1B, type="ashr")
+# res2 <- DESeq2::lfcShrink(dds=dds.test, res=res2, type="ashr")
+# res2B <- DESeq2::lfcShrink(dds=dds.standard, res=res2B, type="ashr")
+# res3 <- DESeq2::lfcShrink(dds=dds.test, res=res3, type="ashr")
+# res3B <- DESeq2::lfcShrink(dds=dds.standard, res=res3B, type="ashr")
+# res4 <- DESeq2::lfcShrink(dds=dds.test, res=res4, type="ashr")
+# res4B <- DESeq2::lfcShrink(dds=dds.standard, res=res4B, type="ashr")
+# res5 <- DESeq2::lfcShrink(dds=dds.test, res=res5, type="ashr")
+# res5B <- DESeq2::lfcShrink(dds=dds.standard, res=res5B, type="ashr")
+# res6 <- DESeq2::lfcShrink(dds=dds.test, res=res6, type="ashr")
+# res6B <- DESeq2::lfcShrink(dds=dds.standard, res=res6B, type="ashr")
+# res7B <- DESeq2::lfcShrink(dds=dds.standard, res=res7B, type="ashr")
+# 
+# 
+# summary(res1)
+# summary(res1B)
+# summary(res1B.)
+# summary(res2)
+# summary(res2B)
+# summary(res2B.)
+# summary(res3)
+# summary(res3B)
+# summary(res3B.)
+# summary(res4)
+# summary(res4B)
+# summary(res4B.)
+# summary(res5)
+# summary(res5B)
+# summary(res5B.)
+# summary(res6)
+# summary(res6B)
+# summary(res6B.)
+# summary(res7B)
+# summary(res7B.)
+# res1B. <- DESeq2::lfcShrink(dds=dds, res=res1B., type="ashr")
+# res2B. <- DESeq2::lfcShrink(dds=dds, res=res2B., type="ashr")
+# res3B. <- DESeq2::lfcShrink(dds=dds, res=res3B., type="ashr")
+# res4B. <- DESeq2::lfcShrink(dds=dds, res=res4B., type="ashr")
+# res5B. <- DESeq2::lfcShrink(dds=dds, res=res5B., type="ashr")
+# res6B. <- DESeq2::lfcShrink(dds=dds, res=res6B., type="ashr")
+# res7B. <- DESeq2::lfcShrink(dds=dds, res=res7B., type="ashr")
+# 
+# setdiff(rownames(data.frame(res1B) %>% filter(log2FoldChange > 0.58, padj < 0.1)),
+#         rownames(data.frame(res1B.) %>% filter(log2FoldChange > 0.58, padj < 0.1))) 
+# 
+# setdiff(rownames(data.frame(res1B) %>% filter(log2FoldChange < -0.58, padj < 0.1)),
+#         rownames(data.frame(res1B.) %>% filter(log2FoldChange < -0.58, padj < 0.1)))
+# 
+# setdiff(rownames(data.frame(res2B) %>% filter(log2FoldChange > 0.58, padj < 0.1)),
+#         rownames(data.frame(res2B.) %>% filter(log2FoldChange > 0.58, padj < 0.1))) 
+# 
+# setdiff(rownames(data.frame(res2B) %>% filter(log2FoldChange < -0.58, padj < 0.1)),
+#         rownames(data.frame(res2B.) %>% filter(log2FoldChange < -0.58, padj < 0.1))) 
+# 
+# 
+# setdiff(rownames(data.frame(res3B) %>% filter(log2FoldChange > 0.58, padj < 0.1)),
+#         rownames(data.frame(res3B.) %>% filter(log2FoldChange > 0.58, padj < 0.1))) 
+# 
+# setdiff(rownames(data.frame(res3B) %>% filter(log2FoldChange < -0.58, padj < 0.1)),
+#         rownames(data.frame(res3B.) %>% filter(log2FoldChange < -0.58, padj < 0.1))) 
+# 
+# 
+# setdiff(rownames(data.frame(res4B) %>% filter(log2FoldChange > 0.58, padj < 0.1)),
+#         rownames(data.frame(res4B.) %>% filter(log2FoldChange > 0.58, padj < 0.1))) 
+# 
+# setdiff(rownames(data.frame(res4B) %>% filter(log2FoldChange < -0.58, padj < 0.1)),
+#         rownames(data.frame(res4B.) %>% filter(log2FoldChange < -0.58, padj < 0.1))) 
+# 
+# setdiff(rownames(data.frame(res5B) %>% filter(log2FoldChange > 0.58, padj < 0.1)),
+#         rownames(data.frame(res5B.) %>% filter(log2FoldChange > 0.58, padj < 0.1))) 
+# 
+# setdiff(rownames(data.frame(res5B) %>% filter(log2FoldChange < -0.58, padj < 0.1)),
+#         rownames(data.frame(res5B.) %>% filter(log2FoldChange < -0.58, padj < 0.1))) 
+# 
+# 
+# setdiff(rownames(data.frame(res6B) %>% filter(log2FoldChange > 0.58, padj < 0.1)),
+#         rownames(data.frame(res6B.) %>% filter(log2FoldChange > 0.58, padj < 0.1))) 
+# 
+# setdiff(rownames(data.frame(res6B) %>% filter(log2FoldChange < -0.58, padj < 0.1)),
+#         rownames(data.frame(res6B.) %>% filter(log2FoldChange < -0.58, padj < 0.1))) 
+# 
+# setdiff(rownames(data.frame(res7B) %>% filter(log2FoldChange > 0.58, padj < 0.1)),
+#         rownames(data.frame(res7B.) %>% filter(log2FoldChange > 0.58, padj < 0.1))) 
+# 
+# setdiff(rownames(data.frame(res7B) %>% filter(log2FoldChange < -0.58, padj < 0.1)),
+#         rownames(data.frame(res7B.) %>% filter(log2FoldChange < -0.58, padj < 0.1)))

@@ -20,16 +20,16 @@ df <- df %>% dplyr::mutate(OS = dplyr::case_when(!is.na(DateDeath) ~ DateDeath -
                            DPS = dplyr::case_when(!is.na(DateDeath) ~ DateDeath - DateSurgery,
                                                   !is.na(DateLastFollowUp) ~ DateLastFollowUp - DateSurgery,
                                                   TRUE ~ NA)) %>%
-  dplyr::select(SlideName, DateName, SurgicalAccession, PatientID, SlideID, 
+  dplyr::select(SlideName, DateName, SurgicalAccession, SampleID, PatientID, SlideID, 
                 AnonymID, DateBirth, DateDeath, DateLastFollowUp, DateDiagnosis,
                 DateSurgery, Status, OS, DPS, AgeDiagnosis, StageDiagnosis, 
                 everything())
 
 
-wb <- createWorkbook()
-addWorksheet(wb, "Metadata")
-writeData(wb, sheet = "Metadata", df)
-saveWorkbook(wb, file.path(proj.dir, "Metadata.xlsx"), overwrite = TRUE)
+# wb <- createWorkbook()
+# addWorksheet(wb, "Metadata")
+# writeData(wb, sheet = "Metadata", df)
+# saveWorkbook(wb, file.path(proj.dir, "Metadata.xlsx"), overwrite = TRUE)
 
 
 # ---- Correlation ---- 
@@ -132,76 +132,71 @@ results %>% filter(padj <= 0.05)
 
 # ---- Survival ----
 
-test_variables <- c("SlideName", "AnonymID", "OS", "Status")
-
+# remove lung samples, OS/DPS <= 30 days
 meta_data <- df %>% 
-  dplyr::select(all_of(test_variables), -SlideID) %>%
-  dplyr::mutate(Sample_ID = as.character(AnonymID), Time = as.numeric(OS)/30.44) %>%
-  dplyr::filter(!is.na(Time), !is.na(Status), !is.na(SlideName))
+  dplyr::mutate(Sample_ID = as.character(PatientID), 
+                OS_Time = as.numeric(OS)/30.44, DPS_Time = as.numeric(DPS)/30.44) %>%
+  dplyr::filter(!is.na(Status), !is.na(SlideName), SourceSite == "Liver", (OS > 30 | DPS > 30)) %>%
+  distinct(Sample_ID, .keep_all = TRUE)
 
-expr <- openxlsx::read.xlsx(file.path(proj.dir, "cell_norm_expression.xlsx"))
-marker_cols <- colnames(expr)[13:ncol(expr)]
-
-expr_metapheno <- expr %>% 
+# Keep only samples retained in meta_data  
+expr <- openxlsx::read.xlsx(file.path(proj.dir, "cell_norm_expression.xlsx")) %>%
   tidyr::separate(col = txt, 
                   into = c("DateName", "AnonymID", "SlideID", "ROI"), 
                   sep = "_", 
-                  extra = "merge") %>%
-  dplyr::group_by(AnonymID, metapheno) %>%
+                  extra = "merge")
+
+expr <- expr %>%
+  dplyr::filter(AnonymID %in% meta_data$AnonymID) %>%
+  dplyr::left_join(meta_data %>% dplyr::select(AnonymID, PatientID) %>% dplyr::mutate(AnonymID = as.character(AnonymID)), 
+                   by=c("AnonymID"="AnonymID"))
+
+marker_cols <- colnames(expr)[16:57]
+
+# Merge counts for retained patients
+expr_metapheno <- expr %>% 
+  dplyr::group_by(PatientID, metapheno) %>%
   dplyr::summarise(across(all_of(marker_cols), mean, na.rm = TRUE),.groups = "drop")
 metapheno_groups <- unique(expr_metapheno$metapheno)
 
+# Merge counts for retained patients
 expr_pheno <- expr %>% 
-  tidyr::separate(col = txt, 
-                  into = c("DateName", "AnonymID", "SlideID", "ROI"), 
-                  sep = "_", 
-                  extra = "merge") %>%
-  dplyr::group_by(AnonymID, pheno) %>%
+  dplyr::group_by(PatientID, pheno) %>%
   dplyr::summarise(across(all_of(marker_cols), mean, na.rm = TRUE),.groups = "drop")
 pheno_groups <- unique(expr_pheno$pheno)
 
+# Merge counts for retained patients
 expr_custom <- expr %>% 
-  tidyr::separate(col = txt, 
-                  into = c("DateName", "AnonymID", "SlideID", "ROI"), 
-                  sep = "_", 
-                  extra = "merge") %>%
   dplyr::filter(pheno %in% c("T helper", "T cytotoxic")) %>%
-  dplyr::group_by(AnonymID) %>%
+  dplyr::group_by(PatientID) %>%
   dplyr::summarise(across(all_of(marker_cols), mean, na.rm = TRUE),.groups = "drop") %>%
   dplyr::mutate(pheno = "Tcell")
 custom_groups <- unique(expr_custom$pheno)
   
-# for (group in metapheno_groups)  {
-# 
-#   expr_data <- expr_metapheno %>%
-#     dplyr::filter(metapheno == group) %>%
-#     dplyr::select(-metapheno) %>%
-#     tibble::column_to_rownames("AnonymID") %>%
-#     t()
+# Prepare a list of datasets with their grouping column and output folder prefix
+grouped_data <- list(
+  list(data = expr_metapheno, group_col = "metapheno", output_dir = "metapheno"),
+  list(data = expr_pheno,     group_col = "pheno",     output_dir = "pheno"),
+  list(data = expr_custom,    group_col = "pheno",     output_dir = "custom")
+)
 
-# for (group in pheno_groups)  { 
-#   
-#   expr_data <- expr_pheno %>%
-#     dplyr::filter(pheno == group) %>%
-#     dplyr::select(-pheno) %>%
-#     tibble::column_to_rownames("AnonymID") %>%
-#     t()
-
-for (group in custom_groups)  {
-
-  expr_data <- expr_custom %>%
-    dplyr::filter(pheno == group) %>%
-    dplyr::select(-pheno) %>%
-    tibble::column_to_rownames("AnonymID") %>%
-    t()
+for (item in grouped_data) {
+  # Extract components
+  df <- item$data
+  group_col <- item$group_col
+  output_dir <- item$output_dir
   
-  log_norm_counts <- log(1+expr_data, base=2)
+  # Get unique groups for this dataset
+  groups <- unique(df[[group_col]])
   
-  t <- base::apply(X=log_norm_counts, MARGIN=1, FUN=median, na.rm=TRUE)
-  median_counts <- base::sweep(x=log_norm_counts, MARGIN=1, FUN="-", STATS=t)
-  
-  survival_params <- list(
+  for (group in groups) {
+    expr_data <- df %>%
+      dplyr::filter(!!rlang::sym(group_col) == group) %>%
+      dplyr::select(-!!rlang::sym(group_col)) %>%
+      tibble::column_to_rownames("PatientID") %>%
+      t()
     
+    survival_params <- list(
     # ---- Stratification (Expression + Metadata-based survival) ----
     stratify_var     = marker_cols,          # one or more genes or metadata columns
     sig_score        = FALSE,          # TRUE = combine genes into one signature score
@@ -209,7 +204,7 @@ for (group in custom_groups)  {
     facet_var        = NULL,          # optional faceting variable
     
     # ---- Cutoff settings (ONLY for Expression-based survival) ----
-    cutoff_method    = "thirds",      # median, quartile, tertile, optimal, thirds
+    cutoff_method    = "optimal",      # median, quartile, tertile, optimal, thirds
     show_all_bins    = FALSE,          # TRUE = plot all bins (LOW, HIGH, MID/MED_HIGH/MED_LOW)
     multiple_cutoff  = FALSE,          # TRUE = compute cutoffs separately for substratify_var
     
@@ -220,16 +215,49 @@ for (group in custom_groups)  {
     color_palette    = custom_palette, # vector of colors for groups c("#d73027","#0c2c84")
     
     # ---- Survival data columns ----
-    time_col         = "Time",         # metadata column containing Time values
+    time_col         = "OS_Time", #"DPS_Time",        # metadata column containing Time values
     status_col       = "Status",       # metadata column containing Status values
     
     # ---- Output ----
     prefix           = "",
-    output_path      = file.path("C:/Users/kailasamms/OneDrive - Cedars-Sinai Health System/Desktop/custom", group)
-    #output_path     = file.path("C:/Users/kailasamms/OneDrive - Cedars-Sinai Health System/Desktop/metapheno1", group)
-    #output_path     = file.path("C:/Users/kailasamms/OneDrive - Cedars-Sinai Health System/Desktop/pheno1", group)
-  )
-  survival_analysis(meta_data, expr_data, survival_params)
-  #survival_analysis(meta_data, log_norm_counts, survival_params)
-  #survival_analysis(meta_data, median_counts, survival_params)
+    output_path      = file.path("C:/Users/kailasamms/OneDrive - Cedars-Sinai Health System/Desktop", output_dir, group)
+    )
+    
+    survival_analysis(meta_data, expr_data, survival_params)
+  }
 }
+
+# Read all excel file and combine the results
+base_dir <- "C:/Users/kailasamms/OneDrive - Cedars-Sinai Health System/Desktop/OS"
+categories <- c("metapheno", "pheno", "custom")
+
+merged_data <- map_dfr(categories, function(cat) {
+  cat_path <- file.path(base_dir, cat)
+  
+  # Get all subdirectories inside this category
+  subdirs <- list.dirs(cat_path, recursive = FALSE, full.names = TRUE)
+  
+  # For each subdir, read the one Excel file, add source column
+  map_dfr(subdirs, function(subdir) {
+    excel_file <- list.files(subdir, pattern = "\\.xlsx?$", full.names = TRUE)[1]
+    
+    if (is.na(excel_file)) return(NULL)
+    
+    df <- openxlsx::read.xlsx(excel_file)
+    
+    # Add source column like "metapheno_tcell"
+    source_name <- paste0(cat, "_", basename(subdir))
+    df$source <- source_name
+    
+    return(df)
+  })
+})
+
+# Save merged data
+output_file <- file.path(base_dir, "merged_all.xlsx")
+openxlsx::write.xlsx(merged_data, output_file)
+
+message("Merged data saved at: ", output_file)
+
+
+

@@ -27,203 +27,78 @@ chooseCRANmirror(ind=1)
 #                          INSTALL NECESSARY PACKAGES                          #
 #******************************************************************************#
 
-### Non-CRAN repository managing packages
+### 1. Non-CRAN Repository Managers (CRAN)
+# Installs BiocManager and remotes (needed for Bioconductor and GitHub packages)
 install.packages(pkgs = c("BiocManager", "remotes"),
-                 repos ='http://cran.us.r-project.org',
+                 repos = 'http://cran.us.r-project.org',
                  force = FALSE,
                  INSTALL_opts = '--no-lock')
 
-# ------------------------------
-# Data Analysis Packages
-# ------------------------------
+# Load httr library to set up proxy configuration before GitHub installs
+library("httr")
 
-## Gene Annotation
-library(AnnotationHub)        # Access annotation resources
-library(ensembldb)            # Gene model annotation
-library(org.Hs.eg.db)         # Human gene database
-library(org.Mm.eg.db)         # Mouse gene database
+# NOTE: The proxy settings below (8.8.8.8:8080) are placeholders. 
+# You may need to remove this line or replace it with your organization's specific proxy.
+# httr::set_config(use_proxy("8.8.8.8", port = 8080))
 
-## Microarray Analysis
-library(affy)                 # Affymetrix array processing
-library(illuminaHumanv4.db)   # Illumina array annotation
-library(lumi)                 # Illumina expression analysis
-library(limma)                # Linear modeling for arrays
 
-## RNA-seq & Differential Expression
-library(DESeq2)               # RNA-seq differential expression
-library(sva)                  # Batch effect correction
-
-## Gene Set Enrichment & Pathway Analysis
-library(fgsea)                # Fast GSEA
-library(clusterProfiler)      # Enrichment analysis tools
-library(enrichplot)           # Enrichment result visualization
-library(progeny)              # Pathway activity estimation
-library(dorothea)             # TF-target interaction network
-library(viper)                # TF activity inference
-
-# ------------------------------
-# Data Wrangling Packages
-# ------------------------------
-
-## Core Data Manipulation
-library(dplyr)                # Data manipulation grammar
-library(tibble)               # Tidy data frames
-library(purrr)                # Functional programming tools
-library(stringr)              # String manipulation
-
-## Excel File Handling
-library(openxlsx)             # Read/write Excel files
-
-# ------------------------------
-# Basic Plotting Packages
-# ------------------------------
-
-## Core Plotting Tools
-library(ggplot2)              # Grammar of graphics
-library(ggpubr)               # Publication-ready plots
-library(cowplot)              # Combine multiple plots
-
-## Labeling & Positioning
-library(ggrepel)              # Smart label placement
-library(ggbeeswarm)           # Bee swarm plots
-
-## Color Palettes & Aesthetics
-library(RColorBrewer)         # Color palettes
-library(viridis)              # Colorblind-friendly scales
-library(colorspace)           # Color manipulation tools
-
-# ------------------------------
-# Specialized Plotting Packages
-# ------------------------------
-
-## Heatmaps & Ridge Plots
-library(pheatmap)             # Pretty heatmaps
-library(ggridges)             # Ridge (joy) plots
-
-## Dimensional & 3D Plots
-library(plot3D)               # 3D plotting
-
-## Set Visualization
-library(VennDiagram)          # Venn diagrams
-library(UpSetR)               # UpSet intersection plots
-
-## Survival Analysis
-library(survival)             # Survival modeling
-library(survminer)            # Survival plot enhancements
-
-## Single-Cell Customization
-library(scCustomize)          # Customize Seurat plots
-
-# ------------------------------
-# Single-Cell Analysis Packages
-# ------------------------------
-
-## Core Seurat Ecosystem
-library(Seurat)               # Single-cell analysis toolkit
-library(SeuratData)           # Load Seurat datasets
-library(SeuratDisk)           # HDF5 (.h5ad) conversion
-library(SeuratWrappers)       # Extra Seurat functions
-library(patchwork)            # Arrange ggplots easily
-
-## Dimensionality Reduction & Integration
-library(harmony)              # Batch correction integration
-library(umap)                 # UMAP dimension reduction
-
-## Cluster & Cell Type Analysis
-library(Banksy)               # Label transfer and mapping
-library(UCell)                # Signature scoring method
-library(ClusterFoldSimilarity)# Cluster similarity across datasets
-
-## Quality Control
-library(DropletUtils)         # Empty droplet detection
-library(DoubletFinder)        # Detect doublets in Seurat
-library(scDblFinder)          # Another doublet detection method
-
-## Cell-Cell Communication
-library(CellChat)             # Infer cell-cell signaling
-
-## Utilities
-library(xpectr)               # Suppress warnings and messages
-
-## GeoMx
-library(NanoStringNCTools)
-library(GeomxTools)
-library(GeoMxWorkflows)
-
-# ------------------------------
-# Commented/Optional Libraries
-# ------------------------------
-
-# library(ChIPQC)           # ChIP-seq quality control
-# library(pathview)         # Pathway visualization tool
-# library(hrbrthemes)       # Modern ggplot themes
-# library(infercnv)         # CNV from single-cell RNA
-
-# library(SCopeLoomR)       # Read .loom format files
-# library(SCENIC)           # SC regulon analysis
-# library(Augur)            # Cell-type prioritization
-# library(ktplots)          # CellPhoneDB visualizations
-
-### GeoMx packages
-BiocManager::install(pkgs = c("NanoStringNCTools", "GeomxTools", 
-                              "GeoMxWorkflows"),
-                     force = FALSE,
-                     INSTALL_opts = '--no-lock')
-
-### Annotation packages
+### 2. Annotation Packages (Bioconductor)
 BiocManager::install(pkgs = c("AnnotationHub", "ensembldb", 
                               "org.Hs.eg.db", "org.Mm.eg.db"),
                      force = FALSE,
                      INSTALL_opts = '--no-lock')
 
-### Functional data analysis packages
+
+### 3. Functional Data Analysis Packages (Bioconductor)
 BiocManager::install(pkgs = c("fgsea", "clusterProfiler", "decoupleR", 
-                              "progeny", "dorothea", 
-                              "viper", "DESeq2", "sva", "GSVA", "glmGamPoi", 
+                              "DESeq2", "sva", "GSVA", "glmGamPoi", 
                               "ashr", "OmnipathR"),
                      force = FALSE,
                      INSTALL_opts = '--no-lock')
 
-### Single cell data analysis packages
-Sys.setenv("ARROW_R_DEV"=TRUE, "LIBARROW_BINARY"=FALSE,
-           "ARROW_WITH_ZSTD"="ON", "ARROW_DEPENDENCY_SOURCE"="BUNDLED")
-install.packages(pkgs = c("Seurat", "harmony", "hdf5r", "arrow", "leidenAlg",
-                          "scCustomize", "reticulate"),
-                 repos ='http://cran.us.r-project.org',
+
+### 4. Single-Cell Data Analysis Packages (CRAN)
+install.packages(pkgs = c("Seurat", "harmony", "hdf5r", "clustree"),
+                 repos = 'http://cran.us.r-project.org',
                  force = FALSE,
                  INSTALL_opts = '--no-lock')
 
+
+### 5. Single-Cell Data Analysis Packages (Bioconductor)
 BiocManager::install(pkgs = c("infercnv", "UCell", "scDblFinder", "RcisTarget",
-                              "DropletUtils", "batchelor", "ClusterFoldSimilarity"),
+                              "DropletUtils"),
                      force = FALSE,
                      INSTALL_opts = '--no-lock')
 
-# Sometimes connection is timed out when connecting to GitHub. So, use a proxy.
-library("httr")
-httr::set_config(use_proxy("8.8.8.8", port = 8080))
-remotes::install_github(repo = c("mojaveazure/seurat-disk",,
+
+### 6. Single-Cell Data Analysis Packages (GitHub via remotes)
+remotes::install_github(repo = c("mojaveazure/seurat-disk",
                                  "jinworks/CellChat", 
-                                 "prabhakarlab/Banksy@devel", 
-                                 "satijalab/seurat-wrappers", # needed for Banksy
-                                 "immunogenomics/presto",     # needed for faster FindMarkers()
+                                 "satijalab/seurat-wrappers", 
+                                 "immunogenomics/presto", 
                                  "chris-mcginnis-ucsf/DoubletFinder",
                                  "satijalab/seurat-data"),
                         force = FALSE,
                         INSTALL_opts = '--no-lock')
 
-### Microarray data analysis packages
+
+### 7. Microarray & GeoMx Analysis Packages (Bioconductor)
 BiocManager::install(pkgs = c("oligo", "oligoData", "illuminaHumanv4.db",
-                              "hgu133plus2.db", "GEOquery", "affy", "lumi"),
+                              "hgu133plus2.db", "GEOquery", "affy", "lumi",
+                              "NanoStringNCTools", "GeomxTools", 
+                              "GeoMxWorkflows"),
                      force = FALSE,
                      INSTALL_opts = '--no-lock')
 
-### Data wrangling packages
+
+### 8. Data Wrangling Packages (CRAN)
 install.packages(pkgs = c("openxlsx", "dplyr", "tibble", "stringr", "purrr"),
-                 repos ='http://cran.us.r-project.org',
+                 repos = 'http://cran.us.r-project.org',
                  force = FALSE,
                  INSTALL_opts = '--no-lock')
 
-### Basic and Specialized Graph plotting packages
+
+### 9. Visualization & Plotting Packages (CRAN)
 install.packages(pkgs = c("ggplot2", "ggplotify", "ggrepel", "ggpubr", 
                           "ggfortify", "ggridges", "ggbeeswarm", "pheatmap", 
                           "VennDiagram", "survival", "survminer", "UpSetR", 
@@ -233,6 +108,8 @@ install.packages(pkgs = c("ggplot2", "ggplotify", "ggrepel", "ggpubr",
                  force = FALSE,
                  INSTALL_opts = '--no-lock')
 
+
+### 10. Visualization Packages (Bioconductor)
 BiocManager::install(pkgs = c("enrichplot", "ComplexHeatmap"),
                      force = FALSE,
                      INSTALL_opts = '--no-lock')
@@ -245,57 +122,101 @@ utils::old.packages(lib.loc = .libPaths(),
 utils::update.packages(lib.loc = .libPaths(),
                     repos = 'http://cran.us.r-project.org')
 
-# List packages that couldn't be installed
+# List all packages
 all_pkgs <- c(
-  # Non-CRAN utilities
-  "BiocManager", "remotes",
+  # === 1. Core Repository Managers (CRAN) ===
+  "BiocManager", # For installing Bioconductor packages
+  "remotes",     # For installing GitHub packages
+  "httr",        # For handling proxy/http settings
   
-  # Gene annotation
-  "AnnotationHub", "ensembldb", "org.Hs.eg.db", "org.Mm.eg.db",
+  # === 2. Annotation and Database Packages (Bioconductor) ===
+  "AnnotationHub",
+  "ensembldb",
+  "org.Hs.eg.db", # Human annotation
+  "org.Mm.eg.db", # Mouse annotation
   
-  # Microarray analysis
-  "affy", "illuminaHumanv4.db", "lumi", "limma",
-  "oligo", "oligoData", "hgu133plus2.db", "GEOquery",
+  # === 3. Functional & Bulk Data Analysis (Bioconductor) ===
+  "fgsea",
+  "clusterProfiler",
+  "decoupleR",
+  "DESeq2",
+  "sva",
+  "GSVA",
+  "glmGamPoi",
+  "ashr",
+  "OmnipathR",
   
-  # RNA-seq & Differential Expression
-  "DESeq2", "sva",
+  # === 4. Single-Cell Data Analysis (CRAN/Bioconductor/GitHub) ===
+  # -- CRAN --
+  "Seurat",
+  "harmony",
+  "hdf5r",
+  "clustree",
+  # -- Bioconductor --
+  "infercnv",
+  "UCell",
+  "scDblFinder",
+  "RcisTarget",
+  "DropletUtils",
+  # -- GitHub Repositories (install via remotes) --
+  "SeuratDisk",
+  "CellChat",
+  "SeuratWrappers",
+  "presto",
+  "DoubletFinder",
+  "SeuratData",
   
-  # Gene set enrichment & pathway
-  "fgsea", "clusterProfiler", "enrichplot", "progeny", "dorothea", "viper",
-  "decoupleR", "GSVA", "glmGamPoi", "ashr", "OmnipathR",
+  # === 5. Microarray & Spatial (GeoMx) Analysis (Bioconductor) ===
+  "oligo",
+  "oligoData",
+  "illuminaHumanv4.db",
+  "hgu133plus2.db",
+  "GEOquery",
+  "affy",
+  "lumi",
+  "NanoStringNCTools",
+  "GeomxTools",
+  "GeoMxWorkflows",
   
-  # Data wrangling
-  "dplyr", "tibble", "purrr", "stringr", "openxlsx",
+  # === 6. Data Wrangling & Manipulation (CRAN) ===
+  "openxlsx",
+  "dplyr",
+  "tibble",
+  "stringr",
+  "purrr",
   
-  # Basic plotting
-  "ggplot2", "ggpubr", "cowplot", "ggrepel", "ggbeeswarm",
-  "RColorBrewer", "viridis", "colorspace", "ggplotify", "ggfortify",
-  
-  # Specialized plotting
-  "pheatmap", "ggridges", "plot3D", "VennDiagram", "UpSetR",
-  "survival", "survminer", "scCustomize", "ComplexHeatmap",
-  
-  # Single-cell core
-  "Seurat", "SeuratData", "SeuratDisk", "SeuratWrappers", "patchwork",
-  "harmony", "umap", "Banksy", "UCell", "ClusterFoldSimilarity",
-  "DropletUtils", "DoubletFinder", "scDblFinder", "CellChat", "xpectr",
-  "infercnv", "batchelor", "RcisTarget",
-  
-  # GeoMx
-  "NanoStringNCTools", "GeomxTools", "GeoMxWorkflows",
-  
-  # GitHub / optional dependencies
-  "hdf5r", "arrow", "leidenAlg", "reticulate", "presto"
+  # === 7. Visualization & Plotting (CRAN/Bioconductor) ===
+  # -- CRAN --
+  "ggplot2",
+  "ggplotify",
+  "ggrepel",
+  "ggpubr",
+  "ggfortify",
+  "ggridges",
+  "ggbeeswarm",
+  "pheatmap",
+  "VennDiagram",
+  "survival",
+  "survminer",
+  "UpSetR",
+  "umap",
+  "plot3D",
+  "cowplot",
+  "viridis",
+  "RColorBrewer",
+  "colorspace",
+  # -- Bioconductor --
+  "enrichplot",
+  "ComplexHeatmap"
 )
-         
+
 # Display packages that couldn't be installed
-cat("These pacakges have NOT yet been installed:", sort(pkgs[!(pkgs %in% installed.packages()[,1])]), sep="\n")
+cat("These pacakges have NOT yet been installed:", sort(all_pkgs[!(all_pkgs %in% installed.packages()[,1])]), sep="\n")
 
 
 #BiocManager::install(pkgs = c("BiocNeighbors", ),
 # "aertslab/SCENIC",
 # "aertslab/SCopeLoomR",
 # "neurorestore/Augur"
-# "ChIPQC",  "metap", "SeuratDisk", "DoubletFinder", "Augur", ,
-# "SCENIC", "SCopeLoomR", "ktplots", , "wordcloud",, 
-# "pathview", "reticulate", "ashr", "multtest",  
+# "ChIPQC",  "metap", "ktplots", , "wordcloud",, 
+# "pathview", "multtest",  

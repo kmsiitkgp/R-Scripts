@@ -123,13 +123,13 @@
 # meta_data <- openxlsx::read.xlsx(xlsxFile = paste0(parent_path, "Metadata.xlsx")) %>% 
 #   dplyr::left_join(m_myhtree,by=c("ModelID"="ModelID")) %>%
 #   dplyr::filter(!is.na(Condition)) %>%
-  dplyr::distinct(pick(ModelID), .keep_all = TRUE)
+dplyr::distinct(pick(ModelID), .keep_all = TRUE)
 
 
 #******************************************************************************#
 
 source("C:/Users/kailasamms/OneDrive - Cedars-Sinai Health System/Documents/GitHub/R-Scripts/RNASeq_DESeq2_Functions.R")
-  
+
 # parent directory : directory where input files, results, etc are stored
 parent_path <- "C:/Users/kailasamms/OneDrive - Cedars-Sinai Health System/Desktop/Collaboration projects data/Prince/"
 results_path <- parent_path
@@ -347,7 +347,7 @@ suffix_up <- "up"
 suffix_down <- "down"
 plot_venn(data_up, parent_path, suffix_up)
 plot_venn(data_down, parent_path, suffix_down)
-  
+
 # #**********Gene and protein overlap*******************
 # 
 # rna_df <- read.xlsx(paste0(parent_path, "Results_id_YKO_centromere_vs_scr_KO_centromere_DESeq2_modelled_DEGs.xlsx"))
@@ -489,7 +489,7 @@ cor_df <- data.frame(common_genes, res_cor, res_p) %>%
 # cor_df$padj <- stats::p.adjust(p=cor_df$res_p, method="fdr", n=length(cor_df$res_p))
 # cor_df <- cor_df %>%
 #   dplyr::filter(padj <= 0.05)
- 
+
 
 # Median of correlation co-efficients  
 median(cor_df$res_cor)
@@ -548,7 +548,7 @@ for (l in libraries){
   openxlsx::writeData(wb, sheet = l, x = df, rowNames = FALSE)
 }
 openxlsx::saveWorkbook(wb, file = paste0(parent_path, "Method comparison.xlsx"),
-                        overwrite = TRUE)
+                       overwrite = TRUE)
 
 # I checked the hits for all 9 approaches
 # (i) Total - median, alphamedian, second best
@@ -590,10 +590,10 @@ integrated_seurat <- subset(x = integrated_seurat,
 #   my_theme
 
 y_genes <- c("DDX3Y", "EIF1AY", "HSFY2", "KDM5D", "UTY", "NLGN4Y", 
-                "PCDH11Y", "RPS4Y1", "TBL1Y", "TMSB4Y", "USP9Y", "ZFY", 
-                "DAZ1", "DAZ2", "DAZ3", "DAZ4", "PRY2", "RBMY1A1")
+             "PCDH11Y", "RPS4Y1", "TBL1Y", "TMSB4Y", "USP9Y", "ZFY", 
+             "DAZ1", "DAZ2", "DAZ3", "DAZ4", "PRY2", "RBMY1A1")
 y_genes <- rownames(integrated_seurat@assays$RNA$data)[tolower(rownames(integrated_seurat@assays$RNA$data)) %in% 
-                                                          tolower(y_genes)]
+                                                         tolower(y_genes)]
 integrated_seurat <- Seurat::AddModuleScore(object=integrated_seurat,
                                             features=list(y_genes),
                                             assay="RNA",
@@ -836,9 +836,9 @@ yscr_dtkpa2 <- read.xlsx(paste0(data_path, "t_score.xlsx"),
 yscr_dtkpb1 <- read.xlsx(paste0(data_path, "t_score.xlsx"),
                          sheet="T14vsT0_SCR.DTKPB1.")
 yko_dtkpa2 <- read.xlsx(paste0(data_path, "t_score.xlsx"),
-                         sheet="T14vsT0_YKO.DTKPA2.")
+                        sheet="T14vsT0_YKO.DTKPA2.")
 yko_dtkpb1 <- read.xlsx(paste0(data_path, "t_score.xlsx"),
-                         sheet="T14vsT0_YKO.DTKPB1.")
+                        sheet="T14vsT0_YKO.DTKPB1.")
 
 disp_genes <- c("Gsk3b", "Dcaf11", "Gngt1", "Pkn1", "Grik3", "Akr1b3", "Gad2", 
                 "Mmp10", "Ptprg", "Uhmk1")
@@ -977,7 +977,7 @@ gsva.scores <- gsva(gsvaPar,
 gsva.scores <- t(gsva.scores) %>% 
   data.frame() %>%
   dplyr::mutate(gsva.class = dplyr::case_when(Y.sig > 0 ~ "YHigh",
-                                          TRUE ~ "Ylow")) %>%
+                                              TRUE ~ "Ylow")) %>%
   tibble::rownames_to_column("ModelID") %>%
   dplyr::rename(gsva.score = Y.sig)
 
@@ -990,7 +990,7 @@ ssgsea.scores <- GSVA::gsva(ssgseaPar,
 ssgsea.scores <- t(ssgsea.scores) %>% 
   data.frame() %>%
   dplyr::mutate(ssgsea.class = dplyr::case_when(Y.sig > 0 ~ "YHigh",
-                                          TRUE ~ "Ylow")) %>%
+                                                TRUE ~ "Ylow")) %>%
   tibble::rownames_to_column("ModelID") %>%
   dplyr::rename(ssgsea.score= Y.sig)
 #...
@@ -1010,7 +1010,7 @@ hits <- read.xlsx(paste0(data_path, "Human_orthologs.xlsx")) %>%
 
 # Read the gene effect scores
 main_df <- read.table(paste0(data_path, "DepMap.CRISPRGeneEffect.csv"), 
-                             header=TRUE, sep=",", quote="", skip=0, fill=TRUE)
+                      header=TRUE, sep=",", quote="", skip=0, fill=TRUE)
 colnames(main_df) <- gsub(pattern = "\\.[0-9]*", replacement = "", colnames(main_df))
 # Keep only gene effect score of hit genes
 main_df <- main_df %>% 
@@ -1155,7 +1155,7 @@ metadata_column <- metadata_df %>% dplyr::filter(Sample_ID %in% colnames(main_df
 metadata_row <- data.frame(SYMBOL = "")
 norm_counts <- main_df %>% dplyr::select(SYMBOL, all_of(metadata_column$Sample_ID))
 plot_heatmap(norm_counts, metadata_column, metadata_row, heatmap_params,
-                         plot_genes, disp_genes, file_suffix, output_path)
+             plot_genes, disp_genes, file_suffix, output_path)
 
 ##### KM plots of 419 hits 
 
@@ -1308,7 +1308,7 @@ for (status in c("Yhigh", "Ylow")){
     plot_curve <- FALSE
     prefix <- status
     summary <- wrangle_data(expr_df, gene, stratify_criteria, prefix, data_path)
-  
+    
     class_df <- summary[[1]] %>%
       dplyr::select(Sample_ID, all_of(gene), model) %>%
       dplyr::rename(!!paste0(gene, "_model") := model)
@@ -1395,21 +1395,71 @@ for (p in c("BIOCARTA", "REACTOME", "WP", "GOBP", "GOCC", "GOMF", "HALLMARK")){
 
 #######Heatmap pancancer single cell
 
+parent.dir  <- "/hpc/home/kailasamms/scratch"
+gmt.dir     <- "/hpc/home/kailasamms/projects/GSEA_genesets"
+scripts.dir <- "/hpc/home/kailasamms/projects/scRNASeq"
+
+# Run the Custom_Functions.R script
+path1 <- "C:/Users/kailasamms/OneDrive - Cedars-Sinai Health System/Documents/GitHub/R-Scripts/Custom_Functions.R"
+path2 <- "/hpc/home/kailasamms/projects/scRNASeq/Custom_Functions.R"
+if (file.exists(path1)) {
+  source(path1)
+} else if (file.exists(path2)) {
+  source(path2)
+}
+
+proj <- "scRNASeq_PanCancer"
+species <- "Homo sapiens"
+contrasts <- c("Treatment-Reference")
+
+# DESeq2 overrides
+deseq2.override <- list(
+  contrasts     = contrasts,
+  #design        = "Comparisons",            # DESeq2 design formula or column name
+  #lfc.cutoff    = 0,                        # Log fold change cutoff for significance
+  #padj.cutoff   = 0.1,                      # Adjusted p-value cutoff for significance
+  batch.correct = FALSE                     # Boolean, whether to apply batch correction
+)
+
+# Heatmap overrides
+heatmap.override <- list(
+  #force.log        = TRUE,                  # Force log transformation
+  col.ann          = c("Cancertype_TCGA", "LOY", "Age"),                  # Column annotation
+  #row.ann          = NULL,                  # Row annotation
+  #col.gaps         = NULL,                  # Column gaps
+  #row.gaps         = NULL,                  # Row gaps
+  col.cluster      = c("LOY"),                 # Column clustering
+  #row.cluster      = "all",                 # Row clustering
+  #palette         = "rdbu",                # Heatmap palette
+  #ann.palette     = "discrete",            # Annotation palette
+  #border.color    = NA,                    # Cell border color
+  #show.expr.legend = TRUE,                  # Show expression legend
+  #title           = "",                    # Heatmap title
+  format           = "tiff"                 # Output file format
+)
+
+# Volcano plot overrides
+volcano.override <- list(
+  #lfc.cutoff  = 0.58,                         # Minimum log2 fold-change to highlight
+  #padj.cutoff = 0.05,                      # Adjusted p-value cutoff
+  #color       = "vrds",                    # Color palette
+  #label.genes = c()                         # Genes to label on the plot
+)
+
+proj.params <- setup_project(
+  proj               = proj,
+  species = species,
+  contrasts = contrasts,
+  parent.dir = parent.dir,
+  gmt.dir = gmt.dir,
+  scripts.dir      = scripts.dir,
+  deseq2.override  = deseq2.override,
+  heatmap.override = heatmap.override,
+  volcano.override = volcano.override
+)
+
+
 save.dir <- "/hpc/home/kailasamms/scratch/scRNASeq_PanCancer/"
-proj.params <- list(proj                    = "scRNASeq_PanCancer",
-                    heatmap.force.log       = FALSE,                       
-                    heatmap.col.ann         = c("Cancertype_TCGA", "LOY", "Age"), 
-                    heatmap.row.ann         = NULL,                        
-                    heatmap.col.gaps        = NULL,                        
-                    heatmap.row.gaps        = NULL,                        
-                    heatmap.col.cluster     = c("LOY"),                    
-                    heatmap.row.cluster     = "all",                       
-                    heatmap.palette         = "rdbu",                      
-                    heatmap.ann.palette     = "discrete",                  
-                    heatmap.border.color    = NA,                          
-                    heatmap.show.expr.legend= TRUE,                        
-                    heatmap.title           = NA,                          
-                    heatmap.format          = "tiff")
 
 samples <- integ.ann@meta.data %>% 
   dplyr::filter(Sex == "Male") %>%
@@ -1444,15 +1494,17 @@ plot_genes <- intersect(plot_genes, rownames(integ.ann@assays[["RNA"]]@data))
 # gridExtra::grid.arrange(grobs = list(ph$ph$gtable), ncol = 1)
 # dev.off()
 
-source("/hpc/home/kailasamms/projects/scRNASeq/Custom_Functions.R")
 integ.ann <- readRDS(file.path(proj.params$seurat_dir, "scRNAseq_pancan_normalized_after_scanvi.rds"))
 integ.ann <- subset(integ.ann,
                     Sex == "Male")
-#coi <- c("HNSC", "LIHC", "CHOL", "CRC", "LC", "STAD", "BLCA", "PDAC")
-#integ.ann1 <- subset(integ.ann,
-#                    Cancertype_TCGA %in% coi)
 
-# Feature plot
+integ.ann.coi <- subset(integ.ann, Cancertype_TCGA %in% coi)
+epi_seurat <- subset(integ.ann, Celltype1 == "Epithelium")
+epi_seurat_coi <- subset(integ.ann, Celltype1 == "Epithelium" & Cancertype_TCGA %in% coi)
+epi_seurat_blca <- subset(integ.ann, Celltype1 == "Epithelium" & Cancertype_TCGA %in% "BLCA")
+TNK_seurat_blca <- subset(integ.ann, Celltype1 == "T_NK_cell" & Cancertype_TCGA %in% "BLCA")
+
+coi <- c("HNSC", "LIHC", "CHOL", "CRC", "LC", "STAD", "BLCA", "PDAC")
 plot_genes <- c("AKR1B1", "CAMK1D", "CAMKK1", "CDKN1B", "CHEK2", "CHRNA7", 
                 "CLK1", "CP", "CRYZ", "DBI", "DCAF11", "DGKZ", "DUSP19", 
                 "EHHADH", "GAD2", "GNGT1", "GRIA1", "GRID1", "GRIK3", "GSK3B",
@@ -1460,61 +1512,122 @@ plot_genes <- c("AKR1B1", "CAMK1D", "CAMKK1", "CDKN1B", "CHEK2", "CHRNA7",
                 "MTNR1B", "MTR", "PDP1", "PFKFB3", "PKN1", "PPM1A", "PPP1R15B",
                 "PRKACB", "PRKD1", "PTPRG", "RARRES1", "RNASE4", "RPS6KA6", 
                 "STK31", "TAOK1", "TESK2", "UHMK1")
-reduction <- "umap"
-filename <- "Feature_plot"
-output_path <- proj.params$seurat_dir
-split.col <- "LOY"
-plot_features(integ.ann1, plot_genes, reduction, filename, output_path, split.col)
 
-# Dot plot
-epi_seurat <- subset(integ.ann, Celltype1 == "Epithelium")
+# --- Dot plot 44 hits for 12 cancer type separately LOY vs WT ---
+assay <- "RNA"
 ident.1 <- "LOY"
 ident.2 <- NULL
-features <- c("AKR1B1", "CAMK1D", "CAMKK1", "CDKN1B", "CHEK2", "CHRNA7", 
-              "CLK1", "CP", "CRYZ", "DBI", "DCAF11", "DGKZ", "DUSP19", 
-              "EHHADH", "GAD2", "GNGT1", "GRIA1", "GRID1", "GRIK3", "GSK3B",
-              "IYD", "KCND3", "LATS1", "MAP3K6", "MKNK2", "MMP10", "MTMR1", 
-              "MTNR1B", "MTR", "PDP1", "PFKFB3", "PKN1", "PPM1A", "PPP1R15B",
-              "PRKACB", "PRKD1", "PTPRG", "RARRES1", "RNASE4", "RPS6KA6", 
-              "STK31", "TAOK1", "TESK2", "UHMK1")
-filename <- "Dot_plot"
+features <- plot_genes
 output_path <- proj.params$seurat_dir
+CellType.col <- "Celltype1"
 split.col <- NULL
 for (i in as.character(unique(epi_seurat@meta.data[["Cancertype_TCGA"]]))){
   subset_obj <- epi_seurat[, epi_seurat@meta.data[["Cancertype_TCGA"]] == i]
-  filename <- i
-  plot_dot_custom(subset_obj, ident.1, ident.2, features, filename, output_path, split.col)
+  filename <- paste0("Dot_plot_44hits_LOY_", i)
+  plot_dot_custom(subset_obj, assay, proj.params, ident.1, ident.2, features, filename, output_path, CellType.col, split.col)
 }
 
+# --- Dot plot 44 hits for 12 cancer type separately by celltype ---
+assay <- "RNA"
+ident.1 <- "Celltype1"
+ident.2 <- NULL
+features <- plot_genes
+output_path <- proj.params$seurat_dir
+CellType.col <- "Celltype1"
+split.col <- NULL
+for (i in as.character(unique(integ.ann@meta.data[["Cancertype_TCGA"]]))){
+  subset_obj <- integ.ann[, integ.ann@meta.data[["Cancertype_TCGA"]] == i]
+  filename <- paste0("Dot_plot_44hits_celltype_", i)
+  plot_dot_custom(subset_obj, assay, proj.params, ident.1, ident.2, features, filename, output_path, CellType.col, split.col)
+}
 
-epi_seurat <- subset(integ.ann, Celltype1 == "Epithelium")
+#--- Dot plot 44 hits for 12/8 cancer types combined LOY vs WT ---
+assay <- "RNA"
 ident.1 <- "LOY"
 ident.2 <- NULL
-filename <- "Dot_plot"
+features <- plot_genes
 output_path <- proj.params$seurat_dir
+CellType.col <- "Celltype1"
 split.col <- NULL
-plot_dot_custom(subset_obj, ident.1, ident.2, features, filename, output_path, split.col)
 
+filename <- paste0("Dot_plot_44hits_LOY_Combined_8_cancers")
+plot_dot_custom(epi_seurat_coi, assay, proj.params, ident.1, ident.2, features, filename, output_path, CellType.col, split.col)
 
+filename <- paste0("Dot_plot_44hits_LOY_Combined_12_cancers")
+plot_dot_custom(epi_seurat, assay, proj.params, ident.1, ident.2, features, filename, output_path, CellType.col, split.col)
 
-epi_seurat <- subset(integ.ann, Celltype1 == "Epithelium")
+# --- Dot plot GSK3B for each cancer type  LOY vs WT ---
+assay <- "RNA"
 ident.1 <- "LOY"
 ident.2 <- "Cancertype_TCGA"
 features <- "GSK3B"
-filename <- "Dot_plot"
 output_path <- proj.params$seurat_dir
+CellType.col <- "Celltype1"
 split.col <- NULL
-plot_dot_custom(epi_seurat, ident.1, ident.2, features, filename, output_path, split.col)
 
+filename <- "Dot_plot_GSK3B_LOY_8_cancers"
+plot_dot_custom(epi_seurat_coi, assay, proj.params, ident.1, ident.2, features, filename, output_path, CellType.col, split.col)
 
+filename <- "Dot_plot_GSK3B_LOY_12_cancers"
+plot_dot_custom(epi_seurat, assay, proj.params, ident.1, ident.2, features, filename, output_path, CellType.col, split.col)
 
+# --- Feature Plots 44 hits for 12/8 cancer types combined LOY vs WT ---
+reduction <- "umap"
+output_path <- proj.params$seurat_dir
+split.col <- "LOY"
 
-# ----
+features <- plot_genes
+filename <- "Feature_plot_44hits_LOY_Combined_12_cancers"
+features <- "GSK3B"
+filename <- "Feature_plot_GSK3B_LOY_Combined_12_cancers"
+plot_features(integ.ann, features, reduction, filename, output_path, split.col)
+
+features <- plot_genes
+filename <- "Feature_plot_44hits_LOY_Combined_8_cancers"
+features <- "GSK3B"
+filename <- "Feature_plot_GSK3B_LOY_Combined_8_cancers"
+plot_features(integ.ann.coi, features, reduction, filename, output_path, split.col)
+
+features <- "GSK3B"
+filename <- "Feature_plot_GSK3B_LOY_Combined_8_cancers_Epi_only"
+plot_features(epi_seurat_coi, features, reduction, filename, output_path, split.col)
+
+features <- c("GSK3B", "PDCD1", "CD274")
+filename <- "Feature_plot_GSK3B,PDCD1,CD274_LOY_BLCA_Epi_only"
+plot_features(epi_seurat_blca, features, reduction, filename, output_path, split.col)
+
+features <- c("GSK3B", "PDCD1", "CD274")
+filename <- "Feature_plot_GSK3B,PDCD1,CD274_LOY_BLCA_TNK_only"
+plot_features(TNK_seurat_blca, features, reduction, filename, output_path, split.col)
+
+# --- UMAP cell types 8 cancer types ---
 reduction <- "umap"
 color.col <- "Celltype1"
 filename <- "UMAP_CellType"
 output_path <- proj.params$seurat_dir
-plot_umap(integ.ann1, reduction, color.col, filename, output_path)
+plot_umap(integ.ann.coi, reduction, color.col, filename, output_path)
+
+# --- UMAP LOY 8 cancer types ---
+reduction <- "umap"
+color.col <- "LOY"
+filename <- "UMAP_LOY"
+output_path <- proj.params$seurat_dir
+plot_umap(integ.ann.coi, reduction, color.col, filename, output_path)
+
+# --- UMAP TCAGCancerType 8 cancer types ---
+reduction <- "umap"
+color.col <- "Cancertype_TCGA"
+filename <- "UMAP_CancerType"
+output_path <- proj.params$seurat_dir
+plot_umap(integ.ann.coi, reduction, color.col, filename, output_path)
+
+# --- UMAP cell types 12 cancer types ---
+reduction <- "umap"
+color.col <- "Celltype1"
+filename <- "UMAP_CellType_12_cancer"
+output_path <- proj.params$seurat_dir
+split.col<- "Cancertype_TCGA"
+plot_umap(integ.ann.coi, reduction, color.col, filename, output_path, split.col)
 
 # --- Survival curves
 proj <- "TCGA_BLCA"
@@ -1546,7 +1659,7 @@ meta_data <- meta_data %>%
   dplyr::filter(Time > 0 & !is.na(Time)) %>%
   dplyr::distinct_at("Sample_ID", .keep_all = TRUE) %>%
   dplyr::filter(Sex == "Male", Y_status == "WT")
-  #dplyr::filter(Sex == "Male", Y_status == "LOY")
+#dplyr::filter(Sex == "Male", Y_status == "LOY")
 
 # Reformat read data
 norm_counts <- read_data %>%

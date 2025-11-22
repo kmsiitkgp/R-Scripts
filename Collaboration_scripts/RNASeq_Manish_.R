@@ -42,3 +42,15 @@ volcano.override <- list(
   #color       = "vrds",                    # Color palette
   #label.genes = c()                         # Genes to label on the plot
 )
+
+
+#### Custom analysis ####
+# SPB-Vehicle contrast didnt give good results because one of the vehicle samples
+# was bad and clustered close to the SPB samples. So, replace raws counts of 
+# MT5 with MT6 i.e. basically remove MT5 and duplicate MT6 and redo analysis 
+# for just SPB-Vehicle contrast
+
+contrasts <- c("SPB-Vehicle")
+read_data[, "MT5"] <- read_data[, "MT6"]
+
+
