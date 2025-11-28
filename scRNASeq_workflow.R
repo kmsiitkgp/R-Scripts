@@ -55,6 +55,8 @@ samples <- list.files(path = proj.params$filt_matrix_dir)
 # Loop through each sample specified in the 'samples' vector
 for (sample in samples){
   
+  cat("\n--- Processing Sample:", sample, " ---\n")
+  
   # Load cellranger results (raw UMI matrix/barcodes)
   s.obj <- load_cellranger(sample, matrix_dir = proj.params$raw_matrix_dir)
   
@@ -107,8 +109,10 @@ optimal_res <- calc_optimal_resolution(integrated_seurat = integ.final,
                                        reduction = "Harmony", 
                                        output_dir = proj.params$seurat_dir)
 
-# Find differentially expressed genes (markers)
-resolutions <- unique(c(0.6, 0.8, 1, optimal_res))
+# Identify clusters based on UMAP distance using Harmony reduction and optimal_res
+
+# Find differential expressed genes (markers)
+resolutions <- unique(c(0.2, 0.4, 0.6, 0.8, 1, optimal_res))
 for (res in resolutions){
   identify_markers(integrated_seurat = integ.final,
                    resolution = res, reduction = "Harmony",
