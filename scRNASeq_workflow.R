@@ -54,68 +54,77 @@ samples <- list.files(path = proj.params$filt_matrix_dir)
 
 # Loop through each sample specified in the 'samples' vector
 for (sample in samples){
-  
+
   cat("\n--- Processing Sample:", sample, " ---\n")
-  
+
   # Load cellranger results (raw UMI matrix/barcodes)
-  s.obj <- load_cellranger(sample, matrix_dir = proj.params$raw_matrix_dir)
-  
+  s.obj <- load_cellranger(sample = sample,
+                           matrix_dir = proj.params$raw_matrix_dir)
+
   # Identify empty droplets using DropletUtils & Cell Ranger's filtered output
   s.obj <- classify_dropletutils(sample_seurat = s.obj)
-  s.obj <- classify_cellranger(sample_seurat = s.obj, filt_matrix_dir = proj.params$filt_matrix_dir)
-  
+  s.obj <- classify_cellranger(sample_seurat = s.obj,
+                               filt_matrix_dir = proj.params$filt_matrix_dir)
+
   # Calculate standard QC metrics and identify 'High Quality' barcodes
-  s.obj <- calc_qc_metrics(sample_seurat = s.obj, assay)
-  
+  s.obj <- calc_qc_metrics(sample_seurat = s.obj,
+                           assay = assay)
+
   # Identify singlets/doublets from 'High Quality' barcodes using DoubletFinder and scDblFinder
   s.obj <- classify_doubletfinder(sample_seurat = s.obj)
   s.obj <- classify_scdblfinder(sample_seurat = s.obj)
-  
+
   # Retain 'High Quality Singlets'
   result <- filter_singlets(sample_seurat = s.obj)
-  
+
   # Capture metadata from the raw object for QC visualization
   raw_metadata <- dplyr::bind_rows(raw_metadata, result$raw_metadata)
-  
+
   # Store the filtered Seurat object in a list, named by sample
   seurat_list[[sample]] <- result$sample_seurat
 }
 
 # Generate QC plots
-plot_qc(raw_metadata, output_dir = proj.params$seurat_dir)
+plot_qc(raw_metadata = raw_metadata,
+        output_dir = proj.params$seurat_dir)
 
 # Merge all filtered, high-quality Seurat objects from 'seurat_list' into one object
 # This also typically loads and integrates external metadata using 'metafile'.
-filt.obj <- merge_filtered(seurat_list, assay, metafile = proj.params$metafile, 
+filt.obj <- merge_filtered(seurat_list = seurat_list,
+                           assay = assay,
+                           meta_file = proj.params$metafile,
                            output_dir = proj.params$seurat_dir)
 
 # Run SCTransform on the merged object
-sct.obj <- run_sctransform(filtered_seurat = filt.obj, assay,
+sct.obj <- run_sctransform(filtered_seurat = filt.obj,
+                           assay = assay,
                            s_genes = proj.params$cell_cycle$S,
                            g2m_genes = proj.params$cell_cycle$G2M)
 
 # Integrate to remove technical batch effects between samples
-integ.obj <- integrate_sct_data(sct_seurat = sct.obj, assay)
+integ.obj <- integrate_sct_data(sct_seurat = sct.obj,
+                                assay = assay)
 
 # Perform clustering on the integrated data
-integ.clust <- cluster_integrated_data(integrated_seurat = integ.obj, assay)
+integ.clust <- cluster_integrated_data(integrated_seurat = integ.obj,
+                                       assay = assay)
 
 # Filter out sparse clusters often associated with low-quality cells or debris
-integ.final <- remove_sparse_clusters(integrated_seurat = integ.clust, assay,
+integ.final <- remove_sparse_clusters(integrated_seurat = integ.clust,
+                                      assay = assay,
                                       output_dir = proj.params$seurat_dir)
 
-# Calculate the optimal clustering resolution
-optimal_res <- calc_optimal_resolution(integrated_seurat = integ.final, 
-                                       reduction = "Harmony", 
+# Calculate the optimal clustering res
+optimal_res <- calc_optimal_resolution(integrated_seurat = integ.final,
+                                       reduction = "Harmony",
                                        output_dir = proj.params$seurat_dir)
-
-# Identify clusters based on UMAP distance using Harmony reduction and optimal_res
 
 # Find differential expressed genes (markers)
 resolutions <- unique(c(0.2, 0.4, 0.6, 0.8, 1, optimal_res))
 for (res in resolutions){
   identify_markers(integrated_seurat = integ.final,
-                   resolution = res, reduction = "Harmony",
+                   res = res,
+                   reduction = "Harmony",
                    output_dir = proj.params$seurat_dir)
 }
 
@@ -123,13 +132,28 @@ for (res in resolutions){
 plot_metrics_post_integration(integrated_seurat = integ.final,
                               output_dir = proj.params$diagnostics_dir)
 
+# Calculate module scores
+integ.final <- calc_module_scores(integrated_seurat = integ.final,
+                                  reduction = "Harmony",
+                                  marker_file = proj.params$markerfile,
+                                  output_dir = proj.params$seurat_dir)
+
+# Annotate the clusters based on predefined markers
+integ.ann <- annotate_clusters(integrated_seurat = integ.final,
+                               reduction = "Harmony",
+                               assay = assay,
+                               output_dir = proj.params$seurat_dir)
+
+##integ.ann <- readRDS(file.path(proj.params$seurat_dir, "integrated_seurat_ann.rds"))
+
+# Run FindAllMarkers on annotated clusters
+identify_markers(integrated_seurat = integ.ann,
+                 res = NULL,
+                 reduction = NULL,
+                 cluster_col = "CellType",
+                 output_dir = proj.params$seurat_dir)
 
 
-
-# integ.final <- calc_module_scores(integ.final, assay, proj.params, proj.params$seurat_dir)
-# integ.final <- annotate_sc_sp(integ.final, assay, resolution, reduction, proj.params$seurat_dir)
-# plot_module_scores(integ.final, assay, resolution, reduction, proj.params, proj.params$seurat_dir)
-# 
 # clusters <- list("Hepatocytes"              = c(),
 #                  "Pancreatic.Acinar"        = c(),
 #                  "Pancreatic.Islet"         = c(),
@@ -149,7 +173,7 @@ plot_metrics_post_integration(integrated_seurat = integ.final,
 #                  "Primary.Panc"             = c(),
 #                  "Ductal.Cells"             = c(),
 #                  "Unclassified"             = c())
-# integ.ann <- annotate_manual_sc_sp(integ.final, assay, clusters, resolution, reduction, proj.params$seurat_dir)
+# integ.ann <- annotate_manual_sc_sp(integ.final, assay, clusters, res, reduction, proj.params$seurat_dir)
 # 
 # # Visualize annotations in dim plot
 # subset_seurat <- subset(integ.ann, (Cell.Type == "Unclassified"), invert=TRUE)
