@@ -52,85 +52,87 @@ raw_metadata <- data.frame()
 reference_samples <- NULL  # change if you want reference based integration
 samples <- list.files(path = proj.params$filt_matrix_dir)
 
-# Loop through each sample specified in the 'samples' vector
-for (sample in samples){
+# # Loop through each sample specified in the 'samples' vector
+# for (sample in samples){
+# 
+#   cat("\n--- Processing Sample:", sample, " ---\n")
+# 
+#   # Load cellranger results (raw UMI matrix/barcodes)
+#   s.obj <- load_cellranger(sample = sample,
+#                            matrix_dir = proj.params$raw_matrix_dir)
+# 
+#   # Identify empty droplets using DropletUtils & Cell Ranger's filtered output
+#   s.obj <- classify_dropletutils(sample_seurat = s.obj)
+#   s.obj <- classify_cellranger(sample_seurat = s.obj,
+#                                filt_matrix_dir = proj.params$filt_matrix_dir)
+# 
+#   # Calculate standard QC metrics and identify 'High Quality' barcodes
+#   s.obj <- calc_qc_metrics(sample_seurat = s.obj,
+#                            assay = assay)
+# 
+#   # Identify singlets/doublets from 'High Quality' barcodes using DoubletFinder and scDblFinder
+#   s.obj <- classify_doubletfinder(sample_seurat = s.obj)
+#   s.obj <- classify_scdblfinder(sample_seurat = s.obj)
+# 
+#   # Retain 'High Quality Singlets'
+#   result <- filter_singlets(sample_seurat = s.obj)
+# 
+#   # Capture metadata from the raw object for QC visualization
+#   raw_metadata <- dplyr::bind_rows(raw_metadata, result$raw_metadata)
+# 
+#   # Store the filtered Seurat object in a list, named by sample
+#   seurat_list[[sample]] <- result$sample_seurat
+# }
+# 
+# # Generate QC plots
+# plot_qc(raw_metadata = raw_metadata,
+#         output_dir = proj.params$seurat_dir)
+# 
+# # Merge all filtered, high-quality Seurat objects from 'seurat_list' into one object
+# # This also typically loads and integrates external metadata using 'metafile'.
+# filt.obj <- merge_filtered(seurat_list = seurat_list,
+#                            assay = assay,
+#                            meta_file = proj.params$metafile,
+#                            output_dir = proj.params$seurat_dir)
+# 
+# # Run SCTransform on the merged object
+# sct.obj <- run_sctransform(filtered_seurat = filt.obj,
+#                            assay = assay,
+#                            s_genes = proj.params$cell_cycle$S,
+#                            g2m_genes = proj.params$cell_cycle$G2M)
+# 
+# # Integrate to remove technical batch effects between samples
+# integ.obj <- integrate_sct_data(sct_seurat = sct.obj,
+#                                 assay = assay)
+# 
+# # Perform clustering on the integrated data
+# integ.clust <- cluster_integrated_data(integrated_seurat = integ.obj,
+#                                        assay = assay)
+# 
+# # Filter out sparse clusters often associated with low-quality cells or debris
+# integ.final <- remove_sparse_clusters(integrated_seurat = integ.clust,
+#                                       assay = assay,
+#                                       output_dir = proj.params$seurat_dir)
+# 
+# # Calculate the optimal clustering res
+# optimal_res <- calc_optimal_resolution(integrated_seurat = integ.final,
+#                                        reduction = "Harmony",
+#                                        output_dir = proj.params$seurat_dir)
+# 
+# # Find differential expressed genes (markers)
+# resolutions <- unique(c(0.2, 0.4, 0.6, 0.8, 1, optimal_res))
+# for (res in resolutions){
+#   identify_markers(integrated_seurat = integ.final,
+#                    res = res,
+#                    reduction = "Harmony",
+#                    output_dir = proj.params$seurat_dir)
+# }
+# 
+# # Plot metrics
+# plot_metrics_post_integration(integrated_seurat = integ.final,
+#                               output_dir = proj.params$diagnostics_dir)
 
-  cat("\n--- Processing Sample:", sample, " ---\n")
-
-  # Load cellranger results (raw UMI matrix/barcodes)
-  s.obj <- load_cellranger(sample = sample,
-                           matrix_dir = proj.params$raw_matrix_dir)
-
-  # Identify empty droplets using DropletUtils & Cell Ranger's filtered output
-  s.obj <- classify_dropletutils(sample_seurat = s.obj)
-  s.obj <- classify_cellranger(sample_seurat = s.obj,
-                               filt_matrix_dir = proj.params$filt_matrix_dir)
-
-  # Calculate standard QC metrics and identify 'High Quality' barcodes
-  s.obj <- calc_qc_metrics(sample_seurat = s.obj,
-                           assay = assay)
-
-  # Identify singlets/doublets from 'High Quality' barcodes using DoubletFinder and scDblFinder
-  s.obj <- classify_doubletfinder(sample_seurat = s.obj)
-  s.obj <- classify_scdblfinder(sample_seurat = s.obj)
-
-  # Retain 'High Quality Singlets'
-  result <- filter_singlets(sample_seurat = s.obj)
-
-  # Capture metadata from the raw object for QC visualization
-  raw_metadata <- dplyr::bind_rows(raw_metadata, result$raw_metadata)
-
-  # Store the filtered Seurat object in a list, named by sample
-  seurat_list[[sample]] <- result$sample_seurat
-}
-
-# Generate QC plots
-plot_qc(raw_metadata = raw_metadata,
-        output_dir = proj.params$seurat_dir)
-
-# Merge all filtered, high-quality Seurat objects from 'seurat_list' into one object
-# This also typically loads and integrates external metadata using 'metafile'.
-filt.obj <- merge_filtered(seurat_list = seurat_list,
-                           assay = assay,
-                           meta_file = proj.params$metafile,
-                           output_dir = proj.params$seurat_dir)
-
-# Run SCTransform on the merged object
-sct.obj <- run_sctransform(filtered_seurat = filt.obj,
-                           assay = assay,
-                           s_genes = proj.params$cell_cycle$S,
-                           g2m_genes = proj.params$cell_cycle$G2M)
-
-# Integrate to remove technical batch effects between samples
-integ.obj <- integrate_sct_data(sct_seurat = sct.obj,
-                                assay = assay)
-
-# Perform clustering on the integrated data
-integ.clust <- cluster_integrated_data(integrated_seurat = integ.obj,
-                                       assay = assay)
-
-# Filter out sparse clusters often associated with low-quality cells or debris
-integ.final <- remove_sparse_clusters(integrated_seurat = integ.clust,
-                                      assay = assay,
-                                      output_dir = proj.params$seurat_dir)
-
-# Calculate the optimal clustering res
-optimal_res <- calc_optimal_resolution(integrated_seurat = integ.final,
-                                       reduction = "Harmony",
-                                       output_dir = proj.params$seurat_dir)
-
-# Find differential expressed genes (markers)
-resolutions <- unique(c(0.2, 0.4, 0.6, 0.8, 1, optimal_res))
-for (res in resolutions){
-  identify_markers(integrated_seurat = integ.final,
-                   res = res,
-                   reduction = "Harmony",
-                   output_dir = proj.params$seurat_dir)
-}
-
-# Plot metrics
-plot_metrics_post_integration(integrated_seurat = integ.final,
-                              output_dir = proj.params$diagnostics_dir)
+integ.final <- readRDS(file.path(proj.params$seurat_dir, "integrated_seurat.rds"))
 
 # Calculate module scores
 integ.final <- calc_module_scores(integrated_seurat = integ.final,
@@ -144,14 +146,14 @@ integ.ann <- annotate_clusters(integrated_seurat = integ.final,
                                assay = assay,
                                output_dir = proj.params$seurat_dir)
 
-##integ.ann <- readRDS(file.path(proj.params$seurat_dir, "integrated_seurat_ann.rds"))
+# #integ.ann <- readRDS(file.path(proj.params$seurat_dir, "integrated_seurat_ann.rds"))
 
-# Run FindAllMarkers on annotated clusters
-identify_markers(integrated_seurat = integ.ann,
-                 res = NULL,
-                 reduction = NULL,
-                 cluster_col = "CellType",
-                 output_dir = proj.params$seurat_dir)
+# # Run FindAllMarkers on annotated clusters
+# identify_markers(integrated_seurat = integ.ann,
+#                  res = NULL,
+#                  reduction = NULL,
+#                  cluster_col = "CellType",
+#                  output_dir = proj.params$seurat_dir)
 
 
 # clusters <- list("Hepatocytes"              = c(),

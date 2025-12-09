@@ -56,16 +56,16 @@ variable_y <- "Status"
 c3_genes <- c("CADM2", "CDH12", "CNTNAP2", "CSMD1", "CSMD3", "CTNNA2", "CTNNA3",
               "DLG2", "DMD", "DPP10", "EYS", "GRID2", "LINGO1", "NRG1", "PCDH15",
               "PTPRD", "RASGEF1B", "RBFOX1", "SLC26A3", "TMEM132D")
+
+ne_genes <- c("MSI1", "PLEKHG4B", "GNG4", "PEG10", "RND2", "APLP1", "SOX2",
+              "TUBB2B", "CHGA", "CHGB", "NCAM1", "SYP")
+
 scaffold_genes <- c("DLG2", "DLG4", "HOMER1", "HOMER2", "HOMER3", "SHANK1", 
                     "SHANK2", "SHANK3")
 cam_genes <- c("CDH2", "CDH12", "LRFN1", "DAG1", "NLGN1", "NLGN2", "NLGN3",
                "LRRTM1", "LRRTM2", "ADGRL2", "ADGRL3", "EPHB2", "EPHB3", 
                "ADGRB1", "ADGRB3") #"NRXN1", "NRXN2", "NRXN3",
-ne_genes <- c("MSI1", "PLEKHG4B", "GNG4", "PEG10", "RND2", "APLP1", "SOX2",
-              "TUBB2B", "CHGA", "CHGB", "NCAM1", "SYP")
-
-cam_scaffold_genes <- c(cam_genes, scaffold_genes)
-combo <- cam_scaffold_genes
+combo <- c(cam_genes, scaffold_genes)
 
 ampa <- c("GRIA1", "GRIA2", "GRIA3", "GRIA4")
 muscarinergic <- c("CHRM1", "CHRM2", "CHRM3", "CHRM4", "CHRM5")
@@ -127,7 +127,7 @@ wb <- openxlsx::createWorkbook()
 for (plot_genes in c("adrenergic", "ampa", "muscarinergic", "ionotrophic", 
                      "gaba_a", "gaba_b", "glycinergic", "kainate", "glutamate",
                      "nicotinergic", "nmda", "cam_genes", "scaffold_genes", 
-                     "cam_scaffold_genes")){
+                     "combo")){
 
   # Calculate z-score using the function described in above paper
   expr_df <- as.data.frame(advanced_Z(get(plot_genes), normalized_counts))
@@ -191,7 +191,7 @@ openxlsx::saveWorkbook(wb, file = paste0(parent_path, "Prism.xlsx"), overwrite =
 
 # Supplementary survival of individual genes
 wb <- openxlsx::createWorkbook()
-plot_genes <- c(cam_scaffold_genes)
+plot_genes <- c(combo)
 
 # Since with optimal cutoff GRIA2 is slightly better than GRIA1, we plot differently
 stratify_criteria <- "q" 
@@ -258,7 +258,7 @@ openxlsx::saveWorkbook(wb, file = paste0(parent_path, "Individual_gene_stats.xls
 # Fig 1A Oncoprint for CAMs, Scaffolds, CAMs+Scaffolds
 
 # Import the dataframe containing scores with TCGA metadata
-for (y in c("cam_genes", "scaffold_genes", "cam_scaffold_genes")){
+for (y in c("cam_genes", "scaffold_genes", "combo")){
   metadata <- read.xlsx(paste0(parent_path, "Survival.xlsx"),
                         sheet = y) %>%
     dplyr::select(GEO_ID, model, Age, Sex, Race, ajcc_pathologic_stage, ajcc_pathologic_m, Stage) %>%
@@ -350,7 +350,7 @@ for (y in c("cam_genes", "scaffold_genes", "cam_scaffold_genes")){
 pvals <- c()
 vars <- c()
 sheets <- c()
-for (y in c("cam_genes", "scaffold_genes", "cam_scaffold_genes")){
+for (y in c("cam_genes", "scaffold_genes", "combo")){
   
   data <- read.xlsx(paste0(parent_path, "Survival.xlsx"),
                     sheet = y)
@@ -449,7 +449,7 @@ celltype <- NULL
 integrated_seurat <- readRDS(paste0(seurat_results, "integrated_seurat_snn",
                                     dplyr::if_else(is.null(celltype), ".rds", paste0("_", celltype, ".rds"))))
 
-for (feature_subset in c("cam_genes", "scaffold_genes", "cam_scaffold_genes", 
+for (feature_subset in c("cam_genes", "scaffold_genes", "combo", 
                          "c3_genes", "adrenergic", "ampa", "muscarinergic", 
                          "ionotrophic", "gaba_a", "gaba_b", "glycinergic", 
                          "kainate", "glutamate", "nicotinergic", "nmda")){
@@ -522,7 +522,7 @@ Idents(integrated_seurat) <- "subtype"
 Idents(integrated_seurat) <- base::factor(x = integrated_seurat@active.ident, 
                                           levels = sort(levels(integrated_seurat@active.ident)))
 
-for (feature_subset in c("cam_scaffold_genes", "family_four", "adrenergic", 
+for (feature_subset in c("combo", "family_four", "adrenergic", 
                          "ampa", "muscarinergic", "ionotrophic", "gaba_a", 
                          "gaba_b", "glycinergic", "kainate", "glutamate",
                          "nicotinergic", "nmda")){
@@ -1025,6 +1025,9 @@ for (gse_id in gse_list){
   ne_genes <- c("MSI1", "PLEKHG4B", "GNG4", "PEG10", "RND2", "APLP1", "SOX2",
                 "TUBB2B", "CHGA", "CHGB", "NCAM1", "SYP")
   
+  combo <- c(cam_genes, scaffold_genes)
+   
+  
   df_c3 <- data.frame(SYMBOL = c3_genes, Category = "C3")
   df_scaffold <- data.frame(SYMBOL = scaffold_genes, Category = "Scaffold")
   df_cam <- data.frame(SYMBOL = cam_genes, Category = "CAM")
@@ -1093,39 +1096,111 @@ if (length(heatmap_plot_list) > 0) {
 
 ## scRNAseq
 
-PROJ <- c("scRNASeq_BBN_C57BL6")
-species <- "Mus musculus"
-# PROJ <- c("scRNASeq_Chen", "scRNASeq_GSE222315")
-# species <-"Homo sapiens"
-
-parent.dir  <- "/hpc/home/kailasamms/scratch"
-gmt.dir     <- "/hpc/home/kailasamms/projects/GSEA_genesets"
-scripts.dir <- "/hpc/home/kailasamms/projects/scRNASeq"
-contrasts <- c()
-deseq2.override <- list()
-heatmap.override <- list()
-volcano.override <- list()
+PROJ <- c("scRNASeq_BBN_C57BL6", "scRNASeq_BBN_Rag", "scRNASeq_GSE145216", 
+          "scRNASeq_GSE164557", "scRNASeq_GSE200139", "scRNASeq_GSE217093",
+          "scRNASeq_Jinfen", "scRNASeq_Chen", "scRNASeq_GSE135337", 
+          "scRNASeq_GSE137829", "scRNASeq_GSE222315", "scRNASeq_HRA003620")
 
 for (proj in PROJ){
+  
+  if (proj %in% c("scRNASeq_BBN_C57BL6", "scRNASeq_BBN_Rag", "scRNASeq_GSE145216", 
+                  "scRNASeq_GSE164557", "scRNASeq_GSE200139", "scRNASeq_GSE217093",
+                  "scRNASeq_Jinfen")){
+    species <- "Mus musculus"
+  } else if (proj %in% c("scRNASeq_Chen", "scRNASeq_GSE135337", "scRNASeq_GSE137829",
+                         "scRNASeq_GSE222315", "scRNASeq_HRA003620")){
+    species <- "Homo sapiens"
+  }
+  
+  parent_dir  <- "/hpc/home/kailasamms/scratch"
+  gmt_dir     <- "/hpc/home/kailasamms/projects/GSEA_genesets"
+  scripts_dir <- "/hpc/home/kailasamms/projects/scRNASeq"
+  
+  contrasts <- c()
+  deseq2.override <- list()
+  heatmap.override <- list()
+  volcano.override <- list()
+  
   proj.params <- setup_project(proj             = proj,
                                species          = species,  #"Mus musculus", "Homo sapiens"
                                contrasts        = contrasts,
-                               parent.dir       = parent.dir,
-                               gmt.dir          = gmt.dir,
-                               scripts.dir      = scripts.dir,
+                               parent_dir       = parent_dir,
+                               gmt_dir          = gmt_dir,
+                               scripts_dir      = scripts_dir,
                                deseq2.override  = deseq2.override,
                                heatmap.override = heatmap.override,
                                volcano.override = volcano.override)
+
+  integrated_seurat <- readRDS(file.path(proj.params$seurat_dir, "integrated_seurat_ann.rds"))
   
-  integrated_seurat <- readRDS(file.path(proj.params$seurat_dir, "integrated.seurat.rds"))
+  # Initialize an empty list to store all cell type signatures
+  signatures_list <- list()
   
-  assay <- "RNA"
-  reduction <- "umap.harmony"  
-  color.col <- "Primary.Cell.Type"
-  filename <- "RNA.test"
-  output_path <- proj.params$seurat_dir
-  split.col <- "Confidence"
-  plot_umap(integrated.seurat, reduction, color.col, filename, output_path, split.col)
+  scaffold_genes <- c("DLG2", "DLG4", "HOMER1", "HOMER2", "HOMER3", "SHANK1", 
+                      "SHANK2", "SHANK3")
+  cam_genes <- c("CDH2", "CDH12", "LRFN1", "DAG1", "NLGN1", "NLGN2", "NLGN3",
+                 "LRRTM1", "LRRTM2", "ADGRL2", "ADGRL3", "EPHB2", "EPHB3", 
+                 "ADGRB1", "ADGRB3") #"NRXN1", "NRXN2", "NRXN3",
+  combo <- c(cam_genes, scaffold_genes)
+  
+  for (feature_subset in c("cam_genes", "scaffold_genes", "combo")){
+    
+    # Define name of modules
+    module_name <- make.names(feature_subset )
+    
+    # Determine features from the marker_df
+    xlsx_features <- get(feature_subset)
+    
+    # Determine features present in data set
+    present_features <- rownames(SeuratObject::GetAssayData(object = integrated_seurat, 
+                                                            assay = "RNA", 
+                                                            layer = "data"))
+    
+    # Match features (case-insensitive) and filter to only genes present in the data
+    features <- present_features[base::tolower(present_features) %in% base::tolower(xlsx_features)]
+    
+    # Only add the validated and sorted feature vector to the master list if it contains 2 or more genes
+    if (length(features) >= 2) {
+      signatures_list[[module_name]] <- sort(features)
+    }
+  }
+  
+  # Calculate module scores using seurat
+  integrated_seurat <- Seurat::AddModuleScore(object = integrated_seurat,
+                                              features = signatures_list,
+                                              assay = "RNA",
+                                              slot = "data",
+                                              name = names(signatures_list))  # "_UCell"
+  
+  saveRDS(integrated_seurat, file = file.path("/hpc/home/kailasamms", paste0(proj, "_Chao.rds")))
+  
+  # Plot module scores
+  DefaultAssay(integrated_seurat) <- "RNA"
+  p1 <- Seurat::FeaturePlot(object = integrated_seurat,
+                            features = paste0(names(signatures_list), seq(1:length(signatures_list))),
+                            cols =  c("#440154FF", viridis(n = 10, option = "C", direction = 1)),
+                            pt.size = 0.4,
+                            order = TRUE,
+                            min.cutoff = 'q10',
+                            reduction = "umap_harmony",
+                            raster = FALSE)
+  
+  # Save plot
+  ggplot2::ggsave(filename = paste0("Module_score_plot_", proj, ".tiff"),
+                  path = "/hpc/home/kailasamms/",
+                  plot = p1,
+                  device = "jpeg",
+                  width = 20,
+                  height = 20,
+                  units = c("in"),
+                  bg = "white")
+  
+  plot_umap(integrated_seurat = integrated_seurat, 
+            reduction = "umap_harmony",  
+            color_col = "CellType",         
+            filename = paste0("UMAP_", proj),   
+            output_dir = "/hpc/home/kailasamms/",
+            split_col = NULL)
   
 }
 
