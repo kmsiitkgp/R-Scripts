@@ -1,6 +1,8 @@
 gmt_dir <- "C:/Users/kailasamms/OneDrive - Cedars-Sinai Health System/Documents/GitHub/R-Scripts/GSEA_genesets"
 
-# ---- LOAD PACKAGES ----
+# ---- 📦 LOAD PACKAGES ----
+
+# NOTE: survminer handles %++% while dplyr handles %>%
 
 pkgs <- c(
   "BiocManager", "remotes", "AnnotationHub", "ensembldb", "org.Hs.eg.db",
@@ -15,7 +17,7 @@ pkgs <- c(
   "plot3D", "cowplot", "viridis", "RColorBrewer", "colorspace", 
   "enrichplot", "ComplexHeatmap", "NanoStringNCTools", "GeomxTools", 
   "GeoMxWorkflows", "networkD3", "httr", "decoupleR", "OmnipathR", "SeuratDisk",
-  "clustree", "crayon"
+  "clustree", "crayon", "uwot"
 )
 
 for (pkg in pkgs) {
@@ -27,19 +29,49 @@ for (pkg in pkgs) {
   }
 }
 
-# NOTE: survminer handles %++% while dplyr handles %>%
 
-# ---- Custom Palette and ggplot Theme ----
 
-custom_theme <- ggplot2::theme(
-  plot.title    = element_text(family = "sans", face = "bold",  colour = "black", size = 15, hjust = 0.5),
-  legend.title  = element_text(family = "sans", face = "bold",  colour = "black", size = 12, hjust = 0,   vjust = 1, angle = 0),
-  axis.title.x  = element_text(family = "sans", face = "bold",  colour = "black", size = 12, hjust = 0.5, vjust = 0, angle = 0),
-  axis.title.y  = element_text(family = "sans", face = "bold",  colour = "black", size = 12, hjust = 0.5, vjust = 1, angle = 90),
-  legend.text   = element_text(family = "sans", face = "plain", colour = "black", size = 10, hjust = 0.5),
-  axis.text.x   = element_text(family = "sans", face = "plain", colour = "black", size = 10, hjust = 0.5, vjust = 0.5, angle = 45),
-  axis.text.y   = element_text(family = "sans", face = "plain", colour = "black", size = 10, hjust = 0.5, vjust = 0.5, angle = 0)
-)
+# ---- 🎨 CUSTOM PALETTE &  THEME ----
+
+# custom_theme <- ggplot2::theme(
+#   plot.title    = element_text(hjust = 0.5),
+#   legend.title  = element_text(hjust = 0,   vjust = 1, angle = 0),
+#   axis.title.x  = element_text(hjust = 0.5, vjust = 0, angle = 0),
+#   axis.title.y  = element_text(hjust = 0.5, vjust = 1, angle = 90),
+#   legend.text   = element_text(hjust = 0.5),
+#   axis.text.x   = element_text(hjust = 0.5, vjust = 0.5, angle = 45),
+#   axis.text.y   = element_text(hjust = 0.5, vjust = 0.5, angle = 0)
+# )
+
+# NOTE: Text Justification and Spacing:
+# hjust: Horizontal alignment (0=left, 0.5=center, 1=right).
+# vjust: Vertical alignment (0=bottom, 0.5=middle, 1=top).
+# margin: Controls the external padding (empty space) around the text element.
+#         It takes arguments in the order T(op), R(ight), B(ottom), L(eft).
+  
+custom_theme <- ggplot2::theme_classic() + 
+  ggplot2::theme(
+  
+  # Plot title
+  plot.title    = ggplot2::element_text(family = "sans", face = "bold",  colour = "black", size = 16, hjust = 0.5),
+  plot.subtitle = ggplot2::element_text(family = "sans", face = "plain", colour = "black", size = 12, hjust = 0.5, margin = ggplot2::margin(b = 5)),
+  
+  # Axis titles
+  axis.title.x  = ggplot2::element_text(family = "sans", face = "bold",  colour = "black", size = 12, margin = ggplot2::margin(t = 10)),
+  axis.title.y  = ggplot2::element_text(family = "sans", face = "bold",  colour = "black", size = 12, margin = ggplot2::margin(r = 10)), 
+  
+  # Axis text
+  axis.text.x   = ggplot2::element_text(family = "sans", face = "plain", colour = "black", size = 10, angle = 45, hjust = 1),
+  axis.text.y   = ggplot2::element_text(family = "sans", face = "plain", colour = "black", size = 10),
+  
+  # Legend styling
+  legend.title  = ggplot2::element_text(family = "sans", face = "bold",  colour = "black", size = 12),
+  legend.text   = ggplot2::element_text(family = "sans", face = "plain", colour = "black", size = 10),
+  legend.position = "right", 
+  legend.key = ggplot2::element_rect(fill = "white", colour = NA),
+  
+  # Additional spacing (optional but improves readability)
+  plot.margin = ggplot2::margin(3, 3, 3, 3, unit = "mm"))
 
 custom_palette <- c(
   "#1f77b4", "#ff7f0e", "#2ca02c", "#d62728", "#9467bd", "#8c564b", "#e377c2", "#7f7f7f", "#bcbd22", "#17becf",
@@ -50,9 +82,9 @@ custom_palette <- c(
   "#6699cc", "#cc6644", "#66aa66", "#cc6666", "#9966cc", "#996633", "#cc99cc", "#99cc44", "#66cccc", "#cccc66",
   "#aec7e8", "#ffbb78", "#98df8a", "#ff9896", "#c5b0d5", "#c49c94", "#f7b6d2", "#c7c7c7", "#dbdb8d", "#9edae5",
   "#ffffcc", "#e7ba52", "#ce6dbd", "#d6616b", "#b5cf6b", "#dbdb5c", "#e7cb94", "#ad494a", "#bd9e39", "#de9ed6",
-  "#e7969c", "#cedb9c", "#33a02c", "#b2df8a", "#fdbf6f", "#cab2d6", "#6a3d9a", "#ffff99", "#b15928", "#8dd3c7",
-  "#ffffb3", "#bebada", "#fb8072", "#80b1d3", "#fdb462", "#b3de69", "#fccde5", "#d9d9d9", "#bc80bd", "#ccebc5",
-  "#ffed6f", "#1b9e77", "#d95f02", "#7570b3", "#e7298a", "#999999"
+  "#e7969c", "#33a02c", "#b2df8a", "#fdbf6f", "#cab2d6", "#6a3d9a", "#ffff99", "#b15928", "#8dd3c7", "#ffffb3",
+  "#bebada", "#fb8072", "#80b1d3", "#fdb462", "#b3de69", "#fccde5", "#d9d9d9", "#bc80bd", "#ccebc5", "#ffed6f",
+  "#1b9e77", "#d95f02", "#7570b3", "#e7298a", "#999999"
 )
 
 tab_palettes <- c(
@@ -70,7 +102,7 @@ tab_palettes <- c(
   "#5254a3", "#e7cb94", "#8ca252", "#ad494a", "#9c9ede", "#bd9e39", "#de9ed6", "#e7969c", "#cedb9c", "#a55194", "#e5e56f"
 )
 
-# ---- Logging Related Functions ----
+# ---- 📝 LOGGING RELATED FUNCTIONS ----
 
 # Suppress warnings and messages
 quiet_msg <- function(expr) {
@@ -2559,7 +2591,7 @@ validate_inputs <- function(step, sample = NULL, gene.column = NULL, bin = NULL,
                             features = NULL, s_genes = NULL, g2m_genes = NULL, 
                             res = NULL, reduction = NULL, filename = NULL,
                             seurat_object = NULL, seurat_list = NULL, 
-                            raw_metadata = NULL,  
+                            metadata = NULL, expr_mat = NULL,  
                             matrix_dir = NULL, output_dir = NULL,
                             xlsx_file = NULL, metadata_cols = NULL) {
   
@@ -2694,14 +2726,14 @@ validate_inputs <- function(step, sample = NULL, gene.column = NULL, bin = NULL,
     }
   }
   
-  # ---- 6️⃣ 'raw_metadata' Check ----
+  # ---- 6️⃣ 'metadata' Check ----
   
-  if (!is.null(raw_metadata)) {
-    if (!is.data.frame(raw_metadata)) {
-      log_error(sample, step, "❌ INPUT ERROR: 'raw_metadata' must be a data.frame.")
+  if (!is.null(metadata)) {
+    if (!is.data.frame(metadata)) {
+      log_error(sample, step, "❌ INPUT ERROR: 'metadata' must be a data.frame.")
     }
-    if (nrow(raw_metadata) == 0) {
-      log_error(sample, step, "❌ DATA ERROR: 'raw_metadata' must be a non-empty data.frame (0 rows detected).")
+    if (nrow(metadata) == 0) {
+      log_error(sample, step, "❌ DATA ERROR: 'metadata' must be a non-empty data.frame (0 rows detected).")
     }
   }
   
@@ -3506,13 +3538,13 @@ filter_singlets <- function(sample_seurat){
   # Subset high quality singlets
   sample_seurat <- base::subset(x = sample_seurat, QC == "Singlet")
   
-  # ---- 🪵 Log Output and Return Seurat Object, raw_metadata ----
+  # ---- 🪵 Log Output and Return Seurat Object, metadata ----
   
   log_info(sample = sample,
            step = "filter_singlets",
            message = glue::glue("Retained high-quality singlets for sample : '{sample}'."))
   return(list(sample_seurat = sample_seurat,
-              raw_metadata  = metadata))
+              metadata  = metadata))
 }
 
 merge_filtered <- function(seurat_list, assay, meta_file, output_dir){
@@ -3628,15 +3660,15 @@ merge_filtered <- function(seurat_list, assay, meta_file, output_dir){
   return(invisible(merged_seurat))
 }
 
-plot_qc <- function(raw_metadata, output_dir){
+plot_qc <- function(metadata, output_dir){
   
   # ---- ⚙️ Validate Input Parameters ----
   
-  validate_inputs(raw_metadata = raw_metadata, output_dir = output_dir)
+  validate_inputs(metadata = metadata, output_dir = output_dir)
   
   # Ensure required columns exist in metadata
   required_cols <- c("Sample", "QC", "nUMIs", "nGenes", "MitoRatio", "RiboRatio", "Novelty")
-  missing_cols <- setdiff(required_cols, colnames(raw_metadata))
+  missing_cols <- setdiff(required_cols, colnames(metadata))
   if (length(missing_cols) > 0) {
     log_error(sample = "",
               step = "plot_qc",
@@ -3753,10 +3785,10 @@ plot_qc <- function(raw_metadata, output_dir){
   
   # Generate plots
   for (plot_name in names(plot_list)) {
-    p <- plot_list[[plot_name]](raw_metadata)    #  p <- get(funcs[i])(raw_metadata)
+    p <- plot_list[[plot_name]](metadata)    #  p <- get(funcs[i])(metadata)
     
     # Find number of samples
-    n_samples <- length(unique(raw_metadata$Sample))
+    n_samples <- length(unique(metadata$Sample))
     
     # Set plot width based on number of samples, e.g., 0.8 inch per sample
     max_pdf_width <- 30
@@ -4715,9 +4747,13 @@ plot_seurat <- function(integrated_seurat, reduction, features, filename, output
         # Convert grouping column to factor to ensure proper ordering for colors
         df[[feature]] <- factor(df[[feature]], levels = all_levels)
         
+        # Assign colors, keeping names aligned with all_levels
+        umap_palette <- custom_palette[seq_along(all_levels)]
+        names(umap_palette) <- all_levels
+        
         # [OPTIONAL] Calculate Cluster Centroids for Labeling
         cluster_centroids <- df %>%
-          dplyr::group_by(!!sym(feature)) %>%
+          dplyr::group_by(.data[[feature]]) %>%
           dplyr::summarise(UMAP_1 = median(UMAP_1, na.rm = TRUE), 
                            UMAP_2 = median(UMAP_2, na.rm = TRUE),
                            .groups = 'drop') %>%
@@ -4781,7 +4817,7 @@ plot_seurat <- function(integrated_seurat, reduction, features, filename, output
       
       # Plot
       p <- ggplot(data = df, 
-                  aes(x = UMAP_1, y = UMAP_2, color = !!sym(feature))) +
+                  aes(x = UMAP_1, y = UMAP_2, color = .data[[feature]])) +
         geom_point(size = 0.2, stroke = 0) +
         theme_classic() +
         coord_fixed(ratio = 1) +
@@ -4789,7 +4825,7 @@ plot_seurat <- function(integrated_seurat, reduction, features, filename, output
         custom_theme
       
       if (is_metadata & !is_continuous){
-        p <- p + ggplot2::scale_color_manual(values = custom_palette) +
+        p <- p + ggplot2::scale_color_manual(values = umap_palette) +
           guides(color = guide_legend(override.aes = list(size = 3)))
       } else {
         p <- p + ggplot2::scale_colour_gradientn(colours = cols,
@@ -4803,7 +4839,7 @@ plot_seurat <- function(integrated_seurat, reduction, features, filename, output
         q <- p +
           # Add Labels using ggrepel::geom_text_repel for non-overlapping labels
           ggrepel::geom_text_repel(data = cluster_centroids,
-                                   mapping = aes(label = !!sym(feature)),
+                                   mapping = aes(label = .data[[feature]]),
                                    color = "black",     # Set label color to black
                                    size = 6,              
                                    point.padding = NA,
@@ -4862,8 +4898,8 @@ plot_seurat <- function(integrated_seurat, reduction, features, filename, output
     ggplot2::ggsave(filename  = file_name_labelled,
                     plot      = combined_plot_labelled,
                     device    = cairo_pdf,
-                    width     = ncol_plots * 10, # extra 2 inch for legend
-                    height    = nrow_plots * 8, 
+                    width     = ncol_plots * 8, # extra 2 inch for legend
+                    height    = nrow_plots * 6, 
                     units     = "in",
                     limitsize = FALSE,
                     bg        = "white")
@@ -4874,423 +4910,6 @@ plot_seurat <- function(integrated_seurat, reduction, features, filename, output
   log_info(sample = "",
            step = "plot_umap",
            message = glue::glue("UMAP plot saved successfully to : '{file_name}'."))
-}
-
-plot_umap <- function(integrated_seurat, reduction, color_col, filename, output_dir, split_col = NULL){
-  
-  # ---- ⚙️ Validate Input Parameters ----
-  
-  validate_inputs(seurat_object = integrated_seurat, reduction = reduction, 
-                  metadata_cols = c(color_col, split_col), 
-                  filename = filename, output_dir = output_dir)
-  
-  # ---- 🔄 Check and Update Reduction Name ----
-  
-  if (!(reduction %in% names(integrated_seurat@reductions))) {
-    log_warn(sample = "",
-             step = "plot_umap",
-             message = glue::glue("Reduction '{reduction}' is NOT present in Seurat object."))
-    
-    # Check alternative reduction name
-    alt_reduction <- paste0("umap_", tolower(reduction))
-    
-    if (alt_reduction %in% names(integrated_seurat@reductions)) {
-      log_info(sample = "",
-               step = "plot_umap",
-               message = glue::glue("Using alternative reduction : '{alt_reduction}'."))
-      reduction <- alt_reduction
-    } else {
-      log_error(sample = "",
-                step = "plot_umap",
-                message = glue::glue("Alternative reduction '{alt_reduction}' is NOT present."))
-    }
-  }
-  
-  # ---- 🧪 Detect Appropriate Assay for FeaturePlot ----
-  
-  all_assays <- names(integrated_seurat@assays)
-  
-  if ("SCT" %in% all_assays) {
-    active_assay <- "SCT"
-  } else if ("RNA" %in% all_assays) {
-    active_assay <- "RNA"
-  } else if (length(all_assays) > 0) {
-    active_assay <- all_assays[1]
-    log_info(sample = "",
-             step = "plot_umap",
-             message = glue::glue("No SCT/RNA assay found. Using assay : '{active_assay}'."))
-  } else {
-    log_error(sample = "",
-              step = "plot_umap",
-              message = "No assays found in Seurat object for DE analysis.")
-  }
-  
-  # Set active assay
-  DefaultAssay(integrated_seurat) <- active_assay
-  
-  # ---- 👥 Determine Groups for Plotting ----
-  
-  if (is.null(split_col)) {
-    # No splitting → single panel
-    groups <- "All"
-  } else if (length(split_col) == 1) {
-    # Single-column split → one panel per unique value
-    groups <- unique(integrated_seurat@meta.data[[split_col]])
-  } else {
-    # Multi-column split → one panel per column name (no subsetting)
-    groups <- split_col
-  }
-  
-  # ---- 🖼️ Generate Plots for each group ----
-  
-  all_plots <- list()
-  all_plots_labelled <- list()
-  for (g in groups) {
-    
-    if (is.null(split_col)) {
-      
-      # No split → use full object
-      subset_obj <- integrated_seurat
-      
-      # Determine levels of color_col
-      all_levels <- sort(unique(integrated_seurat@meta.data[[color_col]]))
-      
-    } else if (length(split_col) == 1) {
-      
-      # Single-column split → subset by value
-      subset_obj <- integrated_seurat[, integrated_seurat@meta.data[[split_col]] == g]
-      
-      # Determine levels of color_col
-      all_levels <- sort(unique(integrated_seurat@meta.data[[color_col]]))
-      
-    } else{
-      
-      # multi-column split → use full object
-      subset_obj <- integrated_seurat
-      
-      # Determine levels of color_col
-      color_col <- g
-      all_levels <- sort(unique(integrated_seurat@meta.data[[color_col]]))
-      
-    }
-    
-    # Get UMAP co-ordinates and add color column
-    df <- SeuratObject::Embeddings(object = subset_obj, reduction = reduction) %>% 
-      as.data.frame() %>%
-      dplyr::rename(UMAP_1 = 1, UMAP_2 = 2) %>%
-      dplyr::mutate(!!color_col := subset_obj@meta.data[[color_col]])
-    
-    # Convert grouping column to factor to ensure proper ordering for colors
-    df[[color_col]] <- factor(df[[color_col]], levels = all_levels)
-    
-    # [OPTIONAL] Calculate Cluster Centroids for Labeling
-    cluster_centroids <- df %>%
-      dplyr::group_by(!!sym(color_col)) %>%
-      dplyr::summarise(UMAP_1 = median(UMAP_1, na.rm = TRUE), 
-                       UMAP_2 = median(UMAP_2, na.rm = TRUE),
-                       .groups = 'drop') %>%
-      dplyr::filter(!is.na(UMAP_1), !is.na(UMAP_2))
-    
-    # Create DimPlot
-    p <- ggplot(data = df, 
-                aes(x = UMAP_1, y = UMAP_2, color = !!sym(color_col))) +
-      geom_point(size = 0.2, stroke = 0) +
-      theme_classic() +
-      coord_fixed(ratio = 1) +
-      ggplot2::labs(color = "CLUSTERS", x = "UMAP_1", y = "UMAP_2", title = g) +
-      custom_theme +
-      ggplot2::scale_color_manual(values = custom_palette) +
-      guides(color = guide_legend(override.aes = list(size = 3)))
-    
-    # Create another plot with cluster labels
-    q <- p +
-      # Add Labels using ggrepel::geom_text_repel for non-overlapping labels
-      ggrepel::geom_text_repel(data = cluster_centroids,
-                               mapping = aes(label = !!sym(color_col)),
-                               color = "black",     # Set label color to black
-                               size = 6,              
-                               point.padding = NA,
-                               segment.colour = 'transparent') # No lines connecting labels to clusters
-    
-    all_plots[[g]] <- p
-    all_plots_labelled[[g]] <- q
-  }
-  
-  # ---- 🌐 Combine Plots Using cowplot ----
-  
-  n_plots <- length(all_plots)
-  ncol_plots <- ceiling(sqrt(n_plots))
-  nrow_plots <- ceiling(n_plots / ncol_plots)
-  
-  # Combine all plots
-  combined_plot <- cowplot::plot_grid(plotlist = all_plots, 
-                                      ncol = ncol_plots, 
-                                      nrow = nrow_plots)
-  
-  combined_plot_labelled <- cowplot::plot_grid(plotlist = all_plots_labelled, 
-                                               ncol = ncol_plots, 
-                                               nrow = nrow_plots)
-  
-  # ---- 💾 Save Combined Plot ----
-  
-  file_name <- file.path(output_dir, paste0(filename, ".pdf"))
-  ggplot2::ggsave(filename  = file_name,
-                  plot      = combined_plot,
-                  device    = cairo_pdf,
-                  width     = ncol_plots * 10, # extra 2 inch for legend
-                  height    = nrow_plots * 8, 
-                  units     = "in",
-                  limitsize = FALSE,
-                  bg        = "white")
-  
-  file_name_labelled <- file.path(output_dir, paste0(filename, "_labelled.pdf"))
-  ggplot2::ggsave(filename  = file_name_labelled,
-                  plot      = combined_plot_labelled,
-                  device    = cairo_pdf,
-                  width     = ncol_plots * 10, # extra 2 inch for legend
-                  height    = nrow_plots * 8, 
-                  units     = "in",
-                  limitsize = FALSE,
-                  bg        = "white")
-  
-  # ---- 🪵 Log Output ----
-  
-  log_info(sample = "",
-           step = "plot_umap",
-           message = glue::glue("UMAP plot saved successfully to : '{file_name}'."))
-  
-  log_info(sample = "",
-           step = "plot_umap",
-           message = glue::glue("UMAP plot saved successfully to : '{file_name_labelled}'."))
-  
-}
-
-plot_features <- function(integrated_seurat, features, reduction, filename, output_dir, split_col = NULL){
-  
-  # ---- ⚙️ Validate Input Parameters ----
-  
-  validate_inputs(seurat_object = integrated_seurat, reduction = reduction, 
-                  features = features, metadata_cols = c(split_col),
-                  filename = filename, output_dir = output_dir)
-  
-  # ---- 🔄 Check and Update Reduction Name ----
-  
-  if (!(reduction %in% names(integrated_seurat@reductions))) {
-    log_warn(sample = "",
-             step = "plot_features",
-             message = glue::glue("Reduction '{reduction}' is NOT present in Seurat object."))
-    
-    # Check alternative reduction name
-    alt_reduction <- paste0("umap_", tolower(reduction))
-    
-    if (alt_reduction %in% names(integrated_seurat@reductions)) {
-      log_info(sample = "",
-               step = "plot_features",
-               message = glue::glue("Using alternative reduction : '{alt_reduction}'."))
-      reduction <- alt_reduction
-    } else {
-      log_error(sample = "",
-                step = "plot_features",
-                message = glue::glue("Alternative reduction '{alt_reduction}' is NOT present."))
-    }
-  }
-  
-  # ---- 🧪 Detect Appropriate Assay for FeaturePlot ----
-  
-  all_assays <- names(integrated_seurat@assays)
-  
-  if ("SCT" %in% all_assays) {
-    active_assay <- "SCT"
-  } else if ("RNA" %in% all_assays) {
-    active_assay <- "RNA"
-  } else if (length(all_assays) > 0) {
-    active_assay <- all_assays[1]
-    log_info(sample = "",
-             step = "plot_features",
-             message = glue::glue("No SCT/RNA assay found. Using assay : '{active_assay}'."))
-  } else {
-    log_error(sample = "",
-              step = "plot_features",
-              message = "No assays found in Seurat object for DE analysis.")
-  }
-  
-  # Set active assay
-  DefaultAssay(integrated_seurat) <- active_assay
-  
-  # ---- 👥 Determine Groups for Plotting ----
-  
-  if (is.null(split_col)) {
-    # No splitting → single panel
-    groups <- "All"
-  } else if (length(split_col) == 1) {
-    # Single-column split → one panel per unique value
-    groups <- unique(integrated_seurat@meta.data[[split_col]])
-  } else {
-    # Multi-column split → one panel per column name (no subsetting)
-    groups <- split_col
-  }
-  
-  # ---- 🖼️ Generate Plots for each group ----
-  
-  all_plots <- list()
-  for (feature in features) {
-    
-    # Determine feature type
-    is_gene <- feature %in% rownames(SeuratObject::GetAssayData(integrated_seurat, assay = active_assay, layer = "data"))
-    is_metadata <- feature %in% colnames(integrated_seurat@meta.data)
-    
-    if (!is_gene & !is_metadata) next  # Skip missing feature
-    
-    for (g in groups) {
-      
-      if (is.null(split_col)) {
-        
-        # No split → use full object
-        subset_obj <- integrated_seurat
-        group_label <- ""
-        
-        # Determine levels of color_col
-        #all_levels <- sort(unique(integrated_seurat@meta.data[[color_col]]))
-        
-      } else if (length(split_col) == 1) {
-        
-        # Single-column split → subset by value
-        subset_obj <- integrated_seurat[, integrated_seurat@meta.data[[split_col]] == g]
-        group_label <- g
-        
-        # Determine levels of color_col
-        #all_levels <- sort(unique(integrated_seurat@meta.data[[color_col]]))
-        
-      } else{
-        
-        # multi-column split → use full object
-        subset_obj <- integrated_seurat
-        group_label <- g
-        
-        # Determine levels of color_col
-        #color_col <- g
-        #all_levels <- sort(unique(integrated_seurat@meta.data[[color_col]]))
-      }
-      
-      # Fetch expression for the feature
-      if (is_gene) {
-        expr_data <- SeuratObject::GetAssayData(subset_obj, assay = active_assay, layer = "data")
-        expr_values <- expr_data[feature, ]
-      } else if (is_metadata) {
-        expr_data <- subset_obj@meta.data
-        expr_values <- expr_data[[feature]]
-      }
-      
-      # Get UMAP co-ordinates and add expr values
-      df <- SeuratObject::Embeddings(object = subset_obj, reduction = reduction) %>% 
-        as.data.frame() %>%
-        dplyr::rename(UMAP_1 = 1, UMAP_2 = 2) %>%
-        dplyr::mutate(!!feature := expr_values)
-      
-      # Color scale
-      cols <- rev(RColorBrewer::brewer.pal(11, "RdBu"))
-      #cols = c("grey", viridis(n = 10, option = "C", direction = -1))
-      #cols = c("grey", viridis(n = 10, option = "C", direction = 1))
-      #cols =  c("#440154FF", viridis(n = 10, option = "C", direction = 1))
-      
-      # Set min and max using Seurat's default quantiles (1% and 99%)
-      if (min(expr_values, na.rm = TRUE) >= 0) {
-        # Sequential (non-negative)
-        min_expr <- 0
-        max_expr <- quantile(expr_values, probs = 0.99, na.rm = TRUE)
-        
-        # Clip max only
-        df[[feature]] <- pmin(df[[feature]], max_expr)
-        
-        # Gradient params
-        mid_frac <- abs(min_expr) / (abs(min_expr) + max_expr)  # position of 0 in the palette
-        
-        # If min_expr = max_expr = 0, then mid_frac is not finite and gives error
-        if (max_expr == 0 && min_expr == 0) {
-          max_expr <- 1
-          mid_frac <- 0
-        }
-        
-        values <- c(seq(0, mid_frac, length.out = 6), seq(mid_frac, 1, length.out = 6)[-1])
-        values <- unique(values)
-        cols <- cols[6:11]     # use only red half
-        
-      } else {
-        # Diverging
-        min_expr <- quantile(expr_values, probs = 0.01, na.rm = TRUE)
-        max_expr <- quantile(expr_values, probs = 0.99, na.rm = TRUE)
-        
-        # Clip min and max
-        df[[feature]] <- pmin(df[[feature]], max_expr)
-        df[[feature]] <- pmax(df[[feature]], min_expr)
-        
-        # Map 11 colors to min -> 0 -> max
-        mid_frac <- abs(min_expr) / (abs(min_expr) + max_expr)  # position of 0 in the palette
-        values <- c(seq(0, mid_frac, length.out = 6), seq(mid_frac, 1, length.out = 6)[-1])
-        cols <- cols
-      }
-      
-      # Order points for plotting
-      df <- df[base::order(df[[feature]]), ]   # same ordering Seurat would use
-      
-      # Create FeaturePlot
-      p <- ggplot(data = df, 
-                  aes(x = UMAP_1, y = UMAP_2, color = !!sym(feature))) +
-        geom_point(size = 0.2, stroke = 0) +
-        cowplot::theme_cowplot() +
-        coord_fixed(ratio = 1) +
-        ggplot2::labs(title = paste0(feature, group_label), x = "UMAP_1", y = "UMAP_2") +
-        custom_theme +
-        ggplot2::scale_colour_gradientn(colours = cols,
-                                        values = values,
-                                        name = NULL,
-                                        limits = c(min_expr, max_expr))
-      
-      # Store plot
-      all_plots[[paste0(feature, group_label)]] <- p
-      
-      log_info(sample = "",
-               step = "plot_features",
-               message = glue::glue("Successfully plotted feature : '{feature}'."))
-    }
-  }
-  
-  # ---- 🌐 Combine Plots Using cowplot ----
-  
-  n_plots <- length(all_plots)
-  ncol_plots <- ceiling(sqrt(n_plots))
-  nrow_plots <- ceiling(n_plots / ncol_plots)
-  
-  # Restrict unsupported combination
-  if (ncol_plots > 10 && nrow_plots > 10) {
-    
-    log_error(sample = "",
-              step = "plot_features",
-              message = "Image size too large. More than 100 plots cannot be viewed in a single figure")
-  }
-  
-  # Combine all plots
-  combined_plot <- cowplot::plot_grid(plotlist = all_plots, 
-                                      ncol = ncol_plots, 
-                                      nrow = nrow_plots)
-  
-  # ---- 💾 Save Combined Plot ----
-  
-  file_name <- file.path(output_dir, paste0(filename, ".pdf"))
-  ggplot2::ggsave(filename  = file_name,
-                  plot      = combined_plot,
-                  device    = cairo_pdf,
-                  width     = ncol_plots * 6,
-                  height    = nrow_plots * 6,
-                  units     = "in",
-                  limitsize = FALSE,
-                  bg        = "white")
-  
-  # ---- 🪵 Log Output ----
-  
-  log_info(sample = "",
-           step = "plot_features",
-           message = glue::glue("Feature plots saved to : '{file_name}'."))
 }
 
 plot_metrics_post_integration <- function(integrated_seurat, output_dir){
@@ -5491,18 +5110,6 @@ calc_module_scores <- function(integrated_seurat, reduction, marker_file, filena
   seurat_zscore_matrix <- t(scale(t(seurat_score_matrix)))
   ucell_zscore_matrix <- t(scale(t(ucell_score_matrix)))
   
-  # ---- Add Z-scored module scores to Seurat object ----
-  
-  # Seurat scores
-  zscore_seurat_df <- as.data.frame(seurat_zscore_matrix)
-  colnames(zscore_seurat_df) <- paste0(colnames(zscore_seurat_df), "_Z")
-  integrated_seurat <- AddMetaData(integrated_seurat, metadata = zscore_seurat_df)
-  
-  # UCell scores
-  zscore_ucell_df <- as.data.frame(ucell_zscore_matrix)
-  colnames(zscore_ucell_df) <- paste0(colnames(zscore_ucell_df), "_Z")
-  integrated_seurat <- AddMetaData(integrated_seurat, metadata = zscore_ucell_df)
-  
   # ---- 🖼️ Generate Plots for each module ----
   
   # Define module names 
@@ -5510,48 +5117,25 @@ calc_module_scores <- function(integrated_seurat, reduction, marker_file, filena
   module_names <- make.names(colnames(marker_df))
   seurat_modules <- paste0(module_names, 1:length(module_names))        # Seurat::AddModuleScore() adds 1 as suffix
   ucell_modules <- paste0(module_names, "_UCell")                       # We added using name = "_UCell"
-  seurat_z_modules <- paste0(seurat_modules, "_Z")        
-  ucell_z_modules <- paste0(ucell_modules, "_Z")                       
   
   # Find available modules in seurat object
   seurat_modules <- seurat_modules[seurat_modules %in% colnames(integrated_seurat@meta.data)]
   ucell_modules <- ucell_modules[ucell_modules %in% colnames(integrated_seurat@meta.data)]
-  seurat_z_modules <- seurat_z_modules[seurat_z_modules %in% colnames(integrated_seurat@meta.data)]
-  ucell_z_modules <- ucell_z_modules[ucell_z_modules %in% colnames(integrated_seurat@meta.data)]
   
   if (length(seurat_modules) > 0){
-    plot_features(integrated_seurat, features = seurat_modules, reduction = reduction,
-                  filename = paste("Module_plot_Seurat", filename, sep = "_"), output_dir = output_dir, split_col = NULL)
+    plot_seurat(integrated_seurat, reduction = reduction, features = seurat_modules, filename = paste("Module_plot_Seurat", filename, sep = "_"), output_dir = output_dir, split_col = NULL)
   } else{
     log_warn(sample = "",
              step = "calc_module_scores",
              message = glue::glue("Skipping Seurat module score plotting as no module were found."))
   }
   if (length(ucell_modules) > 0){
-    plot_features(integrated_seurat, features = ucell_modules, reduction = reduction,
-                  filename = paste("Module_plot_UCell", filename, sep = "_"), output_dir = output_dir, split_col = NULL)
+    plot_seurat(integrated_seurat, reduction = reduction, features = ucell_modules, filename = paste("Module_plot_UCell", filename, sep = "_"), output_dir = output_dir, split_col = NULL)
   } 
   else{
     log_warn(sample = "",
              step = "calc_module_scores",
              message = glue::glue("Skipping UCell module score plotting as no module were found."))
-  }
-  if (length(seurat_z_modules) > 0){
-    plot_features(integrated_seurat, features = seurat_z_modules, reduction = reduction,
-                  filename = paste("Module_plot_Seurat_z", filename, sep = "_"), output_dir = output_dir, split_col = NULL)
-  } else{
-    log_warn(sample = "",
-             step = "calc_module_scores",
-             message = glue::glue("Skipping Seurat module zscore plotting as no module were found."))
-  }
-  if (length(ucell_z_modules) > 0){
-    plot_features(integrated_seurat, features = ucell_z_modules, reduction = reduction,
-                  filename = paste("Module_plot_UCell_z", filename, sep = "_"), output_dir = output_dir, split_col = NULL)
-  } 
-  else{
-    log_warn(sample = "",
-             step = "calc_module_scores",
-             message = glue::glue("Skipping UCell module zscore plotting as no module were found."))
   }
   
   # ---- 🪵 Log Output and Return Seurat Object ----
@@ -5570,6 +5154,29 @@ annotate_clusters <- function(integrated_seurat, reduction, assay,
   
   validate_inputs(seurat_object = integrated_seurat, reduction = reduction,
                   assay = assay, output_dir = output_dir)
+  
+  
+  # ---- 🔄 Check and Update Reduction Name ----
+  
+  if (!(reduction %in% names(integrated_seurat@reductions))) {
+    log_warn(sample = "",
+             step = "annotate_clusters",
+             message = glue::glue("Reduction '{reduction}' is NOT present in Seurat object."))
+    
+    # Check alternative reduction name
+    alt_reduction <- paste0("umap_", tolower(reduction))
+    
+    if (alt_reduction %in% names(integrated_seurat@reductions)) {
+      log_info(sample = "",
+               step = "annotate_clusters",
+               message = glue::glue("Using alternative reduction : '{alt_reduction}'."))
+      reduction <- alt_reduction
+    } else {
+      log_error(sample = "",
+                step = "annotate_clusters",
+                message = glue::glue("Alternative reduction '{alt_reduction}' is NOT present."))
+    }
+  }
   
   # ---- 🔎 Identify all cluster columns dynamically ----
   
@@ -5819,12 +5426,8 @@ annotate_clusters <- function(integrated_seurat, reduction, assay,
   
   # ---- 4️⃣ UMAP Plots for Cluster Visualization ----
   
-  plot_umap(integrated_seurat = integrated_seurat, 
-            reduction = "umap_harmony",  
-            color_col = NULL, 
-            filename = "UMAP.Ann",
-            output_dir = output_dir, 
-            split_col = c("CellType", "Stability_Score", "harmony0.8"))
+  features <- c("CellType", "Stability_Score", "harmony0.8")
+  plot_seurat(integrated_seurat, reduction = reduction, features = features, filename = "UMAP.Ann", output_dir = output_dir, split_col = NULL)
   
   # ---- 💾 Save Merged Seurat Object ----
   
@@ -5845,10 +5448,6 @@ annotate_clusters <- function(integrated_seurat, reduction, assay,
   
   return(invisible(integrated_seurat))
 }
-
-
-
-
 
 ### Annotate based on clusters variable defined by user
 # clusters <- list("Hepatocytes"         = c(),
@@ -5934,8 +5533,6 @@ annotate_manual <- function(integrated_seurat, assay, clusters, res, reduction, 
   
   return(integrated_seurat)
 } 
-
-
 
 plot_dot_plot <- function(integrated_seurat, idents, features, filename, output_dir, gene_y_axis = FALSE, split_col = NULL){
   
@@ -6162,7 +5759,7 @@ plot_dot_custom <- function(integrated_seurat, assay, proj.params, ident.1, iden
     
     # Create ggplot
     p <- ggplot(data = dotplot_data, 
-                mapping = aes(x = !!sym(x_var), y = !!sym(y_var), 
+                mapping = aes(x = .data[[x_var]], y = .data[[y_var]], 
                               size = pct.exp, fill = avg.exp.scaled)) +
       geom_point(shape = 21, colour = "black", stroke = 0.25) +
       labs(x = "", y = "", title = plot_title,
@@ -6203,7 +5800,6 @@ plot_dot_custom <- function(integrated_seurat, assay, proj.params, ident.1, iden
          units = "in",
          bg = "white")
 }
-
 
 # Input is seurat object of a single slide with columns X, Y, Sample, Group
 plot_spatial_map <- function(plot.seurat, x1, y1, x2, y2, suffix, output_dir){
@@ -6693,6 +6289,40 @@ show_survival_scenarios <- function() {
   )
   return(scenarios)
 }
+
+survival_params <- list(
+  
+  # Stratification (Expression + Metadata-based survival)
+  stratify_var     = NULL,          # one or more genes or metadata columns
+  sig_score        = FALSE,         # TRUE = combine genes into one signature score
+  substratify_var  = NULL,          # optional metadata column for sub-stratification
+  facet_var        = NULL,          # optional faceting variable
+  
+  # Cutoff settings (ONLY for Expression-based survival)
+  cutoff_method    = "optimal",      # mean, median, quartile, tertile, optimal, thirds
+  # median   : splits samples into 2 bins (below 50%, above 50%)
+  # tertile  : splits samples into 3 bins (below 33%, 33%-67%, above 67%)
+  # quartile : splits samples into 4 bins (below 25%, 25%-50%, 50%-75%, above 75%)
+  # optimal  : splits samples into 2 bins (above & below optimum cutoff)
+  # thirds   : splits samples into 3 bins (bottom 33%, middle33%, top 33% based on expression range)
+  show_all_bins    = FALSE,          # TRUE = plot all bins (LOW, HIGH, MID/MED_HIGH+MED_LOW)
+  multiple_cutoff  = FALSE,          # TRUE = compute cutoffs separately for substratify_var
+  
+  # Plot settings
+  sig_score        = FALSE,          # TRUE = combine genes into one signature score
+  conf_interval    = FALSE,          # TRUE = show confidence interval in survival curve
+  plot_curve       = TRUE,           # TRUE = plot the survival curve
+  plot_risk_table  = TRUE,           # TRUE = plot the risk table below the curve
+  color_palette    = custom_palette, # vector of colors for groups c("#d73027","#0c2c84")
+  
+  # Survival data columns
+  time_col         = "Time",         # metadata column containing Time values
+  status_col       = "Status",       # metadata column containing Status values
+  
+  # Output
+  prefix           = "",
+  output_dir      = "C:/Users/kailasamms/OneDrive - Cedars-Sinai Health System/Desktop"
+)
 
 # Calculate multi-gene signature scores
 # Described in Levine et al https://doi.org/10.1186/gb-2006-7-10-r93
@@ -7311,40 +6941,6 @@ survival_analysis <- function(meta_data, expr_data = NULL, survival_params) {
   openxlsx::saveWorkbook(wb, file = file.path(survival_params$output_dir, "Survival_Stats.xlsx"),
                          overwrite = TRUE)
 }
-
-survival_params <- list(
-  
-  # Stratification (Expression + Metadata-based survival)
-  stratify_var     = NULL,          # one or more genes or metadata columns
-  sig_score        = FALSE,         # TRUE = combine genes into one signature score
-  substratify_var  = NULL,          # optional metadata column for sub-stratification
-  facet_var        = NULL,          # optional faceting variable
-  
-  # Cutoff settings (ONLY for Expression-based survival)
-  cutoff_method    = "optimal",      # mean, median, quartile, tertile, optimal, thirds
-  # median   : splits samples into 2 bins (below 50%, above 50%)
-  # tertile  : splits samples into 3 bins (below 33%, 33%-67%, above 67%)
-  # quartile : splits samples into 4 bins (below 25%, 25%-50%, 50%-75%, above 75%)
-  # optimal  : splits samples into 2 bins (above & below optimum cutoff)
-  # thirds   : splits samples into 3 bins (bottom 33%, middle33%, top 33% based on expression range)
-  show_all_bins    = FALSE,          # TRUE = plot all bins (LOW, HIGH, MID/MED_HIGH+MED_LOW)
-  multiple_cutoff  = FALSE,          # TRUE = compute cutoffs separately for substratify_var
-  
-  # Plot settings
-  sig_score        = FALSE,          # TRUE = combine genes into one signature score
-  conf_interval    = FALSE,          # TRUE = show confidence interval in survival curve
-  plot_curve       = TRUE,           # TRUE = plot the survival curve
-  plot_risk_table  = TRUE,           # TRUE = plot the risk table below the curve
-  color_palette    = custom_palette, # vector of colors for groups c("#d73027","#0c2c84")
-  
-  # Survival data columns
-  time_col         = "Time",         # metadata column containing Time values
-  status_col       = "Status",       # metadata column containing Status values
-  
-  # Output
-  prefix           = "",
-  output_dir      = "C:/Users/kailasamms/OneDrive - Cedars-Sinai Health System/Desktop"
-)
 
 # Run to understand how to define parameters for the survival function
 show_survival_scenarios()
@@ -8033,160 +7629,215 @@ plot_t_score <- function(data, disp_genes, suffix, save_path){
                   bg = NULL)
 }
 
-# ---- VENN DIAGRAM ----
+# ---- 🔵🟡 VENN DIAGRAM ----
 
-# Use this website for 3 set data if this script's venn diagram isnt pretty
-# http://www.ehbio.com/test/venn/#/
-
-plot_venn <- function(data, path, suffix){
+# ALTERNATIVE: Use http://www.ehbio.com/test/venn/#/  
+plot_venn <- function(data, filename, output_dir){
   
-  # Input validation
-  if (!is.data.frame(data)) stop("`data` must be a data frame.")
-  if (!dir.exists(path)) stop("`path` directory does not exist.")
-  if (!is.character(suffix) || length(suffix) != 1) stop("`suffix` must be a single string.")
+  # ---- ⚙️ Validate Input Parameters ----
   
-  plot_title <- suffix
-  ncol <- ncol(data)
+  validate_inputs(raw_metadata = data, output_dir = output_dir, filename = filename)
   
-  # Clean column names (replace _ and . with space)
-  colnames(data) <- stringr::str_replace_all(colnames(data), c("_" = " ", "\\." = " "))
-  
-  # Set cat.pos, cat.dist, cex and palette based on number of columns
-  if (ncol == 4){
-    pos <- c(330, 15, 330, 15)
-    dist <- c(0.27, 0.25, 0.15, 0.13)
-    cex = 2
-    palette1 <- c("#C8E7F5", "#00008C", "#F6D2E0", "#E75480")        
-  } else if (ncol == 3){
-    pos <- c(0, 0, 180)
-    dist <- c(0.1, 0.1, 0.1)
-    cex = 2
-    palette1 <- c("#C8E7F5", "#F6D2E0", "#db6d00")     
-  } else if (ncol == 2){
-    pos <- c(0, 0)
-    dist <- c(0.05, 0.05)
-    cex = 2.75
-    palette1 <- c("#C8E7F5", "#db6d00")                             
-  } else if (ncol == 1){
-    pos <- c(0)
-    dist <- c(0.1)
-    cex = 2.75
-    palette1 <- c("#F6D2E0")                                         
-  } else {
+  # Validate column count (upto 4 columns)
+  if (ncol(data) < 1 || ncol(data) > 4) {
     stop("`data` must have between 1 and 4 columns.")
   }
   
-  # Create a dataframe to store the wrapped column names
+  # ---- 🛠️ Configure Venn Diagram Settings ----
+  
+  # Clean column names (replace non-standard characters with space for visualization)
+  colnames(data) <- stringr::str_replace_all(colnames(data), c("_" = " ", "\\." = " "))
+  
+  # Set category position (cat.pos), label distance (cat.dist), font size (cex), and palette
+  # Settings are optimized based on the number of sets (columns)
+  if (ncol(data) == 4){
+    pos <- c(330, 15, 330, 15) # Quadrant positioning
+    dist <- c(0.27, 0.25, 0.15, 0.13)
+    cex = 2
+    palette1 <- c("#C8E7F5", "#00008C", "#F6D2E0", "#E75480")
+  } else if (ncol(data) == 3){
+    pos <- c(0, 0, 180)
+    dist <- c(0.1, 0.1, 0.1)
+    cex = 2
+    palette1 <- c("#C8E7F5", "#F6D2E0", "#db6d00")
+  } else if (ncol(data) == 2){
+    pos <- c(0, 0)
+    dist <- c(0.05, 0.05)
+    cex = 2.75
+    palette1 <- c("#C8E7F5", "#db6d00")
+  } else if (ncol(data) == 1){
+    pos <- c(0)
+    dist <- c(0.1)
+    cex = 2.75
+    palette1 <- c("#F6D2E0")
+  }
+  
+  # Create a dataframe to store the wrapped column names for clean labels
   annotation <- data.frame(Labels = stringr::str_wrap(colnames(data), width = 10))
   
-  # Convert the data frame to a named list (removing NAs)
+  # Convert the data frame to a named list (VennDiagram input format)
   genes <- base::vector(mode = "list", length = ncol(data))
   names(genes) <- annotation$Labels
   
   for (i in 1:ncol(data)){
-    
-    # remove NA values and create a list of genes for each label
-    genes[[i]] <- data[!is.na(data[i]),i]
+    # Remove NA values to generate a clean list of genes for each set (label)
+    genes[[i]] <- data[!is.na(data[i]), i]
   }
   
-  # Plot the venn diagram
+  # ---- 📊 Generate Venn Diagram ----
+  
+  file_name <- file.path(output_dir, paste0("Venn_Diagram_", filename, ".tiff"))
   VennDiagram::venn.diagram(x = genes,
-                            main = plot_title, 
+                            main = filename,
                             category.names = annotation$Labels,
-                            filename = file.path(path, paste0("Venn_Diagram_", suffix, ".tiff")),
+                            filename = file_name,
                             output = TRUE,
-                            scaled = FALSE,
+                            scaled = FALSE, # Disable proportional scaling (can distort appearance)
                             imagetype = "tiff",
-                            height = 11, 
+                            height = 11,
                             width = 11,
                             units = "in",
                             resolution = 600,
                             compression = "lzw",
-                            margin = 0.3,    #amount of white space around Venn Diagram in grid units
+                            margin = 0.3, # Amount of white space around Venn Diagram in grid units
                             
-                            # Formatting the shapes of venn diagram
-                            lwd = 1.5,                 #thickness of line
-                            lty = 1,                   #type of line
-                            col = "black",             #color of line
+                            # 1️⃣ Line Formatting
+                            lwd = 1.5,                 # line thickness
+                            lty = 1,                   # line type
+                            col = "black",             # line color
                             
-                            # Formatting numbers inside venn diagram
-                            cex = cex,                 #font size (2 or 2.75)
-                            fontface = "bold",         #font style
-                            fontfamily = "sans",       #font type
+                            # 2️⃣ Number Formatting
+                            cex = cex,                 # font size (2 or 2.75)
+                            fontface = "bold",         # font style  
+                            fontfamily = "sans",       # font type
                             
-                            # Formatting title of venn diagram
-                            main.cex = 2,              #font size
-                            main.fontface = "bold",    #font style
-                            main.fontfamily = "sans",  #font type
-                            main.col = "black",        #font color
+                            # 3️⃣ Main Title Formatting
+                            main.cex = 2,              # font size
+                            main.fontface = "bold",    # font style 
+                            main.fontfamily = "sans",  # font type
+                            main.col = "black",        # font color
                             
-                            # Formatting category of venn diagram
-                            cat.cex = 2,               #font size
-                            cat.fontface = "bold",     #font style
-                            cat.fontfamily = "sans",   #font type
-                            cat.col = palette1,  #"black",
+                            # 4️⃣ Category Label Formatting
+                            cat.cex = 2,               # font size
+                            cat.fontface = "bold",     # font style
+                            cat.fontfamily = "sans",   # font type
+                            cat.col = palette1, #"black"
+                            cat.pos = pos,
+                            cat.dist = dist,
                             
-                            # Formatting colors of venn diagram
+                            # 5️⃣ Fill Colors
                             fill = palette1,
-                            alpha = rep(0.5, ncol), #0.5=50% transparency, 1=0% transparency
-                            #cat.default.pos = "outer",    
-                            
-                            cat.pos = pos,    
-                            cat.dist = dist, 
-                            disable.logging = TRUE,
-                            ext.text = TRUE)
+                            alpha = rep(0.5, ncol(data)),    # 50% transparency for fill color
+                            ext.text = TRUE,           # Draw external text (labels)
+                            #cat.default.pos = "outer",
+                            disable.logging = TRUE)
+                                
+  # ---- 💾 Save Overlapping Genes (Excel Output) ----
   
-  #******************************************************************************#
-  #                          SAVE THE OVERLAPPING GENES                          #
-  #******************************************************************************#
+  # 1️⃣ Detect Unique Overlapping Genes Across All Combinations
   
-  # Save the list of overlapping genes. NOTE: You need to manually figure out
-  # which genes belong to which overlap based on number of genes overlapping
+  overlap_list <- list()
+  detected_genes <- character(0) # Use character(0) for an empty character vector
   
-  # Calculate overlaps
-  overlap <- VennDiagram::calculate.overlap(x = genes)
-  
-  # Identify maximum number of genes present in any overlap
-  max_len = max(lengths(overlap))
-  
-  # Create an dataframe of size length(overlap), max with NAs
-  results = data.frame(matrix("", nrow = max_len, ncol = length(overlap)))
-  rownames(results) <- paste0("Gene#", seq(max_len))
-  colnames(results) <- paste0("Intersection#", seq(length(overlap)))
-  
-  # Populate the dataframe with gene names
-  for (i in 1:length(overlap)){
-    if (length(overlap[[i]]) > 0){
-      for (j in 1:length(overlap[[i]])){
-        results[j,i] <- overlap[[i]][j]
-        #results[[j,i]] <- overlap[[i]][j]
-      }
+  # Iterate combinations from the largest (all datasets) down to the smallest (single datasets)
+  for (n in seq(from = ncol(data), to = 1, by = -1)){
+    
+    # Generate all possible n-element combinations of set names
+    cmb <- utils::combn(x = names(genes), m = n)
+    
+    for (col in 1:ncol(cmb)){
+      
+      # Get the names of the datasets in the current combination
+      datasets <- cmb[,col]
+      
+      # Calculate the intersection (overlapping genes) for the current combination
+      overlap <- Reduce(intersect, genes[datasets])
+      
+      # Remove genes already detected in overlaps of previous (larger) comparisons.
+      # This ensures that each gene is counted only in the *largest* combination
+      # where it is present (i.e., unique to that specific overlap region).
+      overlap_unique <- base::setdiff(overlap, detected_genes)
+      
+      # Add the newly found unique genes to the master list of detected genes
+      detected_genes <- c(detected_genes, overlap_unique)
+      
+      # Collapse the set names into a clean label (e.g., "Set1.Set2.Set3")
+      names <- paste(datasets, collapse = ".")
+      
+      # Store the vector of unique overlapping genes under the meaningful name
+      overlap_list[[names]] <- overlap_unique
     }
   }
   
-  # Save results to Excel
+  # 2️⃣ Format Results into a Data Frame for Saving
+  
+  # Identify maximum number of genes present in any single unique overlap region
+  max_len = max(lengths(overlap_list))
+  
+  # Create an empty data frame structure to hold all results
+  results = data.frame(matrix("", nrow = max_len, ncol = length(overlap_list)))
+  
+  # Set row names to be generic gene numbers
+  rownames(results) <- paste0("Gene#", seq(max_len))
+  
+  # Set column names to the meaningful set combination labels
+  colnames(results) <- names(overlap_list)
+  
+  # Populate the dataframe (This loop was missing in your original paste)
+  for (i in 1:length(overlap_list)){
+    if (length(overlap_list[[i]]) > 0){
+      results[1:length(overlap_list[[i]]), i] <- overlap_list[[i]]
+    }
+  }
+  
+  # 3️⃣ Save Results to Excel Workbook (using openxlsx)
+  
+  file_name <- file.path(output_dir, paste0("Overlap_", filename, ".xlsx"))
   wb <- openxlsx::createWorkbook()
+  
   openxlsx::addWorksheet(wb, sheetName = "Output")
-  openxlsx::writeData(wb, sheet = "Output", x = results, rowNames = TRUE)
+  openxlsx::writeData(wb, sheet = "Output", x = results, rowNames = TRUE, keepNA = FALSE)
+  
   openxlsx::addWorksheet(wb, sheetName = "Input")
   openxlsx::writeData(wb, sheet = "Input", x = data, rowNames = FALSE)
-  openxlsx::saveWorkbook(wb, file = file.path(path, paste0("Overlap_", suffix, ".xlsx")),
-                         overwrite = TRUE,  returnValue = FALSE)
   
-  invisible(NULL)
+  openxlsx::saveWorkbook(wb, file = file_name, overwrite = TRUE)
+
+  # ---- 🪵 Log Output ----
+  
+  log_info(sample = "", 
+           step = "plot_venn",
+           message = glue::glue("Venn plot saved successfully to : '{file_name}'."))
+  return(invisible(NULL))
+
 }
 
-# ---- UPSET PLOT ----
+# ---- 🧩 📊 UPSET PLOT ----
 
-# NOTE: The names of list will be on Y axis of bottom graph
-# The intersection size based on Y values of top graph
-# All possible intersections will be displayed in bottom graph
+# 💡 Key Features of UpSet Plot Visualization: 
+# 1️⃣ Sets/List Names (e.g., Genes/Proteins) are displayed on the Y-axis of the bottom matrix.
+# 2️⃣ Intersection size (count of overlapping elements) is based on the Y-values of the top bar graph.
+# 3️⃣ All possible intersections (combinations) are displayed along the X-axis of the bottom matrix.
+
 plot_upset <- function(listInput = NULL, selected_sets = NULL,
                        min_intersection_size = NULL, filename = "Upset_Plot",
-                       output_dir = getwd()) {
+                       output_dir) {
   
-  # Default example list if none provided
+  # ---- ⚙️ Validate Input Parameters ----
+  
+  validate_inputs(filename = filename, n_pcs = min_intersection_size,
+                  output_dir = output_dir)
+  
+  # Check required inputs after defaulting
+  if (!is.list(listInput) || length(listInput) == 0) {
+    log_warn(sample = "",
+              step = "plot_upset", 
+              message = "Input list is empty or invalid. using example dataset")
+  }
+  
+  # Handle Default Input (Example Data)
   if (is.null(listInput)) {
+    message("No listInput provided. Using default example kinase data for demonstration.")
     listInput <- list(
       DMPK = c(1,2,3,4,5,6,7,8,9,11,16,17),
       MAPK1 = c(1,2,3,4,5,6,7,8,9,16,17,18),
@@ -8211,15 +7862,24 @@ plot_upset <- function(listInput = NULL, selected_sets = NULL,
       JAK2 = c(2,4,5,6,7,8,9,16,17,18)
     )
     
-    selected_sets <- c("DCLK1", "MAPK1", "CDKL1", "ROCK1", "MAPK7", 
-                       "HIPK4", "MAP2K2", "DYRK2")
-    min_intersection_size <- 5
+    # Set parameters relevant to the default data
+    if (is.null(selected_sets)) {
+      selected_sets <- c("DCLK1", "MAPK1", "CDKL1", "ROCK1", "MAPK7",
+                         "HIPK4", "MAP2K2", "DYRK2")
+    }
+    if (is.null(min_intersection_size)) {
+      min_intersection_size <- 5
+    }
   }
   
-  # Convert list to UpSetR input format
+  # ---- 🛠 Prepare Data for UpSetR ----
+  
+  # Convert the named R list of vectors into the binary matrix format required by UpSetR
   upset_data <- UpSetR::fromList(listInput)
   
-  # Create UpSet plot
+  # ---- 📊 Create UpSet Plot ----
+  
+  # Generate the UpSet plot object
   p <- UpSetR::upset(data = upset_data,
                      empty.intersections = "on",
                      cutoff = min_intersection_size,      # minimum intersection size to show
@@ -8233,19 +7893,407 @@ plot_upset <- function(listInput = NULL, selected_sets = NULL,
                      text.scale = c(2, 2, 1.5, 1.5, 2, 1.5) # scale axis and text sizes
   )
   
-  # Convert to ggplot object for saving
+  # Convert to ggplot object for standardized saving
   ggplot_obj <- ggplotify::as.ggplot(p)
   
-  # Save plot
-  ggsave(filename = file.path(output_dir, paste0(filename, ".jpg")),
-         plot = ggplot_obj,
-         height = 11,
-         width = 11
-  )
+  # ---- 💾 Save Plot ----
   
-  message("UpSet plot saved to: ", file.path(output_dir, paste0(filename, ".jpg")))
+  file_name <- file.path(output_dir, paste0("Upset_Plot_", filename, ".pdf"))
+  ggplot2::ggsave(filename = file_name,
+                  plot = ggplot_obj,
+                  height = 11,
+                  width = 11)
   
-  return(ggplot_obj)
+  # ---- 🪵 Log Output ----
+  
+  log_info(sample = "", 
+           step = "plot_upset",
+           message = glue::glue("Upset plot saved successfully to : '{file_name}'."))
+  
+  return(invisible(NULL))
+}
+
+# ---- 🧭 PCA & UMAP PLOT ----
+
+# 1️⃣ Data Orientation:
+#    - Rows MUST be Observations (i.e. Samples)
+#    - Columns MUST be Variables (i.e. Features, Genes, DMRs, etc.)
+#    - If your data matrix is Features × Samples, you MUST use t() to transpose
+#      data matrix before running prcomp().
+
+# 2️⃣ Centering and Scaling:
+#    - prcomp() centers columns by default (center = TRUE)
+#      -> Subtracts the mean of each feature across all samples.
+#    - Scaling (scale. = TRUE) divides each column by its standard deviation.
+#      -> This ensures all features contribute equally, regardless of their 
+#         magnitude or raw variance.
+#    - Note: prcomp(X, center=T, scale.=T) is equivalent to 
+#            prcomp(scale(X), center=F, scale.=F).
+
+# 3️⃣ When to Scale:
+#    - Use scale. = TRUE when feature variance is NOT biologically meaningful
+#      Eg: raw counts, FPKM/TPM
+#    - Use scale. = FALSE when feature variance is biologically meaningful
+#      Eg: VST, rlog, fractions, or data that has been variance-stabilized).
+
+# 4️⃣ PCA Interpretation:
+#    - PCA computes principal components for Observations (i.e. Samples) in the
+#      space of Variables (i.e. features)
+#    - The first PC (PC1) captures the largest variance among samples.
+#    - '$x' matrix contains the new coordinates for your Observations (i.e. Samples).#    
+#    - '$rotation' matrix shows the Loadings, indicating how each original 
+#      Feature/Gene contributes to the direction of the Principal Components. 
+
+# 5️⃣ Example Usage (Assuming gene_data is Genes × Samples of VST counts):
+#    pca_result <- prcomp(t(gene_data), center = TRUE, scale. = FALSE)
+#    # t(gene_data) ensures Samples are rows and Genes are columns.
+
+# IMPORTANT: plot_pca() NEEDS expr_mat to be VST/rlog/logit transformed. It 
+# hasn't been coded to work with other types of data. metadata MUST have column
+# "Sample_ID"
+
+plot_pca <- function(expr_mat, metadata, top_n_genes = 5000, skip_plot = FALSE,
+                     filename, output_dir){
+  
+  # ---- ⚙️ Validate Input Parameters ----
+  
+  validate_inputs(expr_mat = expr_mat, metadata = metadata, 
+                  filename = filename, output_dir = output_dir)
+  
+  # ---- Feature Selection ----
+  
+  if (nrow(expr_mat) > top_n_genes){
+    expr_df <- expr_mat %>%
+      as.data.frame() %>%
+      dplyr::mutate(row_variance = matrixStats::rowVars(as.matrix(.))) %>%
+      dplyr::slice_max(order_by = row_variance, n = top_n_genes) %>%
+      dplyr::select(-row_variance)
+  } else{
+    expr_df <- expr_mat %>%
+      as.data.frame()
+  }
+  
+  # ---- PCA Calculation ----
+  
+  pca_results <- stats::prcomp(x = t(expr_df), center = TRUE, scale. = FALSE)
+  
+  if (skip_plot){
+    return(invisible(pca_results))
+  }
+  
+  # ---- Merge PCA co-ordiantes with Metadata ----
+  
+  pca_df <- pca_results$x %>%
+    as.data.frame() %>%
+    tibble::rownames_to_column("Sample_ID") %>%
+    dplyr::inner_join(metadata, by = c("Sample_ID"="Sample_ID"))
+  
+  # ---- 🖼️ Generate Plots for each group ----
+  
+  # PC1 and PC2 Variance
+  percentVar <- round(100 * summary(pca_results)$importance[2, 1:2])
+  comp_variables <- base::setdiff(colnames(metadata), "Sample_ID")
+  
+  all_plots <- list()
+  
+  for (var in comp_variables) {
+    
+    # Get levels for each group
+    n_unique <- length(unique(metadata[[var]]))
+    if (n_unique < 2 || n_unique == nrow(metadata)) {
+      log_warn(sample = "",
+               step = "plot_pca",
+               message = glue::glue("Variable '{var}' is either constant or has one unique value per sample; skipping PCA plot."))
+      next
+    }
+    
+    # Define color palette
+    pca_palette <- custom_palette[1:length(unique(metadata[[var]]))]
+    names(pca_palette) <- as.character(unique(metadata[[var]]))
+    
+    # PCA Plot
+    p <- ggplot2::ggplot(data = pca_df, 
+                         mapping = aes(x = PC1, y = PC2, color = .data[[var]])) +
+      ggplot2::geom_point(size = 3, shape = 16) +
+      ggrepel::geom_text_repel(ggplot2::aes(label = Sample_ID), show.legend = FALSE) +
+      theme_classic() +
+      coord_fixed(ratio = 1) +
+      ggplot2::labs(color = var, 
+                    x = paste0("PC1: ", percentVar[1], "% variance"),
+                    y = paste0("PC2: ", percentVar[2], "% variance"), 
+                    title = var) +
+      custom_theme +
+      ggplot2::scale_color_manual(values = pca_palette)
+    
+    all_plots[[var]] <- p
+    
+    log_info(sample = "",
+             step = "plot_pca",
+             message = glue::glue("Successfully plotted variable : '{var}'."))
+  }
+  
+  # ---- 💾 Save Plot ----
+  
+  file_name <- file.path(output_dir, paste0("PCA_Plot_", filename, ".pdf"))
+  
+  # Open multi-page PDF
+  grDevices::pdf(file = file_name, width = 8, height = 11.5, onefile = TRUE)  
+  
+  for (var in names(all_plots)) {
+    print(all_plots[[var]])  # each plot goes to a new page
+  }
+  
+  dev.off() 
+  
+  # ---- 🪵 Log Output ----
+  
+  log_info(sample = "", 
+           step = "plot_pca",
+           message = glue::glue("PCA plot saved successfully to : '{file_name}'."))
+  
+  return(invisible(pca_results))
+}
+
+
+plot_umap <- function(expr_mat, metadata, n_pcs = 50, n_neighbors = NULL,
+                      filename, output_dir){
+  
+  # ---- ⚙️ Validate Input Parameters ----
+  
+  validate_inputs(expr_mat = expr_mat, metadata = metadata, n_pcs = n_pcs,
+                  filename = filename, output_dir = output_dir)
+  
+  if(!is.null(n_neighbors) && n_neighbors >= ncol(expr_mat)){
+    log_error(sample = "",
+              step = "plot_umap",
+              message = glue::glue("n_neighbors 'n_neighbors' MUST be lesser than number of samples."))
+  }
+  
+  # Get PC co-ordinates
+  pca_results <- plot_pca(expr_mat = expr_mat, metadata = metadata, skip_plot = TRUE,
+                  filename = filename, output_dir = output_dir)
+  
+  # Select top 50 PCs for UMAP
+  if(ncol(pca_results$x) > n_pcs){
+    X_pcs <- pca_results$x[, 1:n_pcs]
+  } else{
+    X_pcs <- pca_results$x
+  }
+  
+  # Calculate n_neighbors
+  if (is.null(n_neighbors)){
+    n_neighbors = base::max(2, base::floor(ncol(expr_mat) * 0.4))
+  }
+  
+  # Get UMAP co-ordinates
+  umap_results <- uwot::umap(X = X_pcs, 
+                             n_neighbors = n_neighbors)
+  
+  # Merge UMAP co-ordinates with Metadata ----
+  umap_df <- umap_results %>%
+    as.data.frame() %>%
+    stats::setNames(nm = c("UMAP1", "UMAP2")) %>%
+    tibble::rownames_to_column("Sample_ID") %>%
+    dplyr::inner_join(metadata, by = c("Sample_ID"="Sample_ID"))
+  
+  # ---- 🖼️ Generate Plots for each group ----
+  
+  group_vars <- base::setdiff(colnames(metadata), "Sample_ID")
+  
+  all_plots <- list()
+  
+  for (group_var in group_vars) {
+    
+    # Get levels for each group
+    n_unique <- length(unique(metadata[[group_var]]))
+    if (n_unique < 2 || n_unique == nrow(metadata)) {
+      log_warn(sample = "",
+               step = "plot_umap",
+               message = glue::glue("Variable '{group_var}' is either constant or has one unique value per sample; skipping UMAP plot."))
+      next
+    }
+    
+    # Define color palette
+    umap_palette <- custom_palette[1:length(unique(metadata[[group_var]]))]
+    names(umap_palette) <- as.character(unique(metadata[[group_var]]))
+    
+    # PCA Plot
+    p <- ggplot2::ggplot(data = umap_df, 
+                         mapping = aes(x = UMAP1, y = UMAP2, color = .data[[group_var]])) +
+      ggplot2::geom_point(size = 3, shape = 16) +
+      ggrepel::geom_text_repel(ggplot2::aes(label = Sample_ID), show.legend = FALSE) +
+      theme_classic() +
+      coord_fixed(ratio = 1) +
+      ggplot2::labs(color = group_var, 
+                    x = "UMAP1",
+                    y = "UMAP2", 
+                    title = group_var) +
+      custom_theme +
+      ggplot2::scale_color_manual(values = umap_palette)
+    
+    all_plots[[group_var]] <- p
+    
+    log_info(sample = "",
+             step = "plot_umap",
+             message = glue::glue("Successfully plotted variable : '{group_var}'."))
+  }
+  
+  # ---- 💾 Save Plot ----
+  
+  file_name <- file.path(output_dir, paste0("UMAP_Plot_", filename, ".pdf"))
+  
+  # Open multi-page PDF
+  grDevices::pdf(file = file_name, width = 8, height = 11.5, onefile = TRUE)  
+  
+  for (var in names(all_plots)) {
+    print(all_plots[[var]])  # each plot goes to a new page
+  }
+  
+  dev.off() 
+  
+  # ---- 🪵 Log Output ----
+  
+  log_info(sample = "", 
+           step = "plot_umap",
+           message = glue::glue("UMAP plot saved successfully to : '{file_name}'."))
+  
+  return(invisible(NULL))
+}
+
+
+# ---- 🥧 PIE CHART ----
+
+plot_piechart <- function(metadata, segment_col, filename, output_dir, split_col = NULL){
+
+  # ---- ⚙️ Validate Input Parameters ----
+  
+  validate_inputs(metadata = metadata,
+                  filename = filename, output_dir = output_dir)
+  
+  # ---- 👥 Determine Groups for Plotting ----
+  
+  if (is.null(split_col)) {
+    # No splitting → single panel
+    group_vars <- "All"
+  } else if (length(split_col) == 1) {
+    # Single-column split → one panel per unique value
+    group_vars <- unique(metadata[[split_col]])
+  } else {
+    stop("Use Only one column for splitting")
+  }
+  
+  # ---- 🖼️ Generate Plots for each group ----
+  
+  all_plots <- list()
+  
+  for (group_var in group_vars) {
+    
+    if (length(split_col) == 1) {
+      # Single-column split → subset by value
+      df <- metadata %>% 
+        dplyr::filter(.data[[split_col]] == group_var)
+    } else{
+      df <- metadata
+    }
+    
+    # Determine levels of segment_col
+    all_levels <- sort(unique(metadata[[segment_col]]))
+    
+    # Convert grouping column to factor to ensure proper ordering for colors
+    df[[segment_col]] <- factor(df[[segment_col]], levels = all_levels)
+    
+    # Assign colors, keeping names aligned with all_levels
+    pie_palette <- custom_palette[seq_along(all_levels)]
+    names(pie_palette) <- all_levels
+    
+    # Plot title
+    title <- ifelse(group_var == "All", "", group_var)
+    
+    df <- df %>%
+      dplyr::count(.data[[segment_col]]) %>%
+      dplyr::mutate(Percent = round(100*n/sum(n, na.rm=TRUE), digits = 0), 
+                    Percent_label = paste0(Percent,"%")) %>%
+      dplyr::arrange(.data[[segment_col]])
+    
+    # If you run ggplot without themevoid(), you will see 0 and 100% dont overlap.
+    p <- ggplot(data = df, 
+                mapping = aes(x = "", y = Percent, fill = .data[[segment_col]])) +
+      ggplot2::geom_bar(stat = "identity", width = 3, color = "white") +
+      ggplot2::coord_polar(theta = "y", start = 0, direction = -1) +
+      ggplot2::geom_text(aes(x = 3.2, label = Percent_label), 
+                         position = position_stack(vjust = 0.5), 
+                         color = "black", size = 3.5, check_overlap = TRUE) +
+      scale_fill_manual(values = pie_palette,
+                        aesthetics = "fill") +
+      ggplot2::labs(title = title,
+                    fill = segment_col,
+                    x = "",
+                    y = "") +
+      theme_void() +        #remove background, grid, numeric labels
+      custom_theme +
+      ggplot2::theme(axis.text.x =  element_blank(),
+                     axis.text.y =  element_blank(),
+                     strip.text.x = element_text(family = "sans", face = "bold",  colour="black", size=10, hjust = 0.5),
+                     legend.position = "none",
+                     axis.line = element_blank(),
+                     axis.ticks = element_blank())
+    
+    all_plots[[group_var]] <- p
+  }
+  
+  # ---- Extract shared legend from entire dataset ----
+
+  dummy <- ggplot(data = metadata, 
+              mapping = aes(x = 1, fill = .data[[segment_col]])) +
+    geom_bar(width = 1) +
+    scale_fill_manual(values = pie_palette,
+                      aesthetics = "fill") +
+    ggplot2::theme(legend.position = "bottom",
+                   legend.direction = "horizontal")
+  
+  shared_legend <- cowplot::get_legend(dummy)
+  
+  # ---- 🌐 Combine Plots Using cowplot ----
+  
+  n_plots <- length(all_plots)
+  ncol_plots <- ceiling(sqrt(n_plots))
+  nrow_plots <- ceiling(n_plots / ncol_plots)
+  
+  # Restrict unsupported combination
+  if (ncol_plots > 10 && nrow_plots > 10) {
+    
+    log_error(sample = "",
+              step = "plot_piechart",
+              message = "Image size too large. More than 100 plots cannot be viewed in a single figure")
+  }
+  
+  # Combine all plots
+  combined_plot <- cowplot::plot_grid(plotlist = all_plots, 
+                                      ncol = ncol_plots, 
+                                      nrow = nrow_plots)
+  
+  final_plot <- cowplot::plot_grid(plot = combined_plot, 
+                                   shared_legend, 
+                                   ncol = 1, 
+                                   rel_heights = c(1, 0.1))
+  
+  # ---- 💾 Save Combined Plot ----
+  
+  file_name <- file.path(output_dir, paste0("Pie_Chart_", filename, ".pdf"))
+  ggplot2::ggsave(filename  = file_name,
+                  plot      = final_plot,
+                  device    = cairo_pdf,
+                  width     = ncol_plots * 8, # extra 2 inch for legend
+                  height    = nrow_plots * 6, 
+                  units     = "in",
+                  limitsize = FALSE,
+                  bg        = "white")
+  
+  # ---- 🪵 Log Output ----
+  
+  log_info(sample = "",
+           step = "plot_piechart",
+           message = glue::glue("Pie chart saved successfully to : '{file_name}'."))
 }
 
 # ---- DEPRECATED FUNCTIONS ----
