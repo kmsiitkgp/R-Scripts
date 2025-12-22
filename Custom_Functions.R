@@ -2839,7 +2839,7 @@ load_cellranger <- function(sample, matrix_dir, gene.column = 2){
   if (length(h5_files) > 0) {
     log_info(sample = sample, 
              step = "load_cellranger",
-             message = glue::glue("Reading HDF5 matrix from '{h5_files[1]}'."))
+             message = glue::glue("Reading HDF5 matrix from directory."))
     
     counts <- tryCatch({
       # Read the gene expression matrix from the HDF5 file
@@ -2863,7 +2863,7 @@ load_cellranger <- function(sample, matrix_dir, gene.column = 2){
     # If no HDF5 files, fall back to the standard 10X directory
     log_info(sample = sample, 
              step = "load_cellranger",
-             message = "No HDF5 file found. Reading standard 10X matrix from directory.")
+             message = "Reading standard 10X matrix from directory.")
     
     counts <- tryCatch({
       Seurat::Read10X(data.dir = data_dir,
@@ -4159,11 +4159,10 @@ cluster_integrated_data <- function(integrated_seurat, assay){
   return(invisible(integrated_seurat))
 }
 
-remove_sparse_clusters <- function(integrated_seurat, assay, output_dir){
+remove_sparse_clusters <- function(integrated_seurat, assay){
   
   # ---- ⚙️ Validate Input Parameters ----
-  validate_inputs(seurat_object = integrated_seurat, assay = assay,
-                  output_dir = output_dir)
+  validate_inputs(seurat_object = integrated_seurat, assay = assay)
   
   # ---- 🔎 Identify all cluster columns dynamically ----
   
@@ -4227,22 +4226,11 @@ remove_sparse_clusters <- function(integrated_seurat, assay, output_dir){
            step = "remove_sparse_clusters",
            message = glue::glue("Total cells removed from sparse clusters : '{length(unique_sparse_cells)}'."))
   
-  # ---- 💾 Save integrated Object ----
-  
-  # Determine file name based on assay
-  filename <- if (assay == "RNA") {
-    "integrated_seurat.rds"
-  } else {
-    paste0("integrated_seurat.", assay, ".rds")
-  }
-  
-  base::saveRDS(integrated_seurat, file = file.path(output_dir, filename))
-  
   # ---- 🪵 Log Output and Return Seurat Object ----
   
   log_info(sample = "",
            step = "remove_sparse_clusters",
-           message = "Successfully saved integrated seurat object after removing sparse cells.")
+           message = "Successfully removed sparse cells.")
   return(invisible(integrated_seurat))
 }
 
@@ -4315,7 +4303,9 @@ calc_optimal_resolution <- function(integrated_seurat, reduction, output_dir){
     dplyr::slice_max(mean_stability) %>%
     dplyr::pull(resolution_name)
   
+  # Store the optimal res in seurat object
   optimal_res_numeric <- as.numeric(stringr::str_extract(optimal_res, "[0-9.]+"))
+  integrated_seurat$optimal_res <- optimal_res_numeric
   
   # Visualize stability across resolutions
   stability_plot <- ggplot(stability_df, aes(x = resolution_name, y = mean_stability, group = 1)) +
@@ -4341,7 +4331,7 @@ calc_optimal_resolution <- function(integrated_seurat, reduction, output_dir){
   log_info(sample = "",
            step = "calc_optimal_resolution",
            message = glue::glue("Optimal res identified : '{optimal_res_numeric}'."))
-  return(invisible(optimal_res_numeric))
+  return(invisible(integrated_seurat))
 }
 
 identify_markers <- function(integrated_seurat, res, reduction, cluster_col = NULL, output_dir){
@@ -4512,7 +4502,7 @@ identify_markers <- function(integrated_seurat, res, reduction, cluster_col = NU
            message = glue::glue("Marker analysis complete. Results saved to : '{file_name}'."))
 }
 
-plot_seurat <- function(integrated_seurat, reduction, features, filename, output_dir, split_col = NULL){
+plot_seurat <- function(integrated_seurat, reduction, features, filename, output_dir, raster = FALSE, split_col = NULL){
   
   # ---- ⚙️ Validate Input Parameters ----
   
@@ -4815,10 +4805,16 @@ plot_seurat <- function(integrated_seurat, reduction, features, filename, output
       # Plot title
       title <- paste(feature, g, sep = "_")
       
+      # Define and rasterize ONLY the point layer
+      point_layer <- geom_point(size = 0.2, stroke = 0)
+      if (raster == TRUE) {
+        point_layer <- ggrastr::rasterise(point_layer, dpi = 300)
+      }
+      
       # Plot
       p <- ggplot(data = df, 
                   aes(x = UMAP_1, y = UMAP_2, color = .data[[feature]])) +
-        geom_point(size = 0.2, stroke = 0) +
+        point_layer +
         theme_classic() +
         coord_fixed(ratio = 1) +
         ggplot2::labs(color = feature, x = "UMAP_1", y = "UMAP_2", title = title) +
@@ -4883,22 +4879,24 @@ plot_seurat <- function(integrated_seurat, reduction, features, filename, output
   
   # ---- 💾 Save Combined Plot ----
   
-  file_name <- file.path(output_dir, paste0(filename, ".pdf"))
+  file_extension <- ".pdf"
+  file_name <- file.path(output_dir, paste0(filename, file_extension))
   ggplot2::ggsave(filename  = file_name,
                   plot      = combined_plot,
-                  device    = cairo_pdf,
-                  width     = ncol_plots * 8, # extra 2 inch for legend
+                  device    = cairo_pdf, 
+                  width     = ncol_plots * 8,  # extra 2 inch for legend
                   height    = nrow_plots * 6, 
                   units     = "in",
                   limitsize = FALSE,
                   bg        = "white")
   
+  
   if (length(all_plots_labelled) > 1){
-    file_name_labelled <- file.path(output_dir, paste0(filename, "_labelled.pdf"))
+    file_name_labelled <- file.path(output_dir, paste0(filename, "_labelled", file_extension))
     ggplot2::ggsave(filename  = file_name_labelled,
                     plot      = combined_plot_labelled,
-                    device    = cairo_pdf,
-                    width     = ncol_plots * 8, # extra 2 inch for legend
+                    device    = cairo_pdf, 
+                    width     = ncol_plots * 8,  # extra 2 inch for legend
                     height    = nrow_plots * 6, 
                     units     = "in",
                     limitsize = FALSE,
@@ -5110,6 +5108,17 @@ calc_module_scores <- function(integrated_seurat, reduction, marker_file, filena
   seurat_zscore_matrix <- t(scale(t(seurat_score_matrix)))
   ucell_zscore_matrix <- t(scale(t(ucell_score_matrix)))
   
+  # ---- 💾 Save integrated Object ----
+  
+  # Determine file name based on assay
+  filename <- if (assay == "RNA") {
+    "integrated_seurat.rds"
+  } else {
+    paste0("integrated_seurat.", assay, ".rds")
+  }
+  
+  base::saveRDS(integrated_seurat, file = file.path(output_dir, filename))
+  
   # ---- 🖼️ Generate Plots for each module ----
   
   # Define module names 
@@ -5142,7 +5151,7 @@ calc_module_scores <- function(integrated_seurat, reduction, marker_file, filena
   
   log_info(sample = "",
            step = "calc_module_scores",
-           message = "Module score calculation completed successfully.")
+           message = "Module score calculated and Seurat object saved successfully.")
   return(invisible(integrated_seurat))
 }
 
@@ -5449,6 +5458,308 @@ annotate_clusters <- function(integrated_seurat, reduction, assay,
   return(invisible(integrated_seurat))
 }
 
+consolidate_gold_standard_markers <- function(data_dir = NULL, K_MODULES = NULL){
+  
+  # ---- 📁 0. Initial Setup and Data Loading ----
+  
+  # Define the directory where your scRNA-seq marker gene Excel files are located.
+  data_dir <- "C:/Users/kailasamms/OneDrive - Cedars-Sinai Health System/Desktop/scrna_markers/"
+  
+  # List all files in the directory.
+  marker_files <- list.files(data_dir, full.names = TRUE, pattern = "\\.xlsx$")
+  
+  # Initialize an empty data frame to store all marker results.
+  raw_marker_df <- data.frame()
+  
+  # Loop through each Excel file to load and process data
+  message("✨ Loading and Initial Processing of Marker Files...")
+  for (f in marker_files){
+    df <- read.xlsx(f) %>%
+      # Convert gene names to uppercase for consistency in mouse and human
+      dplyr::mutate(gene = toupper(gene),
+                    # Extract dataset name from the filename
+                    dataset = gsub("Markers.All.harmony0.[0-9]_|\\.xlsx", "", basename(f))) %>%
+      # Select and rename essential columns
+      dplyr::select(dataset, cluster, gene, p_val_adj, avg_log2FC, pct.1, pct.2, ratio)
+    
+    # Combine data from all files
+    raw_marker_df <- dplyr::bind_rows(raw_marker_df, df)
+  }
+  message(paste0("   - Total rows loaded: ", nrow(raw_marker_df)))
+  
+  # ---- 🔎 1. Quality Control and Consensus Gene Filtering ----
+  
+  consensus_marker_df <- raw_marker_df %>%
+    
+    # Filter for statistically significant markers
+    dplyr::filter(p_val_adj <= 0.05) %>%
+    
+    # Calculate ranks for three key metrics within each cluster-dataset combination
+    dplyr::group_by(dataset, cluster) %>%
+    dplyr::mutate(rank_pct1     = rank(desc(pct.1),      ties.method = "first"),
+                  rank_log2fc   = rank(desc(avg_log2FC), ties.method = "first"),
+                  rank_ratio    = rank(desc(ratio),      ties.method = "first")) %>%
+    
+    # Keep genes that are top 50 in ANY of the 3 metrics (local filter)
+    dplyr::filter(rank_pct1 <= 50 | rank_log2fc <= 50 | rank_ratio <= 50) %>%
+    ungroup() %>%
+    
+    # Count the number of datasets where the gene is a top marker
+    dplyr::group_by(gene) %>%
+    dplyr::mutate(ndatasets = n_distinct(dataset)) %>%
+    
+    # Keep only genes that appear in at least 5 different datasets (consensus filter)
+    dplyr::filter(ndatasets >= 5)
+  
+  message(paste0("   - Number of consensus genes retained: ", n_distinct(consensus_marker_df$gene)))
+  message(paste0("   - Total gene-condition pairs: ", nrow(consensus_marker_df)))
+  
+  # ---- 🧬 2. Data Structuring for Clustering ----
+  
+  # Create the Gene x Condition matrix. Rows are genes, columns are conditions.
+  # Values are the log2 Fold Change (avg_log2FC). 
+  gene_log2fc_matrix <- consensus_marker_df %>%
+    # Create a unique identifier for each condition (Dataset_Cluster)
+    dplyr::mutate(dataset_cluster = paste(dataset, cluster, sep = "_")) %>%
+    # Reshape the data from long to wide format
+    tidyr::pivot_wider(id_cols = gene,
+                       names_from = dataset_cluster,
+                       values_from = avg_log2FC,
+                       values_fill = 0) %>% # Fill non-existent values with 0
+    tibble::column_to_rownames('gene') %>%  # Set gene names as row names
+    as.matrix()
+  
+  message(paste0("   - Matrix dimensions (Genes x Conditions): ", paste(dim(gene_log2fc_matrix), collapse = " x ")))
+  message("--------------------------------------------------")
+  
+  # ---- 🎯 3. GENE CLUSTERING APPROACHES ----
+  
+  # 🚀 Approach 1: Z-Score Scaling + Euclidean Distance (The 'Shape' Approach)
+  # This approach focuses on the relative up/down regulation pattern (shape)
+  # by normalizing the magnitude across genes.
+  
+  # 3.1. Z-Score Scaling
+  # scale each row so each gene has mean = 0, sd = 1 across datasets+clusters. 
+  # - scale() centers and scales columns by default (center = TRUE, scale = TRUE)
+  #      -> Subtracts the mean of each column across all rows.
+  #      -> Divides each column by its standard deviation.
+  #      -> This ensures all columns contribute equally, regardless of their 
+  #         magnitude or raw variance.
+  scaled_log2fc_matrix <- gene_log2fc_matrix %>%
+    t() %>%         # Transpose: Genes are now columns
+    scale() %>%     # Z-score each gene's profile (column)
+    t()             # Transpose back: Genes are rows again
+  
+  message("🚀 Approach 1: Z-Score + Euclidean Distance (Ward's Method)")
+  message(paste0("   - Scaled matrix dimensions: ", paste(dim(scaled_log2fc_matrix), collapse = " x ")))
+  
+  # 3.2. Distance Calculation (Euclidean)
+  # dist(x) always computes pairwise distances between the rows of x
+  gene_dist_euclidean <- stats::dist(scaled_log2fc_matrix, method = "euclidean")
+  cond_dist_euclidean <- stats::dist(t(scaled_log2fc_matrix), method = "euclidean")
+  
+  # 3.3. Hierarchical Clustering using distance object (Ward's Method)
+  # Ward's method ('ward.D2') is often preferred for gene data as it aims 
+  # to minimize the variance within clusters, leading to tight, compact groups.
+  gene_hclust_euclidean <- stats::hclust(gene_dist_euclidean, method = "ward.D2")
+  cond_hclust_euclidean <- stats::hclust(cond_dist_euclidean, method = "ward.D2")
+  
+  message("   - Clustering complete for Approach 1.")
+  
+  # # 🔗 Approach 2: Pearson Correlation Distance (The 'Trend' Approach) 
+  # # This approach directly measures the linear relationship between gene profiles,
+  # # ignoring the raw magnitude difference.
+  # 
+  # message("\n🔗 Approach 2: Pearson Correlation Distance (Average Method)")
+  # 
+  # # 3.4. Correlation Matrix Calculation (Pearson correlation)
+  # # cor(x) always computes correlation between the columns of x
+  # # NOTE: why use = "pairwise.complete.obs"?
+  # #   - "everything"	           Default. If any NA exists, correlation = NA
+  # #   - "complete.obs"	         Only use rows where all values are non-NA. Can discard a lot of data.
+  # #   - "pairwise.complete.obs"	 Use all available pairs, ignore missing values for that gene pair
+  # gene_cor_matrix <- gene_log2fc_matrix %>%
+  #   t() %>%                              # Transpose: Genes are now columns
+  #   cor(.,
+  #       use = "pairwise.complete.obs",
+  #       method = "pearson")
+  # 
+  # # 3.5. Convert Correlation to Distance (D = 1 - R)
+  # # Correlation 1 → distance 0 (very close)
+  # # Correlation 0 → distance 1 (medium)
+  # # Correlation -1 → distance 2 (farthest)
+  # gene_dist_cor_based <- 1 - gene_cor_matrix
+  # 
+  # # Convert the full symmetric matrix into a 'dist' object for hclust
+  # # as.dist() converts a symmetric matrix into a compact format storing only the 
+  # # lower triangle, which hclust requires.
+  # gene_dist_cor_based <- stats::as.dist(gene_dist_cor_based)
+  # 
+  # # 3.6. Hierarchical Clustering (Average Method)
+  # # 'average' (UPGMA) is standard for correlation-based distance.
+  # gene_hclust_cor_based <- stats::hclust(gene_dist_cor_based, method = "average")
+  # 
+  # message("   - Clustering complete for Approach 2.")
+  # message("--------------------------------------------------")
+  
+  # ---- 📝 4. Final Output Formatting and Export ----
+  
+  # We will use the results from Approach 1 for the final heatmap reordering.
+  
+  # 4.1. Reorder Matrix and Assign Modules
+  final_gene_order <- gene_hclust_euclidean$order
+  final_cond_order <- cond_hclust_euclidean$order
+  
+  # Reorder the original log2FC matrix based on both gene and condition clustering
+  reordered_log2fc_df <- gene_log2fc_matrix[final_gene_order, final_cond_order] %>%
+    as.data.frame() %>%
+    tibble::rownames_to_column("gene")
+  
+  # Cut the gene tree into k=15 modules (arbitrary choice for visualization)
+  if (is.null(K_MODULES)){
+    K_MODULES <- 15
+  }
+  gene_modules <- stats::cutree(gene_hclust_euclidean, k = K_MODULES)
+  
+  # 4.2. Final Data Frame Assembly and Cleanup
+  final_output_df <- reordered_log2fc_df %>%
+    # Add module assignment
+    dplyr::left_join(y = tibble::tibble(gene = names(gene_modules), module = gene_modules),
+                     by = c("gene" = "gene")) %>%
+    # Move 'module' column to the front for clarity
+    dplyr::select(gene, module, dplyr::everything()) %>%
+    # Replace all 0s (imputed for NA) with true NA and round numeric values
+    dplyr::mutate(dplyr::across(.cols = where(is.numeric) & !module, .fns = ~ dplyr::na_if(., 0))) %>%
+    dplyr::mutate(dplyr::across(.cols = where(is.numeric) & !module, .fns = ~ base::round(., 1)))
+  
+  message(paste0("📌 Final matrix reordered and genes assigned to ", K_MODULES, " modules."))
+  
+  # 4.3. Export to Excel
+  wb <- createWorkbook()
+  addWorksheet(wb, "log2fc_Clustered")
+  writeData(wb, sheet = "log2fc_Clustered", final_output_df)
+  file_name <- "C:/Users/kailasamms/OneDrive - Cedars-Sinai Health System/Desktop/scrna_markers_results_final.xlsx"
+  saveWorkbook(wb, file_name, overwrite = TRUE)
+  
+  message(paste0("\n✅ Success! Clustered log2FC matrix saved to:\n", file_name))
+
+}
+
+plot_gold_standard_markers <- function(integrated_seurat, reduction = "Harmony", 
+                                       marker_file, output_dir){
+  
+  # ---- ⚙️ Validate Input Parameters ----
+  
+  validate_inputs(seurat_object = integrated_seurat, reduction = reduction,
+                  xlsx_file = marker_file, output_dir = output_dir)
+  
+  # ---- 🔄 Check and Update Reduction Name ----
+  
+  if (!(reduction %in% names(integrated_seurat@reductions))) {
+    log_warn(sample = "",
+             step = "plot_gold_standard_markers",
+             message = glue::glue("Reduction '{reduction}' is NOT present in Seurat object."))
+    
+    # Check alternative reduction name
+    alt_reduction <- paste0("umap_", tolower(reduction))
+    
+    if (alt_reduction %in% names(integrated_seurat@reductions)) {
+      log_info(sample = "",
+               step = "plot_gold_standard_markers",
+               message = glue::glue("Using alternative reduction : '{alt_reduction}'."))
+      reduction <- alt_reduction
+    } else {
+      log_error(sample = "",
+                step = "plot_gold_standard_markers",
+                message = glue::glue("Alternative reduction '{alt_reduction}' is NOT present."))
+    }
+  }
+  
+  # ---- 🧪 Detect Appropriate Assay for FeaturePlot ----
+  
+  all_assays <- names(integrated_seurat@assays)
+  
+  if ("SCT" %in% all_assays) {
+    active_assay <- "SCT"
+  } else if ("RNA" %in% all_assays) {
+    active_assay <- "RNA"
+  } else if (length(all_assays) > 0) {
+    active_assay <- all_assays[1]
+    log_info(sample = "",
+             step = "plot_gold_standard_markers",
+             message = glue::glue("No SCT/RNA assay found. Using assay : '{active_assay}'."))
+  } else {
+    log_error(sample = "",
+              step = "plot_gold_standard_markers",
+              message = "No assays found in Seurat object for DE analysis.")
+  }
+  
+  # Set active assay
+  DefaultAssay(integrated_seurat) <- active_assay
+  
+  if (active_assay != "SCT"){
+    log_warn(sample = "",
+             step = "plot_gold_standard_markers",
+             message = glue::glue("Currently using assay : '{active_assay}'."))
+  }
+  
+  # ---- 📥 Create Feature List from Marker file ----
+  
+  # Load marker file
+  marker_df <- tryCatch({
+    openxlsx::read.xlsx(xlsxFile = marker_file)
+  }, error = function(e){
+    log_error(sample = "",
+              step = "plot_gold_standard_markers",
+              message = glue::glue("Failed to read marker file : '{e$message}'."))
+  })
+  
+  # Initialize an empty list to store all cell type signatures
+  signatures_list <- list()
+  
+  # Iterate through each column (cell type) in the marker dataframe
+  for (i in base::seq_len(ncol(marker_df))){
+    
+    # Define name of modules
+    module_name <- make.names(colnames(marker_df)[i])
+    
+    # Determine features from the marker_df
+    xlsx_features <- marker_df[[i]] %>%
+      stats::na.omit() %>%
+      as.vector()
+    
+    # Determine features present in data set
+    present_features <- rownames(SeuratObject::GetAssayData(object = integrated_seurat, 
+                                                            assay = active_assay, 
+                                                            layer = "data"))
+    
+    # Match features (case-insensitive) and filter to only genes present in the data
+    features <- present_features[base::tolower(present_features) %in% base::tolower(xlsx_features)]
+    
+    # Only add the validated and sorted feature vector to the master list if it contains 2 or more genes
+    if (length(features) >= 2) {
+      signatures_list[[module_name]] <- sort(features)
+    } else {
+      log_warn(sample = "",
+               step = "plot_gold_standard_markers",
+               message = glue::glue("Skipping module '{module_name}'. Fewer than 2 matching markers found."))
+    }
+  }
+  
+  # ---- Plot UMAPs for each gene ----
+  
+  for (module_name in names(signatures_list)){
+    
+    plot_seurat(integrated_seurat, reduction = reduction, 
+                features = signatures_list[[module_name]], raster = FALSE,
+                filename = paste("Module_plot_Seurat", proj, module_name, sep = "_"), 
+                output_dir = output_dir, split_col = NULL)
+  }
+  
+  
+  
+  
+}
 ### Annotate based on clusters variable defined by user
 # clusters <- list("Hepatocytes"         = c(),
 #                  "Pancreatic.Acinar"   = c(),
@@ -6263,7 +6574,7 @@ h5ad_to_seurat_batch <- function(path_to_h5ad) {
   return(seurat_list)
 }
 
-# ---- SURVIVAL RELATED FUNCTIONS ----
+# ---- ⏳ SURVIVAL RELATED FUNCTIONS ----
 
 # NOTE: When plotting KM curves for individual genes, non-transformed data,
 # log-transformed or median centered log-transformed data give identical results
@@ -6287,14 +6598,13 @@ show_survival_scenarios <- function() {
     "(vii)", "Survival based on Sex, faceted by Race", "Sex", "–", "Race", "–", 2, 2, "Male vs Female",
     "(viii)", "Survival based on Sex + Smoking, faceted by Race", "Sex", "Smoking", "Race", "FALSE / TRUE", 4, 2, "Male/Female × Yes/No"
   )
-  return(scenarios)
+  return(data.frame(scenarios))
 }
 
 survival_params <- list(
   
   # Stratification (Expression + Metadata-based survival)
   stratify_var     = NULL,          # one or more genes or metadata columns
-  sig_score        = FALSE,         # TRUE = combine genes into one signature score
   substratify_var  = NULL,          # optional metadata column for sub-stratification
   facet_var        = NULL,          # optional faceting variable
   
@@ -6644,7 +6954,7 @@ plot_facets <- function(facet_df, stratify_var, surv_curve, cox_df, surv_type, f
   }
 }
 
-survival_analysis <- function(meta_data, expr_data = NULL, survival_params) {
+survival_analysis <- function(metadata, expr_data = NULL, survival_params) {
   
   # ---- Input checks & parameter extraction ----
   
@@ -6655,7 +6965,7 @@ survival_analysis <- function(meta_data, expr_data = NULL, survival_params) {
   
   rownames(expr_data) <- make.names(rownames(expr_data))
   colnames(expr_data) <- make.names(colnames(expr_data))
-  meta_data$Sample_ID <- make.names(meta_data$Sample_ID)
+  metadata$Sample_ID <- make.names(metadata$Sample_ID)
   survival_params$stratify_var <- make.names(survival_params$stratify_var)
   
   # Extract parameters
@@ -6674,14 +6984,14 @@ survival_analysis <- function(meta_data, expr_data = NULL, survival_params) {
     stop("Must provide a non-empty stratify_var")
   }
   
-  # substratify_var, if provided, must exist in meta_data
-  if (!is.null(substratify_var) && !substratify_var %in% colnames(meta_data)) {
-    stop("substratify_var not found in meta_data columns")
+  # substratify_var, if provided, must exist in metadata
+  if (!is.null(substratify_var) && !substratify_var %in% colnames(metadata)) {
+    stop("substratify_var not found in metadata columns")
   }
   
-  # facet_var, if provided, must exist in meta_data
-  if (!is.null(facet_var) && !facet_var %in% colnames(meta_data)) {
-    stop("facet_var not found in meta_data columns")
+  # facet_var, if provided, must exist in metadata
+  if (!is.null(facet_var) && !facet_var %in% colnames(metadata)) {
+    stop("facet_var not found in metadata columns")
   }
   
   # Must define substratify_var if multiple_cutoff = TRUE
@@ -6693,7 +7003,7 @@ survival_analysis <- function(meta_data, expr_data = NULL, survival_params) {
   # type of survival analysis
   missing_genes <- setdiff(stratify_vars, rownames(expr_data))
   valid_genes   <- intersect(stratify_vars, rownames(expr_data))
-  in_meta       <- all(stratify_vars %in% colnames(meta_data))
+  in_meta       <- all(stratify_vars %in% colnames(metadata))
   
   if (!in_meta) {
     # Expression-based stratification
@@ -6702,7 +7012,7 @@ survival_analysis <- function(meta_data, expr_data = NULL, survival_params) {
     }
     
     if (length(valid_genes) == 0) {
-      stop("stratify_var must match either a column in meta_data OR genes in expr_data.")
+      stop("stratify_var must match either a column in metadata OR genes in expr_data.")
       
     } else if (length(valid_genes) > 1 && isTRUE(sig_score)) {
       message("Proceeding with signature expression-based survival analysis (", length(valid_genes), " valid genes).")
@@ -6723,7 +7033,7 @@ survival_analysis <- function(meta_data, expr_data = NULL, survival_params) {
       message("Proceeding with metadata-based survival analysis.")
       surv_type <- "meta"
     } else {
-      stop("stratify_var matches BOTH a column in meta_data and gene(s) in expr_data — ambiguous.")
+      stop("stratify_var matches BOTH a column in metadata and gene(s) in expr_data — ambiguous.")
     }
   }
   
@@ -6736,13 +7046,14 @@ survival_analysis <- function(meta_data, expr_data = NULL, survival_params) {
   
   # ---- Format metadata ----
   
-  meta_data <- meta_data %>% 
+  metadata <- metadata %>% 
     dplyr::mutate(Sample_ID = make.names(names = Sample_ID), 
                   !!time_col := as.numeric(.data[[time_col]])) %>%
     dplyr::filter(.data[[time_col]] > 0 & !is.na(.data[[time_col]])) %>%
     dplyr::distinct(Sample_ID, .keep_all = TRUE)
   
   # ---- Prepare expression data ----
+  
   if (surv_type == "signature") {
     # Signature score survival (whole dataset, even if substratify_var defined)
     sig_scores <- advanced_z(gene_set = stratify_vars, expr_matrix = expr_data)
@@ -6763,11 +7074,11 @@ survival_analysis <- function(meta_data, expr_data = NULL, survival_params) {
     
   } else if (surv_type == "meta") {
     # Metadata-based survival
-    expr_df <- meta_data %>%
+    expr_df <- metadata %>%
       dplyr::select(Sample_ID, dplyr::all_of(stratify_vars))
     
   } else {
-    stop("Invalid stratify_var: must be gene(s) in expr_data or a column in meta_data.")
+    stop("Invalid stratify_var: must be gene(s) in expr_data or a column in metadata.")
   }
   
   colnames(expr_df) <- make.names(colnames(expr_df))
@@ -6777,10 +7088,10 @@ survival_analysis <- function(meta_data, expr_data = NULL, survival_params) {
   keep_cols <- unique(c(time_col, status_col, stratify_vars, substratify_var, facet_var))
   
   surv_df <- expr_df %>%
-    dplyr::inner_join(meta_data, by = c("Sample_ID"="Sample_ID")) %>%
+    dplyr::inner_join(metadata, by = c("Sample_ID"="Sample_ID")) %>%
     dplyr::select(Sample_ID, dplyr::all_of(keep_cols))
   
-  if (nrow(surv_df) == 0) stop("No overlapping Sample_IDs between expr_data and meta_data.")
+  if (nrow(surv_df) == 0) stop("No overlapping Sample_IDs between expr_data and metadata.")
   
   
   # ---- Define model column for metadata based survival ----
@@ -6946,7 +7257,7 @@ survival_analysis <- function(meta_data, expr_data = NULL, survival_params) {
 show_survival_scenarios()
 
 # Run your survival analysis
-#survival_analysis(meta_data, expr_data, survival_params)
+#survival_analysis(metadata, expr_data, survival_params)
 
 #******************************************************************************#
 #                       SURVIVAL CURVE RELATED FUNCTIONS                       #
@@ -8013,7 +8324,7 @@ plot_pca <- function(expr_mat, metadata, top_n_genes = 5000, skip_plot = FALSE,
     
     # PCA Plot
     p <- ggplot2::ggplot(data = pca_df, 
-                         mapping = aes(x = PC1, y = PC2, color = .data[[var]])) +
+                         mapping = aes(x = PC1, y = PC2, color = factor(.data[[var]]))) +
       ggplot2::geom_point(size = 3, shape = 16) +
       ggrepel::geom_text_repel(ggplot2::aes(label = Sample_ID), show.legend = FALSE) +
       theme_classic() +
@@ -8053,7 +8364,6 @@ plot_pca <- function(expr_mat, metadata, top_n_genes = 5000, skip_plot = FALSE,
   
   return(invisible(pca_results))
 }
-
 
 plot_umap <- function(expr_mat, metadata, n_pcs = 50, n_neighbors = NULL,
                       filename, output_dir){
@@ -8119,7 +8429,7 @@ plot_umap <- function(expr_mat, metadata, n_pcs = 50, n_neighbors = NULL,
     
     # PCA Plot
     p <- ggplot2::ggplot(data = umap_df, 
-                         mapping = aes(x = UMAP1, y = UMAP2, color = .data[[group_var]])) +
+                         mapping = aes(x = UMAP1, y = UMAP2, color = factor(.data[[group_var]]))) +
       ggplot2::geom_point(size = 3, shape = 16) +
       ggrepel::geom_text_repel(ggplot2::aes(label = Sample_ID), show.legend = FALSE) +
       theme_classic() +
@@ -8159,7 +8469,6 @@ plot_umap <- function(expr_mat, metadata, n_pcs = 50, n_neighbors = NULL,
   
   return(invisible(NULL))
 }
-
 
 # ---- 🥧 PIE CHART ----
 

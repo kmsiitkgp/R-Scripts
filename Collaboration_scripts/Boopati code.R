@@ -124,14 +124,12 @@ openxlsx::saveWorkbook(wb = wb,
 
 ######################### METABOLITE DATA PREPARATION ##########################
 
-source("C:/Users/kailasamms/OneDrive - Cedars-Sinai Health System/Documents/GitHub/R-Scripts/RNASeq_DESeq2_Functions.R")
-data_path <- "C:/Users/kailasamms/OneDrive - Cedars-Sinai Health System/Desktop/Collaboration projects data/Boopati/"
+data_path <- "C:/Users/kailasamms/OneDrive - Cedars-Sinai Health System/Desktop/Collaboration projects data/Past/Boopati"
 
 # Combine metabolite data from all assays and get proper metabolite names from Metaboanalyst
-
-data1 <- read.xlsx(paste0(data_path, "Data_metabolomics_MB49_Yneg_vs_Ypos_Repeat1.xlsx"))
-data2 <- read.xlsx(paste0(data_path, "Data_metabolomics_MB49Yneg_DDR2KO_vs_SCR_Repeat1.xlsx"))
-data3 <- read.xlsx(paste0(data_path, "Data_metabolomics_MB49Yneg_DDR2KO_vs_SCR_Repeat2.xlsx"),
+data1 <- read.xlsx(file.path(data_path, "Data_metabolomics_MB49_Yneg_vs_Ypos_Repeat1.xlsx"))
+data2 <- read.xlsx(file.path(data_path, "Data_metabolomics_MB49Yneg_DDR2KO_vs_SCR_Repeat1.xlsx"))
+data3 <- read.xlsx(file.path(data_path, "Data_metabolomics_MB49Yneg_DDR2KO_vs_SCR_Repeat2.xlsx"),
                    sheet="Global metabolomics")
 
 data1 <- data1[,c(2:9,13:21)]
@@ -154,110 +152,66 @@ colnames(data2)[9:14] <- c("MB49_Yneg_scr1",  "MB49_Yneg_scr2", "MB49_Yneg_scr3"
 colnames(data3)[4:9] <- c("MB49_Yneg_scr1",  "MB49_Yneg_scr2", "MB49_Yneg_scr3",
                           "MB49_Yneg_DDR2KO1", "MB49_Yneg_DDR2KO2", "MB49_Yneg_DDR2KO3")
 
-metabolites1 <- data1[,c(1:8)]
-metabolites2 <- data2[,c(1:8)]
-metabolites3 <- data3[,c(1:3)]
-
-full_metabolites <- metabolites1 %>%
-  dplyr::bind_rows(metabolites2) %>%
-  dplyr::bind_rows(metabolites3) %>%
-  dplyr::distinct_at("CmpdID", .keep_all = TRUE) %>%
-  dplyr::filter(!is.na(compound))
-
-# Save the metabolites
-wb <- openxlsx::createWorkbook()
-openxlsx::addWorksheet(wb, sheetName = "Metabolites")
-openxlsx::writeData(wb, sheet = "Metabolites", x = full_metabolites, rowNames = FALSE)
-openxlsx::saveWorkbook(wb = wb,
-                       file = paste0(data_path, "MB49_Metabolites_incomplete.xlsx"),
-                       overwrite = TRUE)
+# Merge metabolites from all datasets
+full_metabolites <- data1[,c(1:8)] %>%
+  dplyr::bind_rows(data2[,c(1:8)]) %>%
+  dplyr::bind_rows(data3[,c(1:3)]) %>%
+  dplyr::filter(!is.na(compound)) %>%
+  dplyr::distinct_at("CmpdID", .keep_all = TRUE)
 
 # Using HMDBID, KEGGID, etc from above xlsx file, create a new file that 
 # contains proper common name of metabolites along with their different ids
-# This needs to be done manually
-name_mapping <- read.xlsx(paste0(data_path, "Metaboanalyst_name_map.xlsx"))
+# This needs to be done manually. Once completed, import it.
+name_mapping <- read.xlsx(file.path(data_path, "Metaboanalyst_name_map.xlsx")) %>%
+  dplyr::mutate(across(.cols = everything(), .fns = as.character))
 
-# Recursively merge name_mapping with pathway info for the metabolites
-name_mapping1 <- name_mapping %>%
-  dplyr::left_join(full_metabolites %>% dplyr::select(PubChem, Pathway, compound) %>% dplyr::filter(!is.na(PubChem)) %>%
-                     dplyr::mutate(PubChem = as.numeric(PubChem)),
-                   by=c("PubChem"="PubChem"))
-
-name_mapping2 <- name_mapping1 %>%
-  dplyr::filter(is.na(Pathway)) %>%
-  dplyr::select(everything(), -c(Pathway, compound)) %>%
-  dplyr::left_join(full_metabolites %>% dplyr::select(CmpdID, Pathway, compound) %>% dplyr::filter(!is.na(CmpdID)),
-                   by=c("KEGG"="CmpdID"))
-
-name_mapping3 <- name_mapping2 %>%
-  dplyr::filter(is.na(Pathway)) %>%
-  dplyr::select(everything(), -c(Pathway, compound)) %>%
-  dplyr::left_join(full_metabolites %>% dplyr::select(CmpdID, Pathway, compound) %>% dplyr::filter(!is.na(CmpdID)),
-                   by=c("Query"="CmpdID"))
-
-sum(is.na(name_mapping1$Pathway))
-sum(is.na(name_mapping2$Pathway))
-sum(is.na(name_mapping3$Pathway))
-
-name_mapping1 <- name_mapping1 %>% dplyr::filter(!is.na(Pathway))
-name_mapping2 <- name_mapping2 %>% dplyr::filter(!is.na(Pathway))
-name_mapping3 <- name_mapping3 %>% dplyr::filter(!is.na(Pathway))
-
-metadata <- dplyr::bind_rows(name_mapping1, name_mapping2, name_mapping3) %>%
+# Fix full_metabolites which has improper metabolite names with proper names
+proper_metabolites <- full_metabolites %>%
+  dplyr::select(compound, CmpdID, Pathway) %>%
+  dplyr::left_join(name_mapping, by = c("CmpdID" = "Query")) %>%
   dplyr::rename(Initial_compound = compound, Compound = Match) %>%
   dplyr::select(Initial_compound, Compound, PubChem, HMDB, KEGG, ChEBI, METLIN, Pathway)
+  
+# Replace original data with proper metabolite info      
+replace_metabolites <- function(df, metadata) {
+  df %>%
+    select(-any_of(c("CmpdID", "PubChem", "HMDB", "KEGG", "ChEBI", "METLIN", "Pathway"))) %>%
+    left_join(metadata, by = c("compound" = "Initial_compound")) %>%
+    select(Compound, everything(), -compound)
+}
 
-# Replace the metabolites names in data1, data2 and data3 with the correct info
-# from metadata
-data1 <- data1 %>% 
-  dplyr::select(everything(), -c(CmpdID, PubChem, HMDB, KEGG, ChEBI, METLIN, Pathway)) %>%
-  dplyr::left_join(metadata, by=c("compound" = "Initial_compound")) %>%
-  dplyr::select(Compound, everything(), -compound)
-data2 <- data2 %>% 
-  dplyr::select(everything(), -c(CmpdID, PubChem, HMDB, KEGG, ChEBI, METLIN, Pathway)) %>%
-  dplyr::left_join(metadata, by=c("compound" = "Initial_compound")) %>%
-  dplyr::select(Compound, everything(), -compound)
-data3 <- data3 %>% 
-  dplyr::select(everything(), -c(CmpdID, Pathway)) %>%
-  dplyr::left_join(metadata, by=c("compound" = "Initial_compound")) %>%
-  dplyr::select(Compound, everything(), -compound)
+data1 <- replace_metabolites(data1, proper_metabolites)
+data2 <- replace_metabolites(data2, proper_metabolites)
+data3 <- replace_metabolites(data3, proper_metabolites)
 
-# Get proper metabolite names from Metaboanalyst for CCLE data 
-cell_lines <- read.xlsx(paste0(data_path, "41591_2019_404_MOESM2_ESM.xlsx"),
-                        sheet="1-cell line annotations") %>%
-  dplyr::filter(Gender =="male", Classifications == "urinary_tract")
-
-ccle <- read.xlsx(paste0(data_path, "41591_2019_404_MOESM2_ESM.xlsx"),
-                  sheet="1-raw data") %>%
-  tidyr::separate_wider_delim(cols=X1, delim="_", names=c("Name"), too_many="drop", too_few="align_start") %>%
-  dplyr::filter(Name %in% cell_lines$Name) %>%
-  tibble::column_to_rownames("Name") %>%
+# Get metabolite data for CCLE
+ccle <- readr::read_csv(file.path(data_path, "Metabolomics_subsetted.csv"), show_col_types = FALSE) %>%
+  dplyr::select(colnames(.)[!grepl("lineage|cell_line", colnames(.))]) %>%
+  tibble::column_to_rownames("depmap_id") %>%
   t() %>%
-  data.frame()
+  data.frame() %>%
+  tibble::rownames_to_column("compound")
 
-# Save the incomplete metabolites
-wb <- openxlsx::createWorkbook()
-openxlsx::addWorksheet(wb, sheetName = "Metabolites")
-openxlsx::writeData(wb, sheet = "Metabolites", x = ccle, rowNames = TRUE)
-openxlsx::saveWorkbook(wb = wb,
-                       file = paste0(data_path, "CCLE_Metabolites_incomplete.xlsx"),
-                       overwrite = TRUE)
+# Get cell line info for CCLE
+cell_lines <- readr::read_csv(file.path(data_path, "Metabolomics_subsetted.csv"), show_col_types = FALSE) %>%
+  dplyr::select(depmap_id, cell_line_display_name)
 
 # Get proper metabolite names from metaboanalyst
-name_mapping  <- read.xlsx(paste0(data_path, "CCLE_Metaboanalyst_name_map.xlsx"))
+name_mapping  <- read.xlsx(file.path(data_path, "CCLE_Metaboanalyst_name_map.xlsx")) %>%
+  dplyr::mutate(across(.cols = everything(), .fns = as.character))
 
 # Replace metabolite names in CCLE with proper names from metaboanalyst
 ccle <- ccle %>%
-  tibble::rownames_to_column("Query") %>%
-  dplyr::left_join(name_mapping, by=c("Query"="Query")) %>%
-  dplyr::mutate(Compound = dplyr::case_when(is.na(Match) ~ Query,
-                                            TRUE ~ Match)) %>%
-  dplyr::select(Compound, everything(), -c(Query, Match, SMILES, Comment))
+  dplyr::left_join(name_mapping, by=c("compound"="Query")) %>%
+  dplyr::rename(Initial_compound = compound, Compound = Match) %>%
+  dplyr::mutate(Compound = dplyr::case_when(is.na(Compound) ~ Initial_compound,
+                                            TRUE ~ Compound)) %>%
+  dplyr::select(Compound, everything(), -c(SMILES, Comment, Initial_compound))
 
 # Save the metabolites with proper name and ids
 wb <- openxlsx::createWorkbook()
-openxlsx::addWorksheet(wb, sheetName = "Metabolites")
-openxlsx::writeData(wb, sheet = "Metabolites", x = metadata, rowNames = FALSE)
+# openxlsx::addWorksheet(wb, sheetName = "Metabolites")
+# openxlsx::writeData(wb, sheet = "Metabolites", x = metadata, rowNames = FALSE)
 openxlsx::addWorksheet(wb, sheetName = "MB49_Yneg_vs_Ypos_Repeat1")
 openxlsx::writeData(wb, sheet = "MB49_Yneg_vs_Ypos_Repeat1", x = data1, rowNames = FALSE)
 openxlsx::addWorksheet(wb, sheetName = "MB49Yneg_DDR2KO_vs_SCR_Repeat1")
@@ -266,6 +220,8 @@ openxlsx::addWorksheet(wb, sheetName = "MB49Yneg_DDR2KO_vs_SCR_Repeat2")
 openxlsx::writeData(wb, sheet = "MB49Yneg_DDR2KO_vs_SCR_Repeat2", x = data3, rowNames = FALSE)
 openxlsx::addWorksheet(wb, sheetName = "CCLE")
 openxlsx::writeData(wb, sheet = "CCLE", x = ccle, rowNames = FALSE)
+openxlsx::addWorksheet(wb, sheetName = "CCLE_CellLines")
+openxlsx::writeData(wb, sheet = "CCLE_CellLines", x = cell_lines, rowNames = FALSE)
 openxlsx::saveWorkbook(wb = wb,
                        file = paste0(data_path, "Metabolites_complete.xlsx"),
                        overwrite = TRUE)
@@ -273,13 +229,13 @@ openxlsx::saveWorkbook(wb = wb,
 ###################### CCLE vs Y+Y- Metabolite Correlation #####################
 
 source("C:/Users/kailasamms/OneDrive - Cedars-Sinai Health System/Documents/GitHub/R-Scripts/RNASeq_DESeq2_Functions.R")
-data_path <- "C:/Users/kailasamms/OneDrive - Cedars-Sinai Health System/Desktop/Collaboration projects data/Boopati/"
+data_path <- "C:/Users/kailasamms/OneDrive - Cedars-Sinai Health System/Desktop/Collaboration projects data/Past/Boopati/"
 
 # Get CCLE data with correct metabolite names
-ccle <- read.xlsx(paste0(data_path, "Metabolites_complete.xlsx"),
+ccle <- read.xlsx(file.path(data_path, "Metabolites_complete.xlsx"),
                   sheet="CCLE") %>%
   dplyr::select(everything(), -c(PubChem, HMDB, KEGG, ChEBI, METLIN)) 
-y <- read.xlsx(paste0(data_path, "Metabolites_complete.xlsx"),
+y <- read.xlsx(file.path(data_path, "Metabolites_complete.xlsx"),
                sheet="MB49_Yneg_vs_Ypos_Repeat1") %>%
   dplyr::select(everything(), -c(PubChem, HMDB, KEGG, ChEBI, METLIN, Pathway))
 

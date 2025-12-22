@@ -103,7 +103,7 @@ install.packages(pkgs = c("ggplot2", "ggplotify", "ggrepel", "ggpubr",
                           "ggfortify", "ggridges", "ggbeeswarm", "pheatmap", 
                           "VennDiagram", "survival", "survminer", "UpSetR", 
                           "umap", "plot3D", "cowplot", "viridis", 
-                          "RColorBrewer", "colorspace"),
+                          "RColorBrewer", "colorspace", "ragg"),
                  repos = 'http://cran.us.r-project.org',
                  force = FALSE,
                  INSTALL_opts = '--no-lock')
@@ -205,6 +205,7 @@ all_pkgs <- c(
   "viridis",
   "RColorBrewer",
   "colorspace",
+  "ragg",
   # -- Bioconductor --
   "enrichplot",
   "ComplexHeatmap"

@@ -7,25 +7,24 @@ path <- "C:/Users/kailasamms/OneDrive - Cedars-Sinai Health System/Desktop/Colla
 # ---- Cross check biomodal outputs for accuracy ----
 
 # (i) Number of CpG sites per region ( all 3 files MUST be identical)
-count_hmc <- read_tsv(file.path(path, "biomodal_output", "count_hmc.tsv"))
-count_mc <- read_tsv(file.path(path, "biomodal_output", "count_mc.tsv"))
-count_total_c <- read_tsv(file.path(path, "biomodal_output", "count_total_c.tsv"))
+count_hmc <- readr::read_tsv(file.path(path, "biomodal_output", "count_hmc.tsv"), show_col_types = FALSE)
+count_mc <- readr::read_tsv(file.path(path, "biomodal_output", "count_mc.tsv"), show_col_types = FALSE)
+count_total_c <- readr::read_tsv(file.path(path, "biomodal_output", "count_total_c.tsv"), show_col_types = FALSE)
 
 all.equal(as.data.frame(count_hmc),  as.data.frame(count_mc), check.attributes = FALSE)
 all.equal(as.data.frame(count_hmc),  as.data.frame(count_total_c),  check.attributes = FALSE)
 
 # (ii) Fraction of 5mc and 5hmc
-frac_hmc <- read_tsv(file.path(path, "biomodal_output", "frac_hmc.tsv"))
-frac_mc <- read_tsv(file.path(path, "biomodal_output", "frac_mc.tsv"))
+frac_hmc <- readr::read_tsv(file.path(path, "biomodal_output", "frac_hmc.tsv"), show_col_types = FALSE)
+frac_mc <- readr::read_tsv(file.path(path, "biomodal_output", "frac_mc.tsv"), show_col_types = FALSE)
 
 # Number of CpG sites * reads per region
-sum_hmc <- read_tsv(file.path(path, "biomodal_output", "sum_hmc.tsv"))
-sum_mc <- read_tsv(file.path(path, "biomodal_output", "sum_mc.tsv"))
-sum_total_c <- read_tsv(file.path(path, "biomodal_output", "sum_total_c.tsv"))
+sum_hmc <- readr::read_tsv(file.path(path, "biomodal_output", "sum_hmc.tsv"), show_col_types = FALSE)
+sum_mc <- readr::read_tsv(file.path(path, "biomodal_output", "sum_mc.tsv"), show_col_types = FALSE)
+sum_total_c <- readr::read_tsv(file.path(path, "biomodal_output", "sum_total_c.tsv"), show_col_types = FALSE)
 
 sum(round(sum_hmc[4:27]/sum_total_c[4:27] - frac_hmc[4:27],2), na.rm=TRUE)
 sum(round(sum_mc[4:27]/sum_total_c[4:27] - frac_mc[4:27],2), na.rm=TRUE)
-
 
 # ---- Get genes that already have 5mc and 5hmc in normal samples ----
 
@@ -183,11 +182,11 @@ normal_dmr_hmc <- read.xlsx(file.path(path,  "normal_5hmc.xlsx"))
 normal_dmr_mc <- read.xlsx(file.path(path,  "normal_5mc.xlsx"))
 
 # DMR in cfDNA ( = ctDNA + normal DNA)
-dmr_hmc_24 <- read_tsv(file.path(path, "biomodal_output", "DMR_20251124_130348_DMR_hmc_Pre__Post_20251124_130348.tsv"))
-dmr_mc_24 <- read_tsv(file.path(path, "biomodal_output", "DMR_20251124_130348_DMR_mc_Pre__Post_20251124_130348.tsv"))
+#dmr_hmc_24 <- readr::read_tsv(file.path(path, "biomodal_output", "DMR_20251124_130348_DMR_hmc_Pre__Post_20251124_130348.tsv"), show_col_types = FALSE)
+#dmr_mc_24 <- readr::read_tsv(file.path(path, "biomodal_output", "DMR_20251124_130348_DMR_mc_Pre__Post_20251124_130348.tsv"), show_col_types = FALSE)
 
-dmr_hmc_21 <- read_tsv(file.path(path, "biomodal_output", "DMR_20251208_144543_DMR_hmc_Pre__Post_20251208_144543.tsv"))
-dmr_mc_21 <- read_tsv(file.path(path, "biomodal_output", "DMR_20251208_144543_DMR_mc_Pre__Post_20251208_144543.tsv"))
+dmr_hmc_21 <- readr::read_tsv(file.path(path, "biomodal_output", "DMR_20251208_144543_DMR_hmc_Pre__Post_20251208_144543.tsv"), show_col_types = FALSE)
+dmr_mc_21 <- readr::read_tsv(file.path(path, "biomodal_output", "DMR_20251208_144543_DMR_mc_Pre__Post_20251208_144543.tsv"), show_col_types = FALSE)
 
 sig_dmr_hmc <- dmr_hmc_21 %>% 
   dplyr::mutate(mean_mod_group_1 = ifelse(mean_mod_group_1 == 0, 1e-6, mean_mod_group_1),
@@ -206,54 +205,13 @@ sig_dmr_mc <- dmr_mc_21 %>%
 # Remove normal DMR 
 tumor_DMR_hmc <- sig_dmr_hmc %>%
   anti_join(normal_dmr_hmc, by = c("Name"="Name", "Annotation"="Annotation")) %>%
-  arrange(Annotation, Name)
+  arrange(Annotation, Name) %>%
+  dplyr::mutate(key = paste(Chromosome, Start, End, Name, Annotation, sep = "_"))
 
 tumor_DMR_mc <- sig_dmr_mc %>%
   inner_join(normal_dmr_mc, by = c("Name"="Name", "Annotation"="Annotation")) %>%
-  arrange(Annotation, Name)
-
-# Create the summary table
-df <- tumor_DMR_hmc
-df <- tumor_DMR_mc
-dmr_summary <- df %>%
-  dplyr::mutate(Direction = dplyr::case_when(mod_difference > 0 ~ "Up in Carotuximab",
-                                             mod_difference < 0 ~ "Down in Carotuximab",
-                                             TRUE ~ "No Change")) %>% # Should be rare after filtering
-  # Count unique genes by Annotation and Direction
-  dplyr::group_by(Annotation, Direction) %>%
-  dplyr::summarise(Unique_Genes = n_distinct(Name),
-                   .groups = "drop") %>%
-  # Pivot wider for a clean summary table format
-  tidyr::pivot_wider(names_from = Direction,
-                     values_from = Unique_Genes,
-                     values_fill = 0)
-
-# Display the summary table
-print(dmr_summary)
-
-#  Comparison directionof 5mc and 5hmc
-comparison_df <- dplyr::inner_join(x = tumor_DMR_hmc %>% dplyr::rename(hmc_diff = mod_difference, hmc_logFC = mod_fold_change) %>% dplyr::select(Name, Annotation, hmc_diff, hmc_logFC ),
-                                   y = tumor_DMR_mc %>% dplyr::rename(mc_diff = mod_difference, mc_logFC = mod_fold_change) %>% dplyr::select(Name, Annotation, mc_diff, mc_logFC ),
-                                   by = c("Name"= "Name", "Annotation"="Annotation")) %>%
-  dplyr::mutate(Trend = dplyr::case_when((mc_diff > 0 & hmc_diff < 0) | (mc_diff < 0 & hmc_diff > 0) ~ "Inverse",
-                                         (mc_diff > 0 & hmc_diff > 0) | (mc_diff < 0 & hmc_diff < 0) ~ "Concordant",
-                                         TRUE ~ "Unknown")) %>%
-  dplyr::arrange(Trend, Annotation, Name) %>%
-  dplyr::select(Name, Annotation, hmc_diff, mc_diff, hmc_logFC, mc_logFC, Trend)
-
-comparison_df %>% dplyr::count(Trend)
-
-# Write to Excel
-wb <- createWorkbook()
-addWorksheet(wb, "Tumor_hmc")
-writeData(wb, sheet = "Tumor_hmc", tumor_DMR_hmc)
-addWorksheet(wb, "Tumor_mc")
-writeData(wb, sheet = "Tumor_mc", tumor_DMR_mc)
-addWorksheet(wb, "Processed_hmc")
-writeData(wb, sheet = "Processed_hmc", sig_dmr_hmc)
-addWorksheet(wb, "Processed_mc")
-writeData(wb, sheet = "Processed_mc", sig_dmr_mc)
-saveWorkbook(wb, file.path(path, "Biomodal_tumor.xlsx"), overwrite = TRUE)
+  arrange(Annotation, Name) %>%
+  dplyr::mutate(key = paste(Chromosome, Start, End, Name, Annotation, sep = "_"))
 
 # ---- UMAP ----
 
@@ -325,3 +283,144 @@ sig_dmr_mc_all <- dmr_mc_21 %>%
 
 plot_piechart(metadata = sig_dmr_hmc_all, segment_col = "Annotation", filename = "5hmc_all", output_dir = path, split_col = NULL)
 plot_piechart(metadata = sig_dmr_mc_all, segment_col = "Annotation", filename = "5mc_all", output_dir = path, split_col = NULL)
+
+
+# ---- Patient wise analysis ----
+
+metadata <- read.xlsx(file.path(path, "Metadata.xlsx"))
+
+# Get all possible comparisons between controls and experiments
+samples <- metadata %>%
+  dplyr::pull(Sample_ID) %>%
+  unique()
+
+combns <- utils::combn(x = samples, m = 2)
+controls <- c()
+expts <- c()
+comparisons <- list()
+for (i in 1:ncol(combns)){
+  
+  a <- gsub(pattern = "C1|C2|C3|EOT", "", x = combns[1, i])
+  b <- gsub(pattern = "C1|C2|C3|EOT", "", x = combns[2, i])
+  
+  if (a == b){
+    if(grepl("C1", combns[1,i]) & !grepl("C1", combns[2,i])){
+      control <- combns[1, i]
+      expt <- combns[2, i]
+      controls <- c(controls, control)
+      expts <- c(expts, expt)
+    } 
+  }
+}
+
+comparisons[["control"]] <- controls
+comparisons[["expt"]] <- expts
+
+# Get fraction of 5mc and 5hmc
+frac_hmc <- readr::read_tsv(file.path(path, "biomodal_output", "frac_hmc.tsv"), show_col_types = FALSE)
+frac_mc <- readr::read_tsv(file.path(path, "biomodal_output", "frac_mc.tsv"), show_col_types = FALSE)
+
+colnames(frac_hmc) <- gsub("_num_hmc_region_frac", "", colnames(frac_hmc))
+colnames(frac_mc) <- gsub("_num_mc_region_frac", "", colnames(frac_mc))
+
+frac_hmc <- frac_hmc %>% 
+  dplyr::mutate(across(.cols = everything(), .fns = function(x) { replace(x, is.na(x), 0) })) %>%
+  dplyr::mutate(n_UP = 0, n_DOWN = 0)
+frac_mc <- frac_mc %>% 
+  dplyr::mutate(across(.cols = everything(), .fns = function(x) { replace(x, is.na(x), 0) })) %>%
+  dplyr::mutate(n_UP = 0, n_DOWN = 0)
+
+for (i in seq_along(comparisons$control)){
+  
+  ctrl <- comparisons$control[i]
+  expt <- comparisons$expt[i]
+  
+  # Get regions between Control and Experiment
+  frac_hmc <- frac_hmc %>%
+    dplyr::mutate(n_UP   = n_UP   + as.integer(.data[[expt]] > .data[[ctrl]]),
+                  n_DOWN = n_DOWN + as.integer(.data[[expt]] < .data[[ctrl]]))
+  
+  # Get regions between Control and Experiment
+  frac_mc <- frac_mc %>%
+    dplyr::mutate(n_UP   = n_UP   + as.integer(.data[[expt]] > .data[[ctrl]]),
+                  n_DOWN = n_DOWN + as.integer(.data[[expt]] < .data[[ctrl]]))
+}
+
+frac_hmc <- frac_hmc %>% 
+  dplyr::mutate(across(.cols = everything(), .fns = function(x) { replace(x, x == 0, NA) })) %>%
+  dplyr::filter(n_UP != n_DOWN, !is.na(Name))
+frac_mc <- frac_mc %>% 
+  dplyr::mutate(across(.cols = everything(), .fns = function(x) { replace(x, x == 0, NA) })) %>%
+  dplyr::filter(n_UP != n_DOWN, !is.na(Name))
+
+# Get pvalues and other stats from biomodal DMR analysis
+dmr_hmc_21 <- readr::read_tsv(file.path(path, "biomodal_output", "DMR_20251208_144543_DMR_hmc_Pre__Post_20251208_144543.tsv"), show_col_types = FALSE)
+dmr_mc_21 <- readr::read_tsv(file.path(path, "biomodal_output", "DMR_20251208_144543_DMR_mc_Pre__Post_20251208_144543.tsv"), show_col_types = FALSE)
+
+frac_hmc <- frac_hmc %>%
+  dplyr::left_join(dmr_hmc_21, by=c("Chromosome", "Start", "End", "Name", "Annotation"))
+frac_mc <- frac_mc %>%
+  dplyr::left_join(dmr_mc_21, by=c("Chromosome", "Start", "End", "Name", "Annotation"))
+
+# Add "Type" column indicating if region was tumor specific
+frac_hmc <- frac_hmc %>%
+  mutate(key = paste(Chromosome, Start, End, Name, Annotation, sep = "_")) %>%
+  mutate(Type = ifelse(key %in% tumor_DMR_hmc$key, "Tumor only", "Normal")) %>%
+  select(-key)  # remove temporary key
+
+frac_mc <- frac_mc %>%
+  mutate(key = paste(Chromosome, Start, End, Name, Annotation, sep = "_")) %>%
+  mutate(Type = ifelse(key %in% tumor_DMR_mc$key, "Tumor only", "Normal")) %>%
+  select(-key)  # remove temporary key
+
+# Reformat and save to excel
+frac_hmc <- frac_hmc %>%
+  dplyr::mutate(n_Diff = n_UP - n_DOWN) %>%
+  dplyr::rename(n_CpGs = num_contexts, FDR = dmr_qvalue, log2FC = mod_fold_change) %>%
+  dplyr::select(Chromosome, Start, End, Name, Annotation, Type, n_UP, n_DOWN, n_Diff, n_CpGs, log2FC, FDR, everything())
+
+frac_mc <- frac_mc %>%
+  dplyr::mutate(n_Diff = n_UP - n_DOWN) %>%
+  dplyr::rename(n_CpGs = num_contexts, FDR = dmr_qvalue, log2FC = mod_fold_change) %>%
+  dplyr::select(Chromosome, Start, End, Name, Annotation, Type, n_UP, n_DOWN, n_Diff, n_CpGs, log2FC, FDR, everything())
+ 
+# Write to Excel
+wb <- createWorkbook()
+addWorksheet(wb, "hmc")
+writeData(wb, sheet = "hmc", frac_hmc)
+addWorksheet(wb, "mc")
+writeData(wb, sheet = "mc", frac_mc)
+saveWorkbook(wb, file.path(path, "Biomodal_final_results.xlsx"), overwrite = TRUE)
+
+
+
+
+
+# dmr_summary <- df %>%
+#   dplyr::mutate(Direction = dplyr::case_when(mod_difference > 0 ~ "Up in Carotuximab",
+#                                              mod_difference < 0 ~ "Down in Carotuximab",
+#                                              TRUE ~ "No Change")) %>% # Should be rare after filtering
+#   # Count unique genes by Annotation and Direction
+#   dplyr::group_by(Annotation, Direction) %>%
+#   dplyr::summarise(Unique_Genes = n_distinct(Name),
+#                    .groups = "drop") %>%
+#   # Pivot wider for a clean summary table format
+#   tidyr::pivot_wider(names_from = Direction,
+#                      values_from = Unique_Genes,
+#                      values_fill = 0)
+# 
+# # Display the summary table
+# print(dmr_summary)
+# 
+# #  Comparison directionof 5mc and 5hmc
+# comparison_df <- dplyr::inner_join(x = tumor_DMR_hmc %>% dplyr::rename(hmc_diff = mod_difference, hmc_logFC = mod_fold_change) %>% dplyr::select(Name, Annotation, hmc_diff, hmc_logFC ),
+#                                    y = tumor_DMR_mc %>% dplyr::rename(mc_diff = mod_difference, mc_logFC = mod_fold_change) %>% dplyr::select(Name, Annotation, mc_diff, mc_logFC ),
+#                                    by = c("Name"= "Name", "Annotation"="Annotation")) %>%
+#   dplyr::mutate(Trend = dplyr::case_when((mc_diff > 0 & hmc_diff < 0) | (mc_diff < 0 & hmc_diff > 0) ~ "Inverse",
+#                                          (mc_diff > 0 & hmc_diff > 0) | (mc_diff < 0 & hmc_diff < 0) ~ "Concordant",
+#                                          TRUE ~ "Unknown")) %>%
+#   dplyr::arrange(Trend, Annotation, Name) %>%
+#   dplyr::select(Name, Annotation, hmc_diff, mc_diff, hmc_logFC, mc_logFC, Trend)
+# 
+# comparison_df %>% dplyr::count(Trend)
+

@@ -111,15 +111,15 @@ integ.clust <- cluster_integrated_data(integrated_seurat = integ.obj,
 
 # Filter out sparse clusters often associated with low-quality cells or debris
 integ.final <- remove_sparse_clusters(integrated_seurat = integ.clust,
-                                      assay = assay,
-                                      output_dir = proj.params$seurat_dir)
+                                      assay = assay)
 
 # Calculate the optimal clustering res
-optimal_res <- calc_optimal_resolution(integrated_seurat = integ.final,
+integ.final <- calc_optimal_resolution(integrated_seurat = integ.final,
                                        reduction = "Harmony",
                                        output_dir = proj.params$seurat_dir)
 
 # Find differential expressed genes (markers)
+optimal_res <- as.numeric(as.character(unique(integ.final@meta.data$optimal_res)))
 resolutions <- unique(c(0.2, 0.4, 0.6, 0.8, 1, optimal_res))
 for (res in resolutions){
   identify_markers(integrated_seurat = integ.final,
@@ -147,6 +147,68 @@ integ.ann <- annotate_clusters(integrated_seurat = integ.final,
                                output_dir = proj.params$seurat_dir)
 
 # integ.ann <- readRDS(file.path(proj.params$seurat_dir, "integrated_seurat_ann.rds"))
+
+# ---- OPTIONAL ----
+# Used for finding markers based on all datasets analyzed
+
+# proj_info <- list(proj = c("scRNASeq_BBN_C57BL6", "scRNASeq_BBN_Rag", "scRNASeq_Chen", 
+#                            "scRNASeq_GSE135337", "scRNASeq_GSE137829", "scRNASeq_GSE145216", 
+#                            "scRNASeq_GSE164557", "scRNASeq_GSE200139", "scRNASeq_GSE217093", 
+#                            "scRNASeq_GSE222315", "scRNASeq_HRA003620", "scRNASeq_Jinfen", 
+#                            "scRNASeq_Jyoti", "scRNASeq_Jyoti_2", "scRNASeq_Koltsova", 
+#                            "scRNASeq_Krizia"), 
+#                   species = c("Mus musculus", "Mus musculus", "Homo sapiens", 
+#                               "Homo sapiens", "Homo sapiens", "Mus musculus",
+#                               "Mus musculus", "Mus musculus", "Mus musculus",
+#                               "Homo sapiens", "Homo sapiens", "Mus musculus",
+#                               "Mus musculus", "Homo sapiens", "Homo sapiens",
+#                               "Mus musculus"))
+# 
+# for (i in 1:length(proj_info$proj)){
+#   
+#   proj <- proj_info$proj[i]
+#   species <- proj_info$species[i]
+#   
+#   parent_dir  <- "/hpc/home/kailasamms/scratch"
+#   gmt_dir     <- "/hpc/home/kailasamms/projects/GSEA_genesets"
+#   scripts_dir <- "/hpc/home/kailasamms/projects/scRNASeq"
+#   
+#   contrasts <- c()
+#   deseq2.override <- list()
+#   heatmap.override <- list()
+#   volcano.override <- list()
+#   
+#   proj.params <- setup_project(proj             = proj,
+#                                species          = species,  #"Mus musculus", "Homo sapiens"
+#                                contrasts        = contrasts,
+#                                parent_dir       = parent_dir,
+#                                gmt_dir          = gmt_dir,
+#                                scripts_dir      = scripts_dir,
+#                                deseq2.override  = deseq2.override,
+#                                heatmap.override = heatmap.override,
+#                                volcano.override = volcano.override)
+#   
+#   integ.ann <- readRDS(file.path(proj.params$seurat_dir, "integrated_seurat_ann.rds"))
+#   
+#   plot_gold_standard_markers(integrated_seurat = integ.ann,
+#                              reduction = "Harmony",
+#                              marker_file = proj.params$markerfile, 
+#                              output_dir = "/hpc/home/kailasamms/")
+#   
+# }
+
+#---- ----
+
+
+
+
+
+
+
+
+
+
+
 
 # clusters <- list("Hepatocytes"              = c(),
 #                  "Pancreatic.Acinar"        = c(),
