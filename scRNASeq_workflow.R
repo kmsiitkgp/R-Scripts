@@ -10,25 +10,27 @@ for (e in args){
   assign(argname, argval)
 }
 
-# Run the Custom_Functions.R script
-path1 <- "C:/Users/kailasamms/OneDrive - Cedars-Sinai Health System/Documents/GitHub/R-Scripts/Custom_Functions.R"
-path2 <- "/hpc/home/kailasamms/projects/scRNASeq/Custom_Functions.R"
-if (file.exists(path1)) {
-  source(path1)
-} else if (file.exists(path2)) {
-  source(path2)
-}
-
 # ---- PROJECT SET UP ----
 
-# parent_dir <- "C:/Users/kailasamms/OneDrive - Cedars-Sinai Health System/Desktop/Collaboration projects data"
-# gmt_dir    <- "C:/Users/kailasamms/OneDrive - Cedars-Sinai Health System/Documents/GitHub/R-Scripts/GSEA_genesets"
-# scripts_dir <- NULL
+if (.Platform$OS.type == "windows") {
+  parent_dir  <- "C:/Users/kailasamms/OneDrive - Cedars-Sinai Health System/Desktop/Collaboration projects data"
+  gmt_dir     <- "C:/Users/kailasamms/OneDrive - Cedars-Sinai Health System/Documents/GSEA_genesets"
+  scripts_dir <- NULL
+  script_file <- "C:/Users/kailasamms/OneDrive - Cedars-Sinai Health System/Documents/GitHub/R-Scripts/Custom_Functions.R"
+} else {  # Linux/macOS (e.g., HPC)
+  parent_dir  <- "/hpc/home/kailasamms/scratch"
+  gmt_dir     <- "/hpc/home/kailasamms/projects/GSEA_genesets"
+  scripts_dir <- "/hpc/home/kailasamms/projects/scRNASeq"
+  script_file <- "/hpc/home/kailasamms/projects/scRNASeq/Custom_Functions.R"
+}
 
-parent_dir  <- "/hpc/home/kailasamms/scratch"
-gmt_dir     <- "/hpc/home/kailasamms/projects/GSEA_genesets"
-scripts_dir <- "/hpc/home/kailasamms/projects/scRNASeq"
+if (file.exists(script_file)) {
+  source(script_file)
+} else{
+  stop(paste("Custom_Functions.R not found at:", script_file))
+}
 
+# Define these 4 variables as empty unless you want to do DESeq2 after single cell
 contrasts <- c()
 deseq2.override <- list()
 heatmap.override <- list()
