@@ -128,22 +128,25 @@ quiet_msg <- function(expr) {
 }
 
 # Log info messages (green)
-log_info <- function(sample, step, message) {
+log_info <- function(sample, step, msg) {
+  sample <- sample %||% ""  # fallback to empty string if NULL
   prefix <- green(formatC("[INFO]", width = 7, flag = " "))
-  message(glue::glue("{prefix} [{sample} | {toupper(step)}] {message}"))
+  message(glue::glue("{prefix} [{sample} | {toupper(step)}] {msg}"))
 }
 
 # Log warning messages (yellow)
-log_warn <- function(sample, step, message) {
+log_warn <- function(sample, step, msg) {
+  sample <- sample %||% ""  # fallback to empty string if NULL
   prefix <- yellow(formatC("[WARN]", width = 7, flag = " "))
-  message(glue::glue("{prefix} [{sample} | {toupper(step)}] {message}"))
+  message(glue::glue("{prefix} [{sample} | {toupper(step)}] {msg}"))
 }
 
 # Log error messages (red)
-log_error <- function(sample, step, message) {
+log_error <- function(sample, step, msg) {
+  sample <- sample %||% ""  # fallback to empty string if NULL
   prefix <- red(formatC("[ERROR]", width = 7, flag = " "))
-  message(glue::glue("{prefix} [{sample} | {toupper(step)}] {message}"))
-  stop("Workflow Stopped.", call. = FALSE)
+  message(glue::glue("{prefix} [{sample} | {toupper(step)}] {msg}"))
+  stop("Workflow stopped.", call. = FALSE)
 }
 
 # Optional: header for sample processing
@@ -393,30 +396,25 @@ filter_samples_by_contrast <- function(metadata, contrast) {
     as.character()
 }
 
-merge_counts <- function(proj.params) {
+merge_counts <- function(counts_dir, filename = NULL, output_dir) {
   
   # ---- ⚙️ Validate Input Parameters ----
   
-  required_attrs <- c("counts_dir", "proj_dir", "proj")
-  for (attr in required_attrs) {
-    if (is.null(proj.params[[attr]])) {
-      log_error(sample = "", 
-                step = "merge_counts", 
-                message = glue::glue("Missing required proj.params attribute: '{attr}'"))
-    }
-  }
-  
+  validate_inputs(counts_dir = counts_dir, filename = filename, output_dir = output_dir)
+ 
   # ---- 🔎 Identify Count Files ----
   
   # Pattern matches STAR (ReadsPerGene.out.tab) or standard HTSeq .txt files
-  count_files <- list.files(path = proj.params$counts_dir, 
+  count_files <- list.files(path = counts_dir, 
                             pattern = "\\.txt$|ReadsPerGene\\.out\\.tab$", 
                             full.names = TRUE)
   
   if (length(count_files) == 0) {
-    log_error(sample = "", 
-              step = "merge_counts", 
-              message = glue::glue("No count files found in: '{proj.params$counts_dir}'"))
+    log_warn(sample = "", 
+            step    = "merge_counts", 
+            msg     = glue::glue("No count files found in: '{counts_dir}'.
+                                 Provide raw counts as excel for analysis."))
+    return(NULL)
   }
   
   # ---- 🧪 Initialize Containers ----
@@ -441,14 +439,14 @@ merge_counts <- function(proj.params) {
       read.table(file = count_file, header = FALSE, sep = "\t", stringsAsFactors = FALSE)
     }, error = function(e) {
       log_error(sample = sample_id, 
-                step = "merge_counts", 
-                message = glue::glue("Error reading file: {e$message}"))
+                step   = "merge_counts", 
+                msg    = glue::glue("Error reading file: {e$message}"))
     })
     
     if (ncol(df) < 4) {
       log_error(sample = sample_id, 
                 step = "merge_counts", 
-                message = "STAR/HTSeq count file does not have expected 4 columns.")
+                msg ="STAR/HTSeq count file does not have expected 4 columns.")
     }
     
     # Remove special counters/metadata rows
@@ -458,19 +456,22 @@ merge_counts <- function(proj.params) {
     strand_sums <- colSums(df[2:4], na.rm = TRUE)
     
     # Logic to determine strandedness based on column sums
-    # Col 2: Unstranded, Col 3: Forward, Col 4: Reverse
+    # Col 2: Unstranded 
+    # Col 3: Forward 
+    # Col 4: Reverse
     if (abs((strand_sums[1]/strand_sums[2]) - (strand_sums[1]/strand_sums[3])) < 2) {
-      log_info(sample = sample_id, step = "merge_counts", message = "Detected unstranded library.")
+      log_info(sample = sample_id, step = "merge_counts", msg ="Detected unstranded library.")
       counts <- df[[2]]
     } else if (strand_sums[2] > 3 * strand_sums[3]) {
-      log_info(sample = sample_id, step = "merge_counts", message = "Detected positively stranded library.")
+      log_info(sample = sample_id, step = "merge_counts", msg ="Detected positively stranded library.")
       counts <- df[[3]]
     } else if (strand_sums[3] > 3 * strand_sums[2]) {
-      log_info(sample = sample_id, step = "merge_counts", message = "Detected negatively stranded library.")
+      log_info(sample = sample_id, step = "merge_counts", msg ="Detected negatively stranded library.")
       counts <- df[[4]]
     } else {
-      log_error(sample = sample_id, step = "merge_counts", 
-                message = "Could not confidently determine strandedness.")
+      log_error(sample = sample_id, 
+                step = "merge_counts", 
+                msg ="Could not confidently determine strandedness.")
     }
     
     all_counts[[sample_id]] <- counts
@@ -483,8 +484,9 @@ merge_counts <- function(proj.params) {
   ref_genes <- gene_lists[[1]]
   for (i in seq_along(gene_lists)) {
     if (!identical(ref_genes, gene_lists[[i]])) {
-      log_error(sample = names(gene_lists)[i], step = "merge_counts", 
-                message = "Gene ID mismatch. Ensure all samples were mapped to the same reference.")
+      log_error(sample = names(gene_lists)[i], 
+                step = "merge_counts", 
+                msg ="Gene ID mismatch. Ensure all samples were mapped to the same reference.")
     }
   }
   
@@ -496,13 +498,14 @@ merge_counts <- function(proj.params) {
   
   # Remove genes with 0 counts across all samples
   count_matrix <- count_matrix[rowSums(count_matrix[,-1]) > 0, , drop = FALSE]
+  rownames(count_matrix) <- NULL    # Reset row names after subsetting so they are sequential (1, 2, 3, ...)
   
   # Remove samples with 0 counts across all genes
   count_matrix <- count_matrix[, c(TRUE, colSums(count_matrix[,-1]) > 0), drop = FALSE]
   
   # ---- 💾 Export to Excel ----
   
-  file_name <- file.path(proj.params$proj_dir, paste0(proj.params$proj, "_Raw_counts.xlsx"))
+  file_name <- file.path(output_dir, paste0(filename, "_Raw_counts.xlsx"))
   
   wb <- openxlsx::createWorkbook()
   openxlsx::addWorksheet(wb = wb, sheetName = "Raw_counts")
@@ -511,229 +514,292 @@ merge_counts <- function(proj.params) {
   
   # ---- 🪵 Log Output and Return Count Matrix ----
   
-  log_info(sample = "", step = "merge_counts", 
-           message = glue::glue("Merged counts successfully. Saved to: '{file_name}'"))
+  log_info(sample = "", 
+           step   = "merge_counts", 
+           msg    = glue::glue("Merged counts successfully. Saved to: '{file_name}'"))
   
   return(invisible(count_matrix))
 }
 
-prepare_deseq2_input <- function(metadata, read_data, project_params) {
-  
-  set.seed(1234)
+prepare_deseq2_input <- function(metadata, expr_mat, design = 1) {
   
   # ---- ⚙️ Validate Input Parameters ----
   
+  validate_inputs(expr_mat = expr_mat, metadata = metadata)
+  
   if (!"Sample_ID" %in% colnames(metadata)) {
-    log_error(sample = "", step = "prepare_deseq2_input", 
-              message = "Metadata must contain a 'Sample_ID' column.")
+    log_error(sample = "",
+              step   = "prepare_deseq2_input",
+              msg    = glue::glue("`metadata` MUST contain 'Sample_ID' column."))
   }
   
-  if (!"SYMBOL" %in% colnames(read_data)) {
-    log_error(sample = "", step = "prepare_deseq2_input", 
-              message = "Read data must contain a 'SYMBOL' column.")
+  if (base::anyDuplicated(metadata$Sample_ID)) {
+    log_error(sample = "", 
+              step   = "prepare_deseq2_input", 
+              msg    = "Duplicate samples detected in 'Sample_ID' column in metadata.")
   }
   
-  if (anyDuplicated(read_data$SYMBOL)) {
-    log_error(sample = "", step = "prepare_deseq2_input", 
-              message = "Duplicate gene symbols detected in count matrix.")
+  if (base::anyDuplicated(rownames(expr_mat))) {
+    log_error(sample = "", 
+              step   = "prepare_deseq2_input", 
+              msg    = "Duplicate gene symbols detected in row names of count matrix.")
   }
   
-  if (is.null(project_params$deseq2$design)) {
-    log_error(sample = "", step = "prepare_deseq2_input", 
-              message = "DESeq2 design formula is missing from project_params.")
+  if (is.null(design)) {
+    log_error(sample = "", 
+              step   = "prepare_deseq2_input", 
+              msg    = "DESeq2 design formula is NULL. Please fix it.")
   }
   
-  # ---- 🧪 Initial Summary & Cleaning ----
+  # Alert the user if samples in expr_mat and metadata differ
+  clean_meta_names <- make.names(metadata$Sample_ID)
+  clean_mat_names  <- make.names(colnames(expr_mat))
+  common <- intersect(clean_meta_names, clean_mat_names)
   
-  log_info(sample = "", step = "prepare_deseq2_input", 
-           message = glue::glue("Initial counts: {nrow(read_data)} genes across {nrow(metadata)} samples."))
+  if (length(common) < length(clean_meta_names)) {
+    lost <- length(clean_meta_names) - length(common)
+    log_warn(sample = "",
+             step   = "prepare_deseq2_input",
+             msg    = glue::glue("Alignment lost {lost} samples. Check for naming mismatches (e.g. '-' vs '_')."))
+  }
   
-  # Align and clean metadata
+  # ⚠️ Detect potential gene ID column in expr_mat
+  
+  # Compute column sums
+  col_sums <- colSums(expr_mat, na.rm = TRUE)
+  first_col_name <- colnames(expr_mat)[1]
+  first_col <- expr_mat[,1]
+  
+  # Heuristic checks
+  is_numeric_outlier <- is.numeric(first_col) && col_sums[1] > 10 * median(col_sums[-1])
+  is_name_not_in_meta <- !(first_col_name %in% make.names(metadata$Sample_ID))
+  
+  if (is_numeric_outlier || is_name_not_in_meta) {
+    log_error(sample = "",
+             step    = "prepare_deseq2_input",
+             msg     = glue::glue("First column '{first_col_name}' looks like gene IDs (Entrez or SYMBOL), not sample counts."))
+  }
+  
+  # ---- 📝️ Metadata Preparation & Design Validation ----
+  
+  log_info(sample = "", 
+           step   = "prepare_deseq2_input", 
+           msg    = glue::glue("Initial counts: {nrow(expr_mat)} genes x {nrow(metadata)} samples."))
+  
+  # Remove "sizeFactor" column if present and rows with missing sample names
   metadata <- metadata %>%
-    dplyr::filter(!is.na(Sample_ID)) %>%
-    dplyr::mutate(Sample_ID = make.names(Sample_ID, unique = TRUE)) %>%
-    dplyr::filter(Sample_ID %in% make.names(colnames(read_data)))
+    dplyr::select(-any_of("sizeFactor")) %>%
+    dplyr::filter(!is.na(Sample_ID))
+
+  # Assign "Sample_ID" column as row names and convert to valid R names
+  rownames(metadata) <- make.names(metadata$Sample_ID)
   
-  rownames(metadata) <- metadata$Sample_ID
-  
-  # Handle Batch column
+  # Add Batch column if absent
   if (!"Batch" %in% colnames(metadata)) {
     metadata$Batch <- 1
-    log_warn(sample = "", step = "prepare_deseq2_input", 
-             message = "No 'Batch' column found. Assigning default value '1'.")
+    log_warn(sample = "", 
+             step   = "prepare_deseq2_input", 
+             msg    = "No 'Batch' column found. Assigning default value '1'.")
   }
-  
-  # ---- 🔄 Align Matrix with Metadata ----
-  
-  colnames(read_data) <- make.names(colnames(read_data))
-  valid_samples <- intersect(colnames(read_data), rownames(metadata))
-  
-  read_data <- read_data %>%
-    dplyr::filter(!is.na(SYMBOL)) %>%
-    tibble::remove_rownames() %>%
-    tibble::column_to_rownames(var = "SYMBOL") %>%
-    dplyr::select(all_of(valid_samples)) %>%
-    replace(is.na(.), 0)
-  
-  # Remove genes with zero counts across all samples
-  read_data <- read_data[rowSums(read_data) != 0, ]
-  
-  # Remove samples with zero total reads
-  zero_samples <- which(colSums(read_data) == 0)
-  if (length(zero_samples) > 0) {
-    log_warn(sample = "", step = "prepare_deseq2_input", 
-             message = glue::glue("Removing {length(zero_samples)} samples with zero total counts."))
-    read_data <- read_data[, -zero_samples, drop = FALSE]
-    metadata <- metadata[-zero_samples, , drop = FALSE]
-  }
-  
-  # ---- 🔎 Clean Design Variables ----
   
   # Extract variables from formula (e.g., ~Condition + Batch -> c("Condition", "Batch"))
-  design_vars <- all.vars(as.formula(project_params$deseq2$design))
-  
+  design_formula <- if (grepl("^~", design)) {
+    as.formula(design)
+  } else {
+    as.formula(paste0("~", design))
+  }
+  design_vars <- all.vars(design_formula)
   missing_vars <- setdiff(design_vars, colnames(metadata))
+  
   if (length(missing_vars) > 0) {
-    log_error(sample = "", step = "prepare_deseq2_input", 
-             message = glue::glue("Design variables not found in metadata: {paste(missing_vars, collapse = ', ')}"
-    ))
+    log_error(sample = "", 
+              step   = "prepare_deseq2_input", 
+              msg    = glue::glue("Design variables not found in metadata: {paste(missing_vars, collapse = ', ')}"))
   }
   
-  # Identify samples containing NAs in the design columns
-  na_samples <- lapply(design_vars, function(var) {which(is.na(metadata[[var]]))}) %>%
-    unlist() %>%
-    unique()
+  # Identify samples with NA in the design columns
+  na_idx <- apply(X = metadata[, design_vars, drop = FALSE],
+                  MARGIN = 1, 
+                  FUN = function(x) any(is.na(x)))
   
-  if (length(na_samples) > 0) {
-    log_warn(sample = "", step = "prepare_deseq2_input", 
-             message = glue::glue("Removing {length(na_samples)} samples with missing design metadata."))
-    read_data <- read_data[, -na_samples, drop = FALSE]
-    metadata <- metadata[-na_samples, , drop = FALSE]
+  # Only subset metadata if there are any NAs
+  if (any(na_idx)) {
+    na_samples <- rownames(metadata)[na_idx]
+    log_warn(sample = "",
+             step   = "prepare_deseq2_input",
+             msg    = glue::glue("Removing {length(na_samples)} samples with NA in design columns: {paste(na_samples, collapse = ', ')}"))
+    metadata <- metadata[!na_idx, , drop = FALSE]
   }
   
-  # ---- 🧬 Final Structure Preparation ----
+  # ---- 🧮 Expression Matrix Cleaning & Filtering ----
   
-  # Remove sizeFactor column if present in metadata
-  metadata <- metadata[, colnames(metadata) != "sizeFactor", drop = FALSE]
+  # Convert column names to valid R names
+  colnames(expr_mat) <- make.names(colnames(expr_mat))
+  
+  # Retain ONLY samples in metadata for accurate zero count calculations
+  expr_mat <- expr_mat[, intersect(colnames(expr_mat), rownames(metadata)), drop = FALSE]
+  
+  # Remove rows with NA gene names and replace missing counts with 0
+  expr_mat <- expr_mat[!is.na(rownames(expr_mat)), ]
+  expr_mat[is.na(expr_mat)] <- 0
+  
+  # Remove genes with zero counts across all samples
+  zero_genes   <- rownames(expr_mat)[which(rowSums(expr_mat) == 0)]
+  expr_mat <- expr_mat[rowSums(expr_mat) != 0, , drop = FALSE]
+  log_warn(sample = "",
+           step   = "prepare_deseq2_input",
+           msg    = glue::glue("Removed {length(zero_genes)} genes with zero counts across all samples."))
+  
+  # Remove samples with zero total reads
+  zero_samples <- colnames(expr_mat)[which(colSums(expr_mat) == 0)]
+  expr_mat <- expr_mat[, colSums(expr_mat) != 0, drop = FALSE]
+  log_warn(sample = "",
+           step   = "prepare_deseq2_input",
+           msg    = glue::glue("Removed {length(zero_samples)} samples with zero total counts."))
+  
+  # ---- 🧩 Final Data Structuring for DESeq2 ----
+  
+  # Synchronize samples between expr_mat and metadata
+  common_samples <- intersect(colnames(expr_mat), rownames(metadata))
+  expr_mat <- expr_mat[              , common_samples, drop = FALSE]
+  metadata <- metadata[common_samples,               , drop = FALSE]
+  
+  if (length(common_samples) == 0) {
+    log_error(sample = "",
+              step   = "prepare_deseq2_input",
+              msg    = "No overlapping samples between expr_mat and metadata.")
+  }
   
   # Convert all metadata to factors for DESeq2 compatibility
   message("Structure of metadata before conversion:")
   str(metadata)
-  metadata <- as.data.frame(unclass(metadata), stringsAsFactors = TRUE)
-  #metadata[] <- lapply(metadata, as.factor)
+  
+  #metadata <- as.data.frame(unclass(metadata), stringsAsFactors = TRUE)
+  metadata[] <- lapply(metadata, as.factor)
+  
   message("Structure of metadata after conversion:")
   str(metadata)
-  
-  # Ensure exact ordering
-  read_data <- read_data[, rownames(metadata), drop = FALSE]
-  
-  # Sanity checks
-  if (!is.data.frame(read_data) || !is.data.frame(metadata)) {
-    log_error(sample = "", step = "prepare_deseq2_input", 
-             message = glue::glue("`read_data` and `metadata` must be data.frames"))
-  }
-  if (!all(colnames(read_data) %in% rownames(metadata))) {
-    log_error(sample = "", step = "prepare_deseq2_input",
-              message = glue::glue("Some samples in `read_data` are missing in `metadata`"))
-  }
-  if (!all(colnames(read_data) == rownames(metadata))) {
-    log_error(sample = "", step = "prepare_deseq2_input",
-              message = glue::glue("Sample order mismatch between `read_data` and `metadata`"))
-  }
   
   # ---- 🪵 Log Output and Return Cleaned Data ----
   
   log_info(sample = "", 
-           step = "prepare_deseq2_input", 
-           message = glue::glue("Successfully prepared DESeq2 input: {nrow(read_data)} genes and {ncol(read_data)} samples."))
+           step   = "prepare_deseq2_input", 
+           msg    = glue::glue("Successfully prepared DESeq2 input: {nrow(expr_mat)} genes and {ncol(expr_mat)} samples."))
   
-  return(invisible(list(metadata = metadata, read_data = read_data)))
+  return(invisible(list(metadata = metadata, expr_mat = expr_mat)))
 }
 
-run_deseq2 <- function(metadata, read_data, proj.params, n = 1) {
+run_deseq2 <- function(expr_mat, metadata, design, contrast, output_dir, lfc.cutoff = 0, padj.cutoff = 0.1) {
   
   # For ashr
   set.seed(1234)
   
   # ---- ⚙️ Validate Input Parameters ----
   
-  if (!is.list(proj.params) || !"deseq2" %in% names(proj.params)) {
-    log_error(sample = "", step = "run_deseq2", message = "proj.params must contain a 'deseq2' list.")
-  }
-  
-  required_attrs <- c("design", "lfc.cutoff", "padj.cutoff", "contrasts")
-  for (attr in required_attrs) {
-    if (is.null(proj.params$deseq2[[attr]])) {
-      log_error(sample = "", step = "run_deseq2", message = glue::glue("Missing required attribute: {attr}"))
-    }
-  }
-  
-  contrast <- proj.params$deseq2$contrasts[n]
-  contrast_dir <- proj.params$contrast_dir[n]
-  
-  if (!dir.exists(contrast_dir)) {
-    dir.create(contrast_dir, recursive = TRUE)
-  }
+  validate_inputs(expr_mat = expr_mat, metadata = metadata, output_dir = output_dir)
   
   # ---- 🧪 DESeq2 Object Preparation & Filtering ----
   
-  dds <- DESeq2::DESeqDataSetFromMatrix(countData = read_data,
-                                        colData   = metadata,
-                                        design    = ~1)
-  
-  # Apply the user-defined design formula
-  DESeq2::design(dds) <- as.formula(paste0("~", proj.params$deseq2$design))
-  
-  # Auto-detect need for 'poscounts' if many zeros exist
-  if (all(rowSums(read_data == 0) > 0)) {
-    log_info(sample = contrast, step = "run_deseq2", message = "Zero-heavy data detected. Using 'poscounts' size factors.")
-    dds <- DESeq2::estimateSizeFactors(dds, type = "poscounts")
+  # Standardize DESeq2 design formula
+  if (inherits(design, "formula")) {
+    design_formula <- design
+    
+  } else if (is.numeric(design) && design == 1) {
+    # Intercept-only model
+    design_formula <- stats::as.formula("~ 1")
+    
+  } else if (is.character(design) && length(design) == 1 && nzchar(design)) {
+    # nzchar = “non-zero number of characters”
+    # Remove leading ~ and whitespace, then standardize
+    clean_design <- sub("^\\s*~\\s*", "", design)
+    design_formula <- stats::as.formula(paste0("~", clean_design))
+    
+  } else {
+    log_error(sample = "",
+              step   = "prepare_deseq2_input",
+              msg    = "`design` must be a formula, the number 1, or a non-empty character string.")
   }
   
-  # Pre-filter lowly expressed genes to improve sizefactor estimation
-  keep <- rowSums(DESeq2::counts(dds)) >= 10
-  dds <- dds[keep, ]
+  # Prepare DESeq2 object
+  dds <- DESeq2::DESeqDataSetFromMatrix(countData = expr_mat,
+                                        colData   = metadata,
+                                        design    = design_formula)
   
+  # Auto-detect for 'poscounts' if many zeros exist
+  is_scRNA <- all(rowSums(expr_mat == 0) > 0)
+
+  if (is_scRNA) {
+    log_warn(sample = contrast,
+             step   = "run_deseq2",
+             msg    = "scRNA-seq–like sparsity detected. Estimating size factors using 'poscounts'.")
+    dds <- DESeq2::estimateSizeFactors(dds, type = "poscounts")
+  } else {
+    # Pre-filter lowly expressed genes to improve sizefactor estimation in next step
+    keep <- rowSums(DESeq2::counts(dds)) >= 10
+    dds <- dds[keep, ]
+  }
+
   # ---- 📉 Fit Selection (Parametric vs. Local) ----
   
   # We fit both to determine which dispersion model better suits the data distribution
-  dds_para <- DESeq2::DESeq(object = dds, test = "Wald", fitType = "parametric", 
-                            betaPrior = FALSE, minReplicatesForReplace = 7, quiet = TRUE)
-  dds_local <- DESeq2::DESeq(object = dds, test = "Wald", fitType = "local", 
-                             betaPrior = FALSE, minReplicatesForReplace = 7, quiet = TRUE)
+  dds_para <- DESeq2::DESeq(object = dds, 
+                            test = "Wald", 
+                            fitType = "parametric", 
+                            betaPrior = FALSE, 
+                            minReplicatesForReplace = 7, 
+                            quiet = TRUE)
+  
+  dds_local <- DESeq2::DESeq(object = dds, 
+                             test = "Wald", 
+                             fitType = "local", 
+                             betaPrior = FALSE, 
+                             minReplicatesForReplace = 7, 
+                             quiet = TRUE)
   
   residual_para  <- mcols(dds_para)$dispGeneEst - mcols(dds_para)$dispFit
   residual_local <- mcols(dds_local)$dispGeneEst - mcols(dds_local)$dispFit
   
   if (median(residual_para^2, na.rm = TRUE) <= median(residual_local^2, na.rm = TRUE)) {
-    log_info(sample = contrast, step = "run_deseq2", message = "Selected 'Parametric' fit based on lower squared residuals.")
+    log_info(sample = contrast, 
+             step   = "run_deseq2", 
+             msg    = "Selected 'Parametric' fit based on lower squared residuals.")
     dds <- dds_para
   } else {
-    log_info(sample = contrast, step = "run_deseq2", message = "Selected 'Local' fit based on lower squared residuals.")
+    log_info(sample = contrast, 
+             step   = "run_deseq2", 
+             msg    = "Selected 'Local' fit based on lower squared residuals.")
     dds <- dds_local
   }
   
   # ---- 🧮 Dynamic Contrast Parsing ----
   
-  mod_mat <- model.matrix(DESeq2::design(dds), DESeq2::colData(dds))
-  #design_factors <- stringr::str_split(string = proj.params$deseq2$design, "[+*:]")[[1]] %>% unique()
-  design_factors <- all.vars(as.formula(proj.params$deseq2$design)) %>% 
-    unique()
+  # Extract design variables (e.g., c("Condition", "Batch"))
+  # all.vars is robust; it handles ~Condition + Batch and ~Condition*Batch
+  design_vars <- all.vars(design_formula)
   
-  # Create a replicate of metadata with all possible groups that could be compared based on the design
-  df_groups <- colData(dds) %>% 
-    as.data.frame() %>% 
-    tidyr::unite(col = "Groups", all_of(design_factors), sep = ".")
+  # Extract the model matrix 
+  # This is useful for downstream checking of rank deficiency
+  mod_mat <- stats::model.matrix(DESeq2::design(dds), data = SummarizedExperiment::colData(dds))
   
+  # Create "Groups" column for easy subsetting/contrasts
+  if (length(design_vars) > 0) {
+    df_groups <- SummarizedExperiment::colData(dds) %>% 
+      as.data.frame() %>% 
+      tidyr::unite(col = "Groups", dplyr::all_of(design_vars), sep = ".", remove = FALSE)
+    
+    # Update the dds colData to include this combined Groups column
+    SummarizedExperiment::colData(dds)$Groups <- as.factor(df_groups$Groups)
+  } else {
+    # If design is ~1, Groups is just "All"
+    SummarizedExperiment::colData(dds)$Groups <- as.factor("All")
+  }
+
   # Define all possible groups that could be compared based on the design
   groups <- unique(df_groups$Groups)
   
   # Map groups to mean model coefficients (Get all possible coefficient vectors)
   group_coef_list <- lapply(groups, function(i) colMeans(as.matrix(mod_mat[df_groups$Groups == i, , drop = FALSE])))
   names(group_coef_list) <- groups
-  
-  # Below line works for simple contrasts like (A - B). Fails if contrast is (A-B)-(C-D)
-  # contrast_vec <- group_coef_list[[target]] - group_coef_list[[ref]] 
   
   # Recursive function to evaluate the contrast string (e.g., "A-B") as a vector operation
   replace_symbols <- function(node) {
@@ -756,42 +822,31 @@ run_deseq2 <- function(metadata, read_data, proj.params, n = 1) {
   expr_sub <- replace_symbols(parsed_expr)
   contrast_vec <- base::eval(expr_sub)
   
-  # # [ALTERNATIVE METHOD] Get all possible coefficient vectors
-  # for (i in groups) {
-  #   val <- colMeans(as.matrix(mod_mat[df$Groups == i, , drop =FALSE]))
-  #   assign(x = i, value = val)
-  # }
-  # # Define the contrast vector
-  # contrast_vec <- base::eval(expr = base::parse(text = contrast))
-  
-  # target <- stringr::str_split(string = contrast, pattern = "-")[[1]][1]
-  # ref    <- stringr::str_split(string = contrast, pattern = "-")[[1]][2]
-  
   # ---- ⚠️ Sanity Check: contrast_vec Alignment ----
   
   if (length(contrast_vec) != ncol(mod_mat)) {
     log_error(sample = contrast,
               step   = "run_deseq2",
-              message = glue::glue("Length of contrast_vec ({length(contrast_vec)}) does 
+              msg    = glue::glue("Length of contrast_vec ({length(contrast_vec)}) does 
                                    not match the number of columns in the design matrix ({ncol(mod_mat)})."))
   }
   
   if (all(contrast_vec == 0)) {
     log_error(sample = contrast,
               step   = "run_deseq2",
-              message = "contrast_vec is all zeros — invalid contrast. Check the user-provided contrast string.")
+              msg    = "contrast_vec is all zeros — invalid contrast. Check the user-provided contrast string.")
   }
   
   # ---- 🧬 Results & LFC Shrinkage ----
   
-  res <- DESeq2::results(object = dds, 
-                         contrast = contrast_vec,
-                         lfcThreshold = proj.params$deseq2$lfc.cutoff,
-                         altHypothesis = "greaterAbs",
-                         cooksCutoff = TRUE,
+  res <- DESeq2::results(object               = dds, 
+                         contrast             = contrast_vec,
+                         lfcThreshold         = lfc.cutoff,
+                         altHypothesis        = "greaterAbs",
+                         cooksCutoff          = TRUE,
                          independentFiltering = TRUE,
-                         alpha = proj.params$deseq2$padj.cutoff,
-                         pAdjustMethod = "BH")
+                         alpha                = padj.cutoff,
+                         pAdjustMethod        = "BH")
   
   # Use 'ashr' for shrinkage as it is robust for varied effect sizes
   res <- DESeq2::lfcShrink(dds = dds, res = res, type = "ashr", quiet = TRUE)
@@ -809,7 +864,7 @@ run_deseq2 <- function(metadata, read_data, proj.params, n = 1) {
     dplyr::summarize(across(.cols = where(is.numeric), .fns = mean, na.rm = TRUE), .groups = "drop") %>%
     dplyr::mutate(padj = ifelse(padj == 0, min(padj[padj > 0], na.rm = TRUE), padj))
   
-  save_xlsx(DEGs_df, file.path(contrast_dir, "DEGs.xlsx"), "DEGs", row_names = FALSE)
+  save_xlsx(DEGs_df, file.path(output_dir, "DEGs.xlsx"), "DEGs", row_names = FALSE)
   
   # Extract VST Counts (Non-blind) for downstream visualization (Heatmaps/PCA)
   vsd <- DESeq2::vst(dds, blind = FALSE)
@@ -825,13 +880,13 @@ run_deseq2 <- function(metadata, read_data, proj.params, n = 1) {
     dplyr::select(-dplyr::matches("ENSEMBL|ENTREZ|GENEID")) %>%
     as.matrix()
   
-  save_xlsx(vst_counts, file.path(contrast_dir, "VST_counts.xlsx"), "VST_Nonblind", row_names = TRUE)
+  save_xlsx(vst_counts, file.path(output_dir, "VST_counts.xlsx"), "VST_Nonblind", row_names = TRUE)
   
   # ---- 🪵 Log Output and Return DESeq2 Results ----
   
   log_info(sample = contrast, 
-           step = "run_deseq2", 
-           message = glue::glue("DESeq2 complete. Total genes: {nrow(dds)}. Contrast: {contrast}"))
+           step   = "run_deseq2", 
+           msg    = glue::glue("DESeq2 complete. Total genes: {nrow(dds)}. Contrast: {contrast}"))
   
   return(invisible(list(degs = DEGs_df, vst = vst_counts, dds = dds)))
 }
@@ -846,7 +901,7 @@ plot_volcano <- function(DEGs_df, proj.params, contrast = "Target-Reference",
   required_cols <- c("log2FoldChange", "padj", "SYMBOL")
   if (!all(required_cols %in% colnames(DEGs_df))) {
     log_error(sample = contrast, step = "plot_volcano", 
-              message = "DEGs_df must contain: log2FoldChange, padj, SYMBOL")
+              msg ="DEGs_df must contain: log2FoldChange, padj, SYMBOL")
   }
   
   if (!dir.exists(output_dir)) {
@@ -855,14 +910,15 @@ plot_volcano <- function(DEGs_df, proj.params, contrast = "Target-Reference",
   
   if (is.null(proj.params$volcano)) {
     log_error(sample = contrast, step = "plot_volcano", 
-              message = "proj.params must contain a 'volcano' list.")
+              msg ="proj.params must contain a 'volcano' list.")
   }
   
   required_attrs <- c("lfc.cutoff", "padj.cutoff")
   for (attr in required_attrs) {
     if (is.null(proj.params$volcano[[attr]])) {
-      log_error(sample = contrast, step = "plot_volcano", 
-                message = glue::glue("Missing required proj.params$volcano attribute: {attr}"))
+      log_error(sample = contrast, 
+                step   = "plot_volcano", 
+                msg    = glue::glue("Missing required proj.params$volcano attribute: {attr}"))
     }
   }
   
@@ -1031,8 +1087,8 @@ plot_volcano <- function(DEGs_df, proj.params, contrast = "Target-Reference",
   # ---- 🪵 Log Output and Return Plot Object ----
   
   log_info(sample = contrast, 
-           step = "plot_volcano", 
-           message = glue::glue("Volcano plots generated. Labeled genes: {paste(genes_to_label, collapse=', ')}"))
+           step   = "plot_volcano", 
+           msg    = glue::glue("Volcano plots generated. Labeled genes: {paste(genes_to_label, collapse=', ')}"))
   
   return(invisible(list(full = p, labeled = q)))
 }
@@ -1044,34 +1100,24 @@ plot_heatmap <- function(norm_counts, proj.params, disp_genes = c(),
   
   # ---- ⚙️ Validate Input Parameters ----
   
+  validate_inputs(expr_mat = norm_counts, metadata = metadata, 
+                  logic_vars = c(perform_vst, skip_plot))
+                  
   # norm_counts
-  if (!is.matrix(norm_counts) && !is.data.frame(norm_counts)) {
-    log_error(sample = "", step = "plot_heatmap",
-              message = glue::glue("norm_counts must be a matrix or data.frame."))
+  if (base::anyDuplicated(rownames(norm_counts))) {
+    log_warn(sample = "", 
+             step   = "plot_heatmap",
+             msg    = "Duplicate gene names detected in norm_counts; highest-expression row will be retained.")
   }
   
-  if (is.null(rownames(norm_counts)) || any(rownames(norm_counts) == "")) {
-    log_error(sample = "", step = "plot_heatmap",
-              message = glue::glue("norm_counts must have non-empty rownames representing genes."))
-  }
-  
-  if (is.null(colnames(norm_counts)) || any(colnames(norm_counts) == "")) {
-    log_error(sample = "", step = "plot_heatmap",
-              message = glue::glue("norm_counts must have non-empty colnames representing sample IDs."))
-  }
-  
-  if (any(duplicated(colnames(norm_counts)))) {
-    log_error(sample = "", step = "plot_heatmap",
-              message = glue::glue("Duplicate sample names detected in norm_counts."))
-  }
-  
-  if (any(duplicated(rownames(norm_counts)))) {
-    log_warn(sample = "", step = "plot_heatmap",
-             message = glue::glue("Duplicate gene names detected in norm_counts; highest-expression row will be retained."))
-  }
+  # if (base::anyDuplicated(rownames(expr_mat))) {
+  #   log_error(sample = "", 
+  #             step   = "prepare_deseq2_input", 
+  #             msg    = "Duplicate gene symbols detected in count matrix.")
+  # }
   
   if (nrow(norm_counts) < 2) {
-    log_warn(sample = "", step = "plot_heatmap", message = "Input has fewer than 2 genes. Skipping heatmap generation.")
+    log_warn(sample = "", step = "plot_heatmap", msg ="Input has fewer than 2 genes. Skipping heatmap generation.")
     return(NULL)
   }
   
@@ -1079,18 +1125,21 @@ plot_heatmap <- function(norm_counts, proj.params, disp_genes = c(),
   if (!is.null(metadata_col)) {
     
     if (!is.data.frame(metadata_col)) {
-      log_error(sample = "", step = "plot_heatmap",
-                message = glue::glue("metadata_col must be a data.frame."))
+      log_error(sample = "", 
+                step   = "plot_heatmap",
+                msg    = "metadata_col must be a data.frame.")
     }
     
     if (!"Sample_ID" %in% colnames(metadata_col)) {
-      log_error(sample = "", step = "plot_heatmap",
-                message = glue::glue("metadata_col must contain a 'Sample_ID' column."))
+      log_error(sample = "", 
+                step   = "plot_heatmap",
+                msg    = "metadata_col must contain a 'Sample_ID' column.")
     }
     
     if (any(duplicated(metadata_col$Sample_ID))) {
-      log_error(sample = "", step = "plot_heatmap",
-                message = glue::glue("Duplicate Sample_ID values detected in metadata_col."))
+      log_error(sample = "", 
+                step   = "plot_heatmap",
+                msg    = "Duplicate Sample_ID values detected in metadata_col.")
     }
   }
   
@@ -1098,65 +1147,69 @@ plot_heatmap <- function(norm_counts, proj.params, disp_genes = c(),
   if (!is.null(metadata_row)) {
     
     if (!is.data.frame(metadata_row)) {
-      log_error(sample = "", step = "plot_heatmap",
-                message = glue::glue("metadata_row must be a data.frame."))
+      log_error(sample = "",
+                step   = "plot_heatmap",
+                msg    = "metadata_row must be a data.frame.")
     }
     
     if (!"SYMBOL" %in% colnames(metadata_row)) {
-      log_error(sample = "", step = "plot_heatmap",
-                message = glue::glue("metadata_row must contain a 'SYMBOL' column."))
+      log_error(sample = "", 
+                step   = "plot_heatmap",
+                msg    = "metadata_row must contain a 'SYMBOL' column.")
     }
     
     if (any(duplicated(metadata_row$SYMBOL))) {
-      log_warn(sample = "", step = "plot_heatmap",
-               message = glue::glue("Duplicate SYMBOL values detected in metadata_row."))
+      log_warn(sample = "",
+               step   = "plot_heatmap",
+               msg    = "Duplicate SYMBOL values detected in metadata_row.")
     }
   }
   
   # proj.params$heatmap
   if (!is.list(proj.params) || is.null(proj.params$heatmap)) {
-    log_error(sample = "", step = "plot_heatmap",
-              message = glue::glue("proj.params must be a list containing a 'heatmap' element."))
+    log_error(sample = "", 
+              step = "plot_heatmap",
+              msg =glue::glue("proj.params must be a list containing a 'heatmap' element."))
   }
   
   hm <- proj.params$heatmap
   
   if (!is.logical(hm$force.log) || length(hm$force.log) != 1) {
     log_error(sample = "", step = "plot_heatmap",
-              message = glue::glue("proj.params$heatmap$force.log must be a single logical value."))
+              msg =glue::glue("proj.params$heatmap$force.log must be a single logical value."))
   }
   
   if (!is.logical(hm$show.expr.legend) || length(hm$show.expr.legend) != 1) {
     log_error(sample = "", step = "plot_heatmap",
-              message = glue::glue("proj.params$heatmap$show.expr.legend must be a single logical value."))
+              msg =glue::glue("proj.params$heatmap$show.expr.legend must be a single logical value."))
   }
   
   if (!(is.character(hm$title) && length(hm$title) == 1) && !is.na(hm$title)) {
     log_error(sample = "", step = "plot_heatmap",
-              message = "proj.params$heatmap$title must be a single character string or NA.")
+              msg ="proj.params$heatmap$title must be a single character string or NA.")
   }
   
   if (!hm$palette %in% c("vrds", "rdbu")) {
     log_error(sample = "", step = "plot_heatmap",
-              message = glue::glue("proj.params$heatmap$palette must be either 'vrds' or 'rdbu'."))
+              msg =glue::glue("proj.params$heatmap$palette must be either 'vrds' or 'rdbu'."))
   }
   
   if (!hm$ann.palette %in% c("discrete", "continuous")) {
     log_error(sample = "", step = "plot_heatmap",
-              message = glue::glue("proj.params$heatmap$ann.palette must be either 'discrete' or 'continuous'."))
+              msg =glue::glue("proj.params$heatmap$ann.palette must be either 'discrete' or 'continuous'."))
   }
   
   # disp_genes
   if (!gtools::invalid(disp_genes) && !is.character(disp_genes)) {
     log_error(sample = "", step = "plot_heatmap",
-              message = "disp_genes must be a character vector of gene names.")
+              msg ="disp_genes must be a character vector of gene names.")
   }
   
   if (!gtools::invalid(disp_genes)) {
     missing_genes <- setdiff(disp_genes, rownames(norm_counts))
     if (length(missing_genes) > 0) {
       log_error(sample = "", step = "plot_heatmap",
-                message = glue::glue("disp_genes missing in norm_counts: {paste(missing_genes, collapse=', ')}"))
+                msg =glue::glue("disp_genes missing in norm_counts: {paste(missing_genes, collapse=', ')}"))
     }
   }
   
@@ -1165,12 +1218,12 @@ plot_heatmap <- function(norm_counts, proj.params, disp_genes = c(),
     
     if (!is.character(hm$border.color) || length(hm$border.color) != 1) {
       log_error(sample = "", step = "plot_heatmap",
-                message = "proj.params$heatmap$border.color must be a single character color or NA.")
+                msg ="proj.params$heatmap$border.color must be a single character color or NA.")
     }
     
     if (!hm$border.color %in% colors()) {
       log_warn(sample = "", step = "plot_heatmap",
-               message = glue::glue("proj.params$heatmap$border.color '{hm$border.color}' is not a standard R color."))
+               msg =glue::glue("proj.params$heatmap$border.color '{hm$border.color}' is not a standard R color."))
     }
   }
   
@@ -1181,7 +1234,7 @@ plot_heatmap <- function(norm_counts, proj.params, disp_genes = c(),
   if (!gtools::invalid(proj.params$heatmap$col.cluster)) {
     if (!is.character(proj.params$heatmap$col.cluster) || length(proj.params$heatmap$col.cluster) != 1) {
       log_error(sample = "", step = "plot_heatmap",
-                message = "proj.params$heatmap$col.cluster must be a single character value.")
+                msg ="proj.params$heatmap$col.cluster must be a single character value.")
     }
   }
   
@@ -1192,7 +1245,7 @@ plot_heatmap <- function(norm_counts, proj.params, disp_genes = c(),
   
   if (requires_metadata_col && is.null(metadata_col)) {
     log_error(sample = "", step = "plot_heatmap",
-              message = "proj.params$heatmap$col.cluster, col.ann, or col.gaps require metadata_col, but it is NULL.")
+              msg ="proj.params$heatmap$col.cluster, col.ann, or col.gaps require metadata_col, but it is NULL.")
   }
   
   if (!is.null(metadata_col)) {
@@ -1202,7 +1255,7 @@ plot_heatmap <- function(norm_counts, proj.params, disp_genes = c(),
         !proj.params$heatmap$col.cluster %in% c("all", "alphabetical") &&
         !proj.params$heatmap$col.cluster %in% colnames(metadata_col)) {
       log_error(sample = "", step = "plot_heatmap",
-                message = glue::glue("proj.params$heatmap$col.cluster '{proj.params$heatmap$col.cluster}' must be a column in metadata_col."))
+                msg =glue::glue("proj.params$heatmap$col.cluster '{proj.params$heatmap$col.cluster}' must be a column in metadata_col."))
     }
     
     # col.ann must exist in metadata_col if specified
@@ -1210,7 +1263,7 @@ plot_heatmap <- function(norm_counts, proj.params, disp_genes = c(),
       missing_cols <- setdiff(proj.params$heatmap$col.ann, colnames(metadata_col))
       if (length(missing_cols) > 0) {
         log_error(sample = "", step = "plot_heatmap",
-                  message = glue::glue("proj.params$heatmap$col.ann missing in metadata_col: {paste(missing_cols, collapse=', ')}"))
+                  msg =glue::glue("proj.params$heatmap$col.ann missing in metadata_col: {paste(missing_cols, collapse=', ')}"))
       }
     }
     
@@ -1218,11 +1271,11 @@ plot_heatmap <- function(norm_counts, proj.params, disp_genes = c(),
     if (!gtools::invalid(proj.params$heatmap$col.gaps)) {
       if (!is.character(proj.params$heatmap$col.gaps) || length(proj.params$heatmap$col.gaps) != 1) {
         log_error(sample = "", step = "plot_heatmap",
-                  message = "proj.params$heatmap$col.gaps must be a single character value.")
+                  msg ="proj.params$heatmap$col.gaps must be a single character value.")
       }
       if (!proj.params$heatmap$col.gaps %in% colnames(metadata_col)) {
         log_error(sample = "", step = "plot_heatmap",
-                  message = glue::glue("proj.params$heatmap$col.gaps '{proj.params$heatmap$col.gaps}' must be a column in metadata_col."))
+                  msg =glue::glue("proj.params$heatmap$col.gaps '{proj.params$heatmap$col.gaps}' must be a column in metadata_col."))
       }
     }
   }
@@ -1232,7 +1285,7 @@ plot_heatmap <- function(norm_counts, proj.params, disp_genes = c(),
   if (!gtools::invalid(proj.params$heatmap$row.cluster)) {
     if (!is.character(proj.params$heatmap$row.cluster) || length(proj.params$heatmap$row.cluster) != 1) {
       log_error(sample = "", step = "plot_heatmap",
-                message = "proj.params$heatmap$row.cluster must be a single character value.")
+                msg ="proj.params$heatmap$row.cluster must be a single character value.")
     }
   }
   
@@ -1243,7 +1296,7 @@ plot_heatmap <- function(norm_counts, proj.params, disp_genes = c(),
   
   if (requires_metadata_row && is.null(metadata_row)) {
     log_error(sample = "", step = "plot_heatmap",
-              message = "proj.params$heatmap$row.cluster, row.ann, or row.gaps require metadata_row, but it is NULL.")
+              msg ="proj.params$heatmap$row.cluster, row.ann, or row.gaps require metadata_row, but it is NULL.")
   }
   
   if (!is.null(metadata_row)) {
@@ -1253,7 +1306,7 @@ plot_heatmap <- function(norm_counts, proj.params, disp_genes = c(),
         !proj.params$heatmap$row.cluster %in% c("all", "alphabetical") &&
         !proj.params$heatmap$row.cluster %in% colnames(metadata_row)) {
       log_error(sample = "", step = "plot_heatmap",
-                message = glue::glue("proj.params$heatmap$row.cluster '{proj.params$heatmap$row.cluster}' must be a column in metadata_row."))
+                msg =glue::glue("proj.params$heatmap$row.cluster '{proj.params$heatmap$row.cluster}' must be a column in metadata_row."))
     }
     
     # row.ann must exist in metadata_row if specified
@@ -1261,7 +1314,7 @@ plot_heatmap <- function(norm_counts, proj.params, disp_genes = c(),
       missing_rows <- setdiff(proj.params$heatmap$row.ann, colnames(metadata_row))
       if (length(missing_rows) > 0) {
         log_error(sample = "", step = "plot_heatmap",
-                  message = glue::glue("proj.params$heatmap$row.ann missing in metadata_row: {paste(missing_rows, collapse=', ')}"))
+                  msg =glue::glue("proj.params$heatmap$row.ann missing in metadata_row: {paste(missing_rows, collapse=', ')}"))
       }
     }
     
@@ -1269,11 +1322,11 @@ plot_heatmap <- function(norm_counts, proj.params, disp_genes = c(),
     if (!gtools::invalid(proj.params$heatmap$row.gaps)) {
       if (!is.character(proj.params$heatmap$row.gaps) || length(proj.params$heatmap$row.gaps) != 1) {
         log_error(sample = "", step = "plot_heatmap",
-                  message = "proj.params$heatmap$row.gaps must be a single character value.")
+                  msg ="proj.params$heatmap$row.gaps must be a single character value.")
       }
       if (!proj.params$heatmap$row.gaps %in% colnames(metadata_row)) {
         log_error(sample = "", step = "plot_heatmap",
-                  message = glue::glue("proj.params$heatmap$row.gaps '{proj.params$heatmap$row.gaps}' must be a column in metadata_row."))
+                  msg =glue::glue("proj.params$heatmap$row.gaps '{proj.params$heatmap$row.gaps}' must be a column in metadata_row."))
       }
     }
   }
@@ -1308,7 +1361,7 @@ plot_heatmap <- function(norm_counts, proj.params, disp_genes = c(),
   
   # Handle duplicate samples if any
   if (any(duplicated(colnames(mat)))) {
-    log_error(sample = "", step = "plot_heatmap", message = "Duplicate columns detected in norm_counts.")
+    log_error(sample = "", step = "plot_heatmap", msg ="Duplicate columns detected in norm_counts.")
   }
   
   # Convert rownames and colnames to valid R names
@@ -1400,7 +1453,7 @@ plot_heatmap <- function(norm_counts, proj.params, disp_genes = c(),
     colorRampPalette(rev(RColorBrewer::brewer.pal(n = 11, name = "RdBu")))(n_breaks)
   } else {
     log_error(sample = "", step = "plot_heatmap", 
-              message = glue::glue("Invalid heatmap palette. proj.params$heatmap$palette must be either 'vrds' or 'rdbu'."))
+              msg =glue::glue("Invalid heatmap palette. proj.params$heatmap$palette must be either 'vrds' or 'rdbu'."))
   }
   
   # Handle min and max thresholds with soft clamping
@@ -1436,7 +1489,7 @@ plot_heatmap <- function(norm_counts, proj.params, disp_genes = c(),
         .[. < ncol(mat_scaled)]
     } else {
       log_warn(sample = "", step = "plot_heatmap", 
-               message = glue::glue("proj.params$heatmap$col.gaps '{proj.params$heatmap$col.gaps}' is absent in metadata_col."))
+               msg =glue::glue("proj.params$heatmap$col.gaps '{proj.params$heatmap$col.gaps}' is absent in metadata_col."))
     }
   }
   
@@ -1451,7 +1504,7 @@ plot_heatmap <- function(norm_counts, proj.params, disp_genes = c(),
         .[. < nrow(mat_scaled)]
     } else {
       log_warn(sample = "", step = "plot_heatmap", 
-               message = glue::glue("proj.params$heatmap$row.gaps '{proj.params$heatmap$row.gaps}' is absent in metadata_row."))
+               msg =glue::glue("proj.params$heatmap$row.gaps '{proj.params$heatmap$row.gaps}' is absent in metadata_row."))
     }
   }
   
@@ -1649,41 +1702,91 @@ plot_heatmap <- function(norm_counts, proj.params, disp_genes = c(),
   
   log_info(sample = "", 
            step = "plot_heatmap", 
-           message = glue::glue("Generated heatmap with {nrow(reordered)} genes and {ncol(reordered)} samples."))
+           msg =glue::glue("Generated heatmap with {nrow(reordered)} genes and {ncol(reordered)} samples."))
   
   return(invisible(list(ph = ph, mat = ph_mat)))
 }
   
-plot_ma <- function(dds, output_dir, file_name = "MA_Plot.pdf") {
+plot_ma <- function(dds, output_dir, filename = NULL) {
   
+  # For ggrepel
   set.seed(1234)
   
-  # ---- Input Checks ----
-  if (!inherits(dds, "DESeqDataSet")) {
-    stop("`dds` must be a DESeqDataSet object.")
-  }
+  # ---- ⚙️ Validate Input Parameters ----
   
-  if (!dir.exists(output_dir)) {
-    warning("Output path does not exist. Creating: ", output_dir)
-    dir.create(output_dir, recursive = TRUE)
-  }
+  validate_inputs(dds = dds, output_dir = output_dir, filename = filename)
   
-  # ---- MA Plot ----
-  output_file <- file.path(output_dir, file_name)
-  message("Saving MA plot to: ", output_file)
+  # ---- 🖼️ Generate Plots ----
   
-  grDevices::pdf(file = output_file, width = 8.5, height = 11)
+  # Prepare the data with "squished" values
+  res_df <- as.data.frame(DESeq2::results(dds)) %>%
+    dplyr::mutate(significant = padj < 0.1 & !is.na(padj),
+                  log2FoldChange_capped = dplyr::case_when(log2FoldChange > 5  ~ 5,
+                                                           log2FoldChange < -5 ~ -5,
+                                                           TRUE                ~ log2FoldChange),
+                  # Assign shapes: 16 is a solid circle, 17 is a solid triangle
+                  is_outlier = log2FoldChange > 5 | log2FoldChange < -5,
+                  point_shape = ifelse(is_outlier, 17, 16))
+
+  p <- ggplot(data = res_df, 
+              mapping = aes(x = baseMean, y = log2FoldChange, color = significant)) +
+    geom_point(alpha = 0.5, size = 1.25) +
+    theme_classic() +
+    custom_theme +
+    theme(legend.position = "none") +
+    scale_x_log10(labels = scales::trans_format("log10", scales::math_format(10^.x))) +
+    scale_color_manual(values = c("grey70", "firebrick3")) + 
+    labs(title = "MA Plot",
+         subtitle = "Red points indicate FDR < 0.1",
+         x = "Mean of Normalized Counts",
+         y = "Log2 Fold Change")
   
-  DESeq2::plotMA(
-    object = dds,
-    alpha  = 0.1, # FDR threshold (blue dots for significant genes)
-    main   = "MA Plot",
-    xlab   = "Mean of Normalized Counts",
-    MLE    = FALSE
-  )
+  capped_p <- ggplot(data = res_df, 
+              mapping = aes(x = baseMean, y = log2FoldChange_capped, color = significant)) +
+    geom_point(alpha = 0.5, size = 1.25, aes(shape = point_shape)) +
+    scale_shape_identity() + # Tells ggplot to use the actual numeric shape codes
+    theme_classic() +
+    custom_theme +
+    theme(legend.position = "none") +
+    scale_x_log10(labels = scales::trans_format("log10", scales::math_format(10^.x))) +
+    scale_color_manual(values = c("grey70", "firebrick3")) +
+    coord_cartesian(ylim = c(-5, 5)) + 
+    labs(title = "MA Plot (with Capped Fold Changes)",
+         subtitle = "Red points indicate FDR < 0.1",
+         x = "Mean of Normalized Counts",
+         y = "Log2 Fold Change")
   
-  grDevices::dev.off()
-  message("MA plot completed successfully.")
+  # ---- 💾 Save Plot ----
+  
+  file_extension <- ".pdf"
+  file_name <- file.path(output_dir, paste0("MA_Plot_", filename, file_extension))
+  
+  # Open multi-page PDF
+  grDevices::pdf(file = file_name, width = 8, height = 11.5, onefile = TRUE)  
+  
+  # PAGE 1: Traditional (DESeq2)
+  # This function draws directly to the open PDF device
+  DESeq2::plotMA(object = dds,
+                 alpha  = 0.1, 
+                 main   = "MA Plot (Traditional DESeq2)",
+                 xlab   = "Mean of Normalized Counts",
+                 MLE    = FALSE)
+  
+  # PAGE 2: Capped View (ggplot2)
+  print(capped_p)    # We must use print() for ggplot objects
+  
+  # PAGE 3: Full View (ggplot2)
+  print(p) 
+  
+  dev.off() 
+
+  # ---- 🪵 Log Output and return ----
+  
+  log_info(sample = "",
+           step   = "plot_ma",
+           msg    = glue::glue("MA plot saved successfully to : '{file_name}'."))
+  
+  return(invisible(NULL))
 }
 
 plot_dispersion <- function(dds, output_dir, file_name = "Dispersion_Plot.pdf") {
@@ -1739,7 +1842,7 @@ pathway_analysis <- function(DEGs_df, proj.params, output_dir) {
   for (attr in required_attrs) {
     if (is.null(proj.params[[attr]])) {
       log_error(sample = "", step = "pathway_analysis", 
-                message = glue::glue("Missing required proj.params attribute: {attr}"))
+                msg =glue::glue("Missing required proj.params attribute: {attr}"))
     }
   }
   
@@ -1962,7 +2065,7 @@ pathway_analysis <- function(DEGs_df, proj.params, output_dir) {
   # ---- 🪵 Log Output and Return ----
   
   log_info(sample = "", step = "pathway_analysis", 
-           message = glue::glue("Pathway analysis finished. Consensus results generated for {nrow(consensus_df)} terms."))
+           msg =glue::glue("Pathway analysis finished. Consensus results generated for {nrow(consensus_df)} terms."))
   
   return(invisible(list(fgsea = fgsea_df, 
                         gsea = gsea_df, 
@@ -1979,12 +2082,12 @@ tf_analysis <- function(input, species = "Homo sapiens", top = 500) {
   # ---- ⚙️ Validate Input Parameters ----
   
   if (!is.matrix(input)) {
-    log_error(sample = "", step = "tf_analysis", message = "`input` must be a matrix.")
+    log_error(sample = "", step = "tf_analysis", msg ="`input` must be a matrix.")
   }
   
   if (!species %in% c("Homo sapiens", "Mus musculus")) {
     log_error(sample = "", step = "tf_analysis", 
-              message = "`species` must be either 'Homo sapiens' or 'Mus musculus'.")
+              msg ="`species` must be either 'Homo sapiens' or 'Mus musculus'.")
   }
   
   # Map species to decoupleR organism format
@@ -2016,7 +2119,7 @@ tf_analysis <- function(input, species = "Homo sapiens", top = 500) {
   stats <- c("ulm", "mlm", "viper")
   
   log_info(sample = "", step = "tf_analysis", 
-           message = glue::glue("Estimating activity for {organism} using ulm, mlm, and viper."))
+           msg =glue::glue("Estimating activity for {organism} using ulm, mlm, and viper."))
   
   # Calculate Pathway Activity
   pathway_df <- decoupleR::decouple(mat = input, 
@@ -2052,7 +2155,7 @@ tf_analysis <- function(input, species = "Homo sapiens", top = 500) {
   # ---- 🪵 Log Output and Return ----
   
   log_info(sample = "", step = "tf_analysis", 
-           message = glue::glue("TF Analysis complete. Significant hits: {nrow(tf_sig)} TFs, {nrow(pathway_sig)} Pathways."))
+           msg =glue::glue("TF Analysis complete. Significant hits: {nrow(tf_sig)} TFs, {nrow(pathway_sig)} Pathways."))
   
   result <- list(all_pathways = pathway_df,
                  all_tfs      = tf_df,
@@ -2384,45 +2487,11 @@ plot_tf <- function(input, contrast, metadata, samples, output_dir, n_tfs = 20){
 
 main_analysis <- function(metadata, read_data, proj.params, trial) {
   
-  # Compile raw counts if read_data not available
-  if (is.null(read_data)) {
-    if (dir.exists(proj.params$counts_dir)) {
-      read_data <- merge_counts(proj.params)
-    } else {
-      stop("The specified count directory does not exist: ", proj.params$counts_dir)
-    }
-  }
-  
-  # Prepare input
-  deseq2_inputs <- prepare_deseq2_input(metadata, read_data, proj.params)
-  contrasts <- proj.params$deseq2$contrast
-  
-  # ---- Visualization: PCA plot ----
-  metadata <- deseq2_inputs$metadata
-  read_data <- deseq2_inputs$read_data
+ 
   output_dir <- proj.params$proj_dir
-  plot_pca(expr_mat = read_data, 
-           metadata = metadata, 
-           perform_vst = TRUE, 
-           top_n_genes = 5000, 
-           skip_plot = FALSE,
-           filename = proj.params$proj,
-           output_dir = proj.params$proj_dir)
-  
-  if(!trial){
-    
+
     # Loop through contrasts
     for (n in seq_along(contrasts)) {
-      
-      # ---- Differential Expression (DESeq2) ----
-      metadata <- deseq2_inputs$metadata
-      read_data <- deseq2_inputs$read_data
-      deseq2_results <- run_deseq2(metadata, read_data, proj.params, n)
-      
-      # ---- Visualization: MA Plot ----
-      dds <- deseq2_results$dds
-      output_dir <- proj.params$deseq2_dir[n]
-      plot_ma(dds, output_dir)
       
       # ---- Visualization: Volcano Plot ----
       DEGs_df <- deseq2_results$degs
@@ -2563,7 +2632,7 @@ main_analysis <- function(metadata, read_data, proj.params, trial) {
       
       save_xlsx(ph$mat, file.path(output_dir, "Heatmap_Matrix.xlsx"), "Heatmap_matrix", row_names = TRUE)
     }
-  }
+
 }
 
 get_annotations <- function() {
@@ -2573,7 +2642,7 @@ get_annotations <- function() {
   species_list <- c("Homo sapiens", "Mus musculus")
   annotations_list <- list()
   
-  log_info(sample = "", step = "get_annotations", message = "Connecting to AnnotationHub...")
+  log_info(sample = "", step = "get_annotations", msg ="Connecting to AnnotationHub...")
   
   # Connect to AnnotationHub 
   ah <- AnnotationHub::AnnotationHub()
@@ -2581,7 +2650,7 @@ get_annotations <- function() {
   for (species in species_list) {
     
     # ---- 🔍 Query Database ----
-    log_info(sample = species, step = "get_annotations", message = "Fetching Ensembl Database...")
+    log_info(sample = species, step = "get_annotations", msg ="Fetching Ensembl Database...")
     
     ah_db <- AnnotationHub::query(x = ah, 
                                   pattern = c(species, "EnsDb"), 
@@ -2595,7 +2664,7 @@ get_annotations <- function() {
     
     if (length(latest_id) == 0) {
       log_error(sample = species, step = "get_annotations", 
-                message = "Could not find a valid EnsDb in AnnotationHub.")
+                msg ="Could not find a valid EnsDb in AnnotationHub.")
     }
     
     # Download the appropriate Ensembldb database
@@ -2622,7 +2691,7 @@ get_annotations <- function() {
     # ---- 🔢 Extract ENTREZ Annotations ----
     
     log_info(sample = species, step = "get_annotations", 
-             message = "Fetching OrgDb mappings...")
+             msg ="Fetching OrgDb mappings...")
     
     org_db <- if (species == "Homo sapiens") {
       requireNamespace("org.Hs.eg.db", quietly = TRUE)
@@ -2652,13 +2721,13 @@ get_annotations <- function() {
     annotations_list[[species]] <- annotations
     
     log_info(sample = species, step = "get_annotations", 
-            message = glue::glue("Successfully retrieved {nrow(annotations)} gene annotations."))
+            msg =glue::glue("Successfully retrieved {nrow(annotations)} gene annotations."))
   }
   
   # ---- 🪵 Log Output and Return ----
   
   log_info(sample = "", step = "get_annotations", 
-           message = glue::glue("Successfully retrieved gene annotations."))
+           msg =glue::glue("Successfully retrieved gene annotations."))
   
   # Return: list(human, mouse) 
   return(invisible(annotations_list))
@@ -2691,7 +2760,7 @@ add_annotation <- function(normalized_counts) {
   log_info(
     sample = "",
     step   = "add_annotation",
-    message = glue::glue("Auto-detected ID format: {best_match}\n",
+    msg =glue::glue("Auto-detected ID format: {best_match}\n",
                          "Overlap counts:\n",
                          "{paste(names(overlap_counts), overlap_counts, sep = ' \\t: ', collapse = '\\n')}")
   )
@@ -2703,7 +2772,7 @@ add_annotation <- function(normalized_counts) {
     ann <- annotations$`Mus musculus`
   } else {
     log_error(sample = "", step = "add_annotation", 
-              message = "Unable to determine organism (human/mouse) from ID column.")
+              msg ="Unable to determine organism (human/mouse) from ID column.")
   }
   
   # Determine ID Type (Ensembl vs Entrez)
@@ -2715,7 +2784,7 @@ add_annotation <- function(normalized_counts) {
     symbol_col <- "ENTREZ_SYMBOL"
   } else {
     log_error(sample = "", step = "add_annotation", 
-              message = "Unable to determine ID type (Ensembl/Entrez) from ID column.")
+              msg ="Unable to determine ID type (Ensembl/Entrez) from ID column.")
   }
   
   # ---- 🤝 Join & Finalize Columns ----
@@ -2732,19 +2801,16 @@ add_annotation <- function(normalized_counts) {
                                             !is.na(ENTREZ_ID)      ~ ENTREZ_ID,
                                             TRUE                   ~ NA_character_)) %>%
     dplyr::select(SYMBOL, all_of(keep_ids), dplyr::everything(), -all_of(drop_ids)) %>%
-    df %>% distinct(.data[[id_col]], .keep_all = TRUE)
+    dplyr::distinct(.data[[id_col]], .keep_all = TRUE)
   
   # ---- 🪵 Log Output and Return ----
   
   log_info(sample = "", step = "add_annotation", 
-           message = glue::glue("Annotations added. Best match overlap: {max(overlap_counts)} genes."))
+           msg =glue::glue("Annotations added. Best match overlap: {max(overlap_counts)} genes."))
   
   return(normalized_counts)
 }
   
- 
- 
-
 
 norm_counts_DESeq2 <- function(metadata, read_data, proj.params) {
   
@@ -2837,51 +2903,119 @@ add_major_pathway <- function(df){
 
 # ---- 🧬 SINGLE CELL & SPATIAL ANALYSIS RELATED FUNCTIONS ----
 
-validate_inputs <- function(step, sample = NULL, gene.column = NULL, bin = NULL, 
-                            assay = NULL, n_pcs = NULL, pN = NULL,
+validate_inputs <- function(sample = NULL, 
+                            gene.column = NULL, 
+                            bin = NULL, 
+                            assay = NULL, 
+                            n_pcs = NULL, 
+                            pN = NULL,
                             reference_samples = NULL,
-                            features = NULL, s_genes = NULL, g2m_genes = NULL, 
-                            res = NULL, reduction = NULL, filename = NULL,
-                            seurat_object = NULL, seurat_list = NULL, 
-                            metadata = NULL, expr_mat = NULL,  
-                            matrix_dir = NULL, output_dir = NULL,
-                            xlsx_file = NULL, metadata_cols = NULL) {
+                            features = NULL, 
+                            s_genes = NULL, 
+                            g2m_genes = NULL, 
+                            res = NULL, 
+                            reduction = NULL, 
+                            filename = NULL,
+                            seurat_object = NULL, 
+                            seurat_list = NULL, 
+                            metadata = NULL, 
+                            matrix_dir = NULL, 
+                            output_dir = NULL, 
+                            counts_dir = NULL,
+                            expr_mat = NULL,
+                            dds = NULL,
+                            xlsx_file = NULL, 
+                            logic_vars = NULL,
+                            metadata_cols = NULL) {
   
-  caller <- as.character(sys.call(-1)[[1]])  # returns the calling function object as a string
+  # Store the calling function as a string
+  caller <- tryCatch(expr = as.character(sys.call(-1)[[1]]),
+                     error = function(e) { "unknown_caller"})
   step <- paste0(caller, " : validate_inputs")
+  
+  
+  # ---- ⚡ Check if user accidentally passed a undefined variable ----
+
+  # Capture user-supplied args safely
+  called_args <- as.list(match.call(expand.dots = FALSE))[-1]
+
+  # Collect all undefined variables
+  bad_vars <- character()
+
+  # Iterate through each variable passed to the function
+  for (var_name in names(called_args)) {
+
+    val <- tryCatch(expr = eval(called_args[[var_name]], envir = parent.frame()),
+                    error = function(e) { e })
+
+    # Case 1: evaluation failed (object not defined)
+    if (inherits(val, "error")) {
+      bad_vars <- c(bad_vars, glue::glue("'{var_name}' is not defined in the calling environment"))
+      next
+    }
+
+    # Case 2: user accidentally passed a function (e.g. metadata())
+    if (is.function(val)) {
+      bad_vars <- c(bad_vars, glue::glue("'{var_name}' refers to a function, not a user-defined object"))
+    }
+  }
+
+  # Print all undefined variables
+  if (length(bad_vars) > 0) {
+    log_error(sample = sample %||% "",
+              step   = step,
+              msg    = paste("INPUT ERROR: Invalid arguments detected:\n",
+                             paste0("  • ", bad_vars, collapse = "\n")))
+  }
   
   # ---- 1️⃣ Basic Parameter Checks ----
   
   if (!is.null(sample) && (!is.character(sample) || length(sample) != 1 || nchar(sample) == 0)) {
-    log_error(sample, step, "❌ INPUT ERROR: 'sample' must be a single, non-empty character string.")
+    log_error(sample  = sample,
+              step    = step, 
+              msg =glue::glue("INPUT ERROR: 'sample' must be a single, non-empty character string."))
   }
   
   if (!is.null(gene.column) && (!is.numeric(gene.column) || length(gene.column) != 1 || !(gene.column %in% c(1,2)))) {
-    log_error(sample, step, "❌ INPUT ERROR: 'gene.column' must be 1 (Ensembl IDs) or 2 (Gene symbols).")
+    log_error(sample  = sample,
+              step    = step, 
+              msg =glue::glue("INPUT ERROR: 'gene.column' must be 1 (Ensembl IDs) or 2 (Gene symbols)."))
   }
   
   if (!is.null(bin) && (!is.numeric(bin) || length(bin) != 1 || !(bin %in% c(2,8,16)))) {
-    log_error(sample, step, "❌ INPUT ERROR: Invalid 'bin' size provided. Must be one of 2, 8, or 16.")
+    log_error(sample  = sample,
+              step    = step, 
+              msg =glue::glue("INPUT ERROR: Invalid 'bin' size provided. Must be one of 2, 8, or 16."))
   }
   
   if (!is.null(assay) && (!is.character(assay) || length(assay) != 1 || nchar(assay) == 0)) {
-    log_error(sample, step, "❌ INPUT ERROR: 'assay' must be a single, non-empty character string.")
+    log_error(sample  = sample,
+              step    = step, 
+              msg =glue::glue("INPUT ERROR: 'assay' must be a single, non-empty character string."))
   }
   
   if (!is.null(n_pcs) && (!is.numeric(n_pcs) || length(n_pcs) != 1 || n_pcs <= 0 || n_pcs %% 1 != 0 || n_pcs > 50)) {
-    log_error(sample, step, "❌ INPUT ERROR: 'n_pcs' must be a positive integer less than 50.")
+    log_error(sample  = sample,
+              step    = step, 
+              msg =glue::glue("INPUT ERROR: 'n_pcs' must be a positive integer less than 50."))
   }
   
   if (!is.null(pN) && (!is.numeric(pN) || length(pN) != 1 || pN <= 0 || pN > 1)) {
-    log_error(sample, step, "❌ INPUT ERROR: 'pN' must be a numeric value between 0 and 1 (exclusive of 0).")
+    log_error(sample  = sample,
+              step    = step, 
+              msg =glue::glue("INPUT ERROR: 'pN' must be a numeric value between 0 and 1 (exclusive of 0)."))
   }
   
   if (!is.null(reduction) && (!is.character(reduction) || length(reduction) != 1 || nchar(reduction) == 0)) {
-    log_error(sample, step, "❌ INPUT ERROR: 'reduction' must be a single, non-empty character string.")
+    log_error(sample  = sample,
+              step    = step, 
+              msg =glue::glue("INPUT ERROR: 'reduction' must be a single, non-empty character string."))
   }
   
   if (!is.null(reference_samples) && (!is.character(reference_samples) || length(reference_samples) == 0)) {
-    log_error(sample, step, "❌ INPUT ERROR: 'reference_samples' must be a non-empty character vector.")
+    log_error(sample  = sample,
+              step    = step, 
+              msg =glue::glue("INPUT ERROR: 'reference_samples' must be a non-empty character vector."))
   }
   
   # ---- 2️⃣ Feature Checks ----
@@ -2895,7 +3029,9 @@ validate_inputs <- function(step, sample = NULL, gene.column = NULL, bin = NULL,
     missing_features <- base::setdiff(gene_set, existing_features)
     
     if (length(existing_features) == 0) {
-      log_error("", step, glue::glue("❌ INPUT ERROR: None of the '{length(gene_set)}' provided features were found in the Seurat object."))
+      log_error(sample  = sample,
+                step    = step, 
+                msg =glue::glue("INPUT ERROR: None of the '{length(gene_set)}' provided features were found in the Seurat object."))
     }
   }
   
@@ -2926,7 +3062,9 @@ validate_inputs <- function(step, sample = NULL, gene.column = NULL, bin = NULL,
     allowed_res <- c(0.2,0.4,0.6,0.8,1.0,1.2)
     resolution_num <- as.numeric(res)
     if (is.na(resolution_num) || !(resolution_num %in% allowed_res)) {
-      log_error(sample, step, glue::glue("❌ INPUT ERROR: Specified res '{res}' is NOT one of the **valid** res : '{paste(allowed_res, collapse = ", ")}'."))
+      log_error(sample  = sample,
+                step    = step, 
+                msg =glue::glue("INPUT ERROR: Specified res '{res}' is NOT one of the **valid** res : '{paste(allowed_res, collapse = ", ")}'."))
     }
   }
   
@@ -2934,10 +3072,14 @@ validate_inputs <- function(step, sample = NULL, gene.column = NULL, bin = NULL,
   
   if (!is.null(filename)) {
     if (!is.character(filename) || length(filename) != 1 || nchar(filename) == 0) {
-      log_error(sample, step, "❌ 'filename' must be a single, non-empty string.")
+      log_error(sample  = sample,
+                step    = step, 
+                msg =glue::glue("'filename' must be a single, non-empty string."))
     }
     if (grepl("[<>:\"/\\\\|?*]", filename)) {
-      log_error(sample, step, "❌ 'filename' contains illegal characters for file paths.")
+      log_error(sample  = sample,
+                step    = step, 
+                msg =glue::glue("'filename' contains illegal characters for file paths."))
     }
   }
   
@@ -2946,20 +3088,25 @@ validate_inputs <- function(step, sample = NULL, gene.column = NULL, bin = NULL,
   # Check Seurat object class (only if provided)
   if (!is.null(seurat_object)) {
     if (!inherits(seurat_object, "Seurat")) {
-      log_error(sample, step, "❌ INPUT ERROR: 'seurat_object' must be a Seurat object.")
+      log_error(sample  = sample,
+                step    = step, 
+                msg =glue::glue("INPUT ERROR: 'seurat_object' must be a Seurat object."))
     }
     
     # Check for Non-Empty Seurat Object
     if (ncol(seurat_object) == 0) {
-      log_error(sample, step, "❌ DATA ERROR: The input Seurat object is empty (0 cells).")
+      log_error(sample  = sample,
+                step    = step, 
+                msg =glue::glue("DATA ERROR: The input Seurat object is empty (0 cells)."))
     }
     
     if (!is.null(assay)) {
       # First, check if the string is structurally sound (Done in Section 1)
       # Second, check if the assay name exists in the object:
       if (!(assay %in% names(seurat_object@assays))) {
-        log_error(sample, step, 
-                  glue::glue("❌ ASSAY ERROR: Specified assay '{assay}' is NOT one of the **valid assays** : '{paste(names(seurat_object@assays), collapse = ', ')}'."))
+        log_error(sample  = sample,
+                  step    = step, 
+                  msg =glue::glue("ASSAY ERROR: Specified assay '{assay}' is NOT one of the **valid assays** : '{paste(names(seurat_object@assays), collapse = ', ')}'."))
       }
     }
   }
@@ -2967,14 +3114,20 @@ validate_inputs <- function(step, sample = NULL, gene.column = NULL, bin = NULL,
   # Check 'seurat_list' structure and naming (only if provided)
   if (!is.null(seurat_list)) {
     if (!is.list(seurat_list) || length(seurat_list) == 0) {
-      log_error(sample, step, "❌ INPUT ERROR: 'seurat_list' must be a non-empty list of Seurat objects.")
+      log_error(sample  = sample,
+                step    = step, 
+                msg =glue::glue("INPUT ERROR: 'seurat_list' must be a non-empty list of Seurat objects."))
     }
     if (is.null(names(seurat_list)) || any(nchar(names(seurat_list)) == 0)) {
-      log_error(sample, step, "❌ INPUT ERROR: 'seurat_list' must be a *named* list with non-empty names.")
+      log_error(sample  = sample,
+                step    = step, 
+                msg =glue::glue("INPUT ERROR: 'seurat_list' must be a *named* list with non-empty names."))
     }
     # Check all elements are Seurat objects
     if (!all(vapply(seurat_list, inherits, logical(1), what = "Seurat"))) {
-      log_error(sample, step, "❌ INPUT ERROR: All elements in 'seurat_list' must be Seurat objects.")
+      log_error(sample  = sample,
+                step    = step, 
+                msg =glue::glue("INPUT ERROR: All elements in 'seurat_list' must be Seurat objects."))
     }
   }
   
@@ -2982,10 +3135,14 @@ validate_inputs <- function(step, sample = NULL, gene.column = NULL, bin = NULL,
   
   if (!is.null(metadata)) {
     if (!is.data.frame(metadata)) {
-      log_error(sample, step, "❌ INPUT ERROR: 'metadata' must be a data.frame.")
+      log_error(sample  = sample,
+                step    = step, 
+                msg =glue::glue("INPUT ERROR: 'metadata' must be a data.frame."))
     }
     if (nrow(metadata) == 0) {
-      log_error(sample, step, "❌ DATA ERROR: 'metadata' must be a non-empty data.frame (0 rows detected).")
+      log_error(sample  = sample,
+                step    = step, 
+                msg =glue::glue("DATA ERROR: 'metadata' must be a non-empty data.frame (0 rows detected)."))
     }
   }
   
@@ -2997,7 +3154,9 @@ validate_inputs <- function(step, sample = NULL, gene.column = NULL, bin = NULL,
     
     # Check for existence of the specific data directory
     if (!dir.exists(data_dir)) {
-      log_error(sample, step, glue::glue("❌ PATH ERROR: The data directory '{data_dir}' does not exist!"))
+      log_error(sample  = sample,
+                step    = step, 
+                msg =glue::glue("PATH ERROR: The data directory '{data_dir}' does not exist!"))
     }
     
     # Check for required file structure (HDF5 OR 3-file structure - for CellRanger)
@@ -3006,9 +3165,13 @@ validate_inputs <- function(step, sample = NULL, gene.column = NULL, bin = NULL,
     standard_files_found <- all(sapply(file.path(data_dir, expected_files_mtx), file.exists))
     
     if (length(h5_files) == 0 && !standard_files_found) {
-      log_error(sample, step, glue::glue("❌ FILE STRUCTURE ERROR: Directory '{data_dir}' does not contain a valid 10X matrix."))
+      log_error(sample  = sample,
+                step    = step, 
+                msg =glue::glue("FILE STRUCTURE ERROR: Directory '{data_dir}' does not contain a valid 10X matrix."))
     } else if (length(h5_files) > 1) {
-      log_warn(sample, step, glue::glue("⚠️ FILE STRUCTURE WARNING: Multiple HDF5 files found. Only using the first one : '{h5_files[1]}'."))
+      log_warn(sample  = sample,
+               step    = step, 
+               msg =glue::glue("⚠️ FILE STRUCTURE WARNING: Multiple HDF5 files found. Only using the first one : '{h5_files[1]}'."))
     }
     
     # # Check for REQUIRED Space Ranger files (for load_spaceranger)
@@ -3016,7 +3179,7 @@ validate_inputs <- function(step, sample = NULL, gene.column = NULL, bin = NULL,
     # required_files_exist <- all(sapply(paste0(data_dir, "/", required_spatial_files), file.exists))
     # 
     # if (!required_files_exist) {
-    #   stop("❌ FILE STRUCTURE ERROR: The directory '", data_dir, "' is missing one or more of the required Space Ranger files: ", paste(required_spatial_files, collapse = ", "), ".")
+    #   stop("FILE STRUCTURE ERROR: The directory '", data_dir, "' is missing one or more of the required Space Ranger files: ", paste(required_spatial_files, collapse = ", "), ".")
     # }
   }
   
@@ -3026,13 +3189,19 @@ validate_inputs <- function(step, sample = NULL, gene.column = NULL, bin = NULL,
     
     # Check 1: Directory must exist
     if (!dir.exists(output_dir)) {
-      log_error(sample, step, glue::glue("❌ PATH ERROR: Output directory '{output_dir}' does not exist."))
+      log_warn(sample  = sample,
+                step    = step, 
+                msg =glue::glue("PATH WARN: Output directory '{output_dir}' does not exist.
+                                     Attempting to create."))
+      dir.create(output_dir, recursive = TRUE)
     }
     
     # Check 2: Directory must be writable
     # file.access(path, mode=2) checks for write permission. Returns 0 on success.
     if (file.access(output_dir, 2) != 0) {
-      log_error(sample, step, glue::glue("❌ PATH ERROR: Output directory '{output_dir}' is NOT writable."))
+      log_error(sample  = sample,
+                step    = step, 
+                msg =glue::glue("PATH ERROR: Output directory '{output_dir}' is NOT writable."))
     }
   }
   
@@ -3042,12 +3211,16 @@ validate_inputs <- function(step, sample = NULL, gene.column = NULL, bin = NULL,
     
     # Check 1: File must exist
     if (!file.exists(xlsx_file)) {
-      log_error(sample, step, glue::glue("❌ FILE ERROR: External metadata file not found at :  '{xlsx_file}'."))
+      log_error(sample  = sample,
+                step    = step, 
+                msg =glue::glue("FILE ERROR: External metadata file not found at :  '{xlsx_file}'."))
     }
     
     # Check 2: File must be in xlsx format
     if (!grepl("\\.xlsx$", xlsx_file, ignore.case = TRUE)) {
-      log_error(sample, step, "❌ FILE ERROR: 'metafile' must be an .xlsx file.")
+      log_error(sample  = sample,
+                step    = step, 
+                msg =glue::glue("FILE ERROR: 'metafile' must be an .xlsx file."))
     }
   }
   
@@ -3062,10 +3235,97 @@ validate_inputs <- function(step, sample = NULL, gene.column = NULL, bin = NULL,
       missing_cols <- base::setdiff(required_cols, colnames(seurat_object@meta.data))
       
       if (length(missing_cols) > 0) {
-        log_error(sample, step, glue::glue("❌ INPUT ERROR: Required column(s) '{paste(missing_cols, collapse = ", ")}' NOT found in metadata.")) 
+        log_error(sample  = sample,
+                  step    = step, 
+                  msg =glue::glue("INPUT ERROR: Required column(s) '{paste(missing_cols, collapse = ", ")}' NOT found in metadata.")) 
       }
     }
   }
+  
+  # ---- 1️⃣1️⃣ 'counts_dir' Check ----
+  
+  if (!is.null(counts_dir)) {
+    if (!dir.exists(counts_dir)) {
+      log_warn(sample  = sample,
+               step    = step, 
+               msg =glue::glue("Count directory '{counts_dir}' does not exist. 
+                                    Provide raw counts as excel for analysis."))
+    }
+  }
+  
+  # ---- 1️⃣2️⃣ 'expr_mat' Check ----
+  
+  if (!is.null(expr_mat)) {
+    if (is.data.frame(expr_mat)) {
+      
+      log_warn(sample = sample,
+               step   = step,
+               msg    = "expr_mat is a data.frame and will be converted to a numeric matrix.")
+      
+    } else if (!is.matrix(expr_mat)) {
+      
+      log_error(sample = sample,
+                step   = step,
+                msg    = "expr_mat must be a matrix or data.frame.")
+    }
+    
+    if (!all(apply(X = expr_mat, MARGIN = 2, FUN = is.numeric))) {
+      log_error(sample = sample,
+                step   = step,
+                msg    = "expr_mat contains non-numeric columns and cannot be converted safely.")
+    }
+    
+    if (is.null(rownames(expr_mat)) || any(rownames(expr_mat) == "")) {
+      log_error(sample  = sample,
+                step    = step, 
+                msg =glue::glue("expr_mat must have non-empty rownames representing genes."))
+    }
+    
+    if (is.null(colnames(expr_mat)) || any(colnames(expr_mat) == "")) {
+      log_error(sample  = sample,
+                step    = step, 
+                msg =glue::glue("expr_mat must have non-empty colnames representing sample IDs."))
+    }
+    
+    if (any(duplicated(colnames(expr_mat)))) {
+      log_error(sample  = sample,
+                step    = step, 
+                msg =glue::glue("Duplicate sample names detected in expr_mat."))
+    }
+  }
+  
+  # ---- 1️⃣3️⃣ 'logic_vars' Check ----
+  
+  if (!is.null(logic_vars)) {
+    for (i in seq_along(logic_vars)) {
+      val <- logic_vars[[i]]
+      logic_var <- names(logic_vars)[i] %||% paste0("logic_var_", i)  # fallback name
+      
+      if (!is.logical(val) || length(val) != 1) {
+        log_error(sample = sample,
+                  step   = "validate_inputs",
+                  msg    = glue::glue("INPUT ERROR: '{logic_var}' must be a single logical (TRUE/FALSE)."))
+      }
+    }
+  }
+  
+  # ---- 1️⃣3️⃣ 'DESeq2 object' Check ---
+  
+  if (!is.null(dds)) {
+    if (!inherits(dds, "DESeqDataSet")) {
+      log_error(sample = sample,
+                step   = "validate_inputs",
+                msg    = "`dds` must be a DESeqDataSet object.")
+    }
+  }
+  
+  # ---- 🪵 Log Output and Return ----
+  
+  log_info(sample = "", 
+           step = "validate_inputs",
+           msg =glue::glue("Successfully validated input variables for function : '{sample}'."))
+  
+  return(invisible(NULL))
   
 }
 
@@ -3091,7 +3351,7 @@ load_cellranger <- function(sample, matrix_dir, gene.column = 2){
   if (length(h5_files) > 0) {
     log_info(sample = sample, 
              step = "load_cellranger",
-             message = glue::glue("Reading HDF5 matrix from directory."))
+             msg =glue::glue("Reading HDF5 matrix from directory."))
     
     counts <- tryCatch({
       # Read the gene expression matrix from the HDF5 file
@@ -3101,21 +3361,21 @@ load_cellranger <- function(sample, matrix_dir, gene.column = 2){
     }, error = function(e) {
       log_error(sample = sample, 
                 step = "load_cellranger",
-                message = glue::glue("Failed to read HDF5 matrix from '{h5_files[1]}'."))
+                msg =glue::glue("Failed to read HDF5 matrix from '{h5_files[1]}'."))
     })
     
     # Error check: Ensure the read returns a matrix, not a list
     if (is.list(counts)) {
       log_error(sample = sample, 
                 step = "load_cellranger",
-                message = "HDF5 file returned a list. Check the file content.")
+                msg ="HDF5 file returned a list. Check the file content.")
     }
     
   } else {
     # If no HDF5 files, fall back to the standard 10X directory
     log_info(sample = sample, 
              step = "load_cellranger",
-             message = "Reading standard 10X matrix from directory.")
+             msg ="Reading standard 10X matrix from directory.")
     
     counts <- tryCatch({
       Seurat::Read10X(data.dir = data_dir,
@@ -3127,7 +3387,7 @@ load_cellranger <- function(sample, matrix_dir, gene.column = 2){
     }, error = function(e) {
       log_error(sample = sample, 
                 step = "load_cellranger",
-                message = glue::glue("Failed to read 10X matrix from '{data_dir}'."))
+                msg =glue::glue("Failed to read 10X matrix from '{data_dir}'."))
     })
   }
   
@@ -3146,7 +3406,7 @@ load_cellranger <- function(sample, matrix_dir, gene.column = 2){
   
   log_info(sample = sample, 
            step = "load_cellranger",
-           message = glue::glue("Successfully created Seurat object for sample : '{sample}'."))
+           msg =glue::glue("Successfully created Seurat object for sample : '{step}'."))
   return(invisible(sample_seurat))
 }
 
@@ -3174,7 +3434,7 @@ load_spaceranger <- function(sample, bin, matrix_dir){
     pad <- base::strrep(" ", nchar(sample) + 30)
     log_error(sample = sample, 
               step = "load_spaceranger",
-              message = glue::glue("Failed to load binned data from '{data_dir}' for bin size '{bin}'.\n",
+              msg =glue::glue("Failed to load binned data from '{data_dir}' for bin size '{bin}'.\n",
                                    "{pad}Please verify the Space Ranger output structure."))
   })
   
@@ -3185,7 +3445,7 @@ load_spaceranger <- function(sample, bin, matrix_dir){
   
   log_info(sample = sample, 
            step = "load_spaceranger",
-           message = glue::glue("Successfully created Seurat object for sample : '{sample}' ('{bin}' bin)."))
+           msg =glue::glue("Successfully created Seurat object for sample : '{sample}' ('{bin}' bin)."))
   return(invisible(sample_seurat))
 }
 
@@ -3231,7 +3491,7 @@ classify_dropletutils <- function(sample_seurat){
       pad <- base::strrep(" ", nchar(sample) + 35)
       log_info(sample = sample, 
                step = "classify_dropletutils",
-               message = glue::glue("emptyDrops check: '{n_improve}' droplets need more iterations.\n",
+               msg =glue::glue("emptyDrops check: '{n_improve}' droplets need more iterations.\n",
                                     "{pad}Current niters = '{niters}'."))
     }
     
@@ -3242,7 +3502,7 @@ classify_dropletutils <- function(sample_seurat){
     if (grepl("no counts available to estimate the ambient profile", e$message)) {
       log_warn(sample = sample, 
                step = "classify_dropletutils",
-               message = paste("emptyDrops failed: no counts available for ambient profile.\n",
+               msg =paste("emptyDrops failed: no counts available for ambient profile.\n",
                                base::strrep(" ", 35), "Setting all barcodes as non-empty (FDR < 0.05)."))
       
       # Create dummy dataframe with FDR < 0.05
@@ -3256,7 +3516,7 @@ classify_dropletutils <- function(sample_seurat){
       # Re-throw other errors
       log_error(sample = sample, 
                 step = "classify_dropletutils",
-                message = glue::glue("Caught error ({class(e)[1]}): {e$message}")) 
+                msg =glue::glue("Caught error ({class(e)[1]}): {e$message}")) 
     }
   })
   
@@ -3289,7 +3549,7 @@ classify_dropletutils <- function(sample_seurat){
   
   log_info(sample = sample, 
            step = "classify_dropletutils",
-           message =  glue::glue("DropletUtils classification complete for sample : '{sample}'."))
+           msg = glue::glue("DropletUtils classification complete for sample : '{sample}'."))
   return(invisible(sample_seurat))
 }
 
@@ -3333,7 +3593,7 @@ classify_cellranger <- function(sample_seurat, filt_matrix_dir){
   
   log_info(sample = sample, 
            step = "classify_cellranger",
-           message =  glue::glue("CellRanger empty droplets identified for sample : '{sample}'."))
+           msg = glue::glue("CellRanger empty droplets identified for sample : '{sample}'."))
   return(invisible(sample_seurat))
 }
 
@@ -3451,7 +3711,7 @@ calc_qc_metrics <- function(sample_seurat, assay){
   pad <- base::strrep(" ", nchar(sample) + 46)
   log_info(sample = sample, 
            step = "calc_qc_metrics",
-           message =  glue::glue("Cutoffs applied: nGenes ≥ {gene_cutoff}\n",
+           msg = glue::glue("Cutoffs applied: nGenes ≥ {gene_cutoff}\n",
                                  "{pad}nUMIs ≥ {umi_cutoff}\n",
                                  "{pad}MitoRatio ≤ {mito_cutoff}\n",
                                  "{pad}Novelty ≥ {novelty_cutoff}"))
@@ -3479,7 +3739,7 @@ calc_qc_metrics <- function(sample_seurat, assay){
   
   log_info(sample = sample, 
            step = "calc_qc_metrics",
-           message =  glue::glue("Cell-level QC metrics calculated for sample : '{sample}'."))
+           msg = glue::glue("Cell-level QC metrics calculated for sample : '{sample}'."))
   return(invisible(sample_seurat))
 }
 
@@ -3499,7 +3759,7 @@ classify_doubletfinder <- function(sample_seurat, n_pcs = NULL, pN = 0.25){
   if (!all(required_cols %in% colnames(sample_seurat@meta.data))) {
     log_error(sample = sample, 
               step = "classify_doubletfinder",
-              message = "Missing 'Quality' column in metadata. Please run calc_qc_metrics().")
+              msg ="Missing 'Quality' column in metadata. Please run calc_qc_metrics().")
   }
   
   # ---- 🔍 Filter Out Empty Droplets and Low Quality Cells ----
@@ -3511,7 +3771,7 @@ classify_doubletfinder <- function(sample_seurat, n_pcs = NULL, pN = 0.25){
   if (ncol(subset_seurat) < 50) {
     log_warn(sample = sample, 
              step = "classify_doubletfinder",
-             message = "Fewer than 50 cells remain after filtering empty droplets. Skipping DoubletFinder.")
+             msg ="Fewer than 50 cells remain after filtering empty droplets. Skipping DoubletFinder.")
     return(invisible(sample_seurat))
   }
   
@@ -3561,7 +3821,7 @@ classify_doubletfinder <- function(sample_seurat, n_pcs = NULL, pN = 0.25){
   optimal_pK <- as.numeric(as.character(optimal_pK))  # Ensure numeric
   log_info(sample = sample, 
            step = "classify_doubletfinder",
-           message = glue::glue("Optimal pK found : '{optimal_pK}'."))
+           msg =glue::glue("Optimal pK found : '{optimal_pK}'."))
   
   # ---- 🔍 Calculate Adjusted nExp (Expected Doublets) ----
   
@@ -3577,7 +3837,7 @@ classify_doubletfinder <- function(sample_seurat, n_pcs = NULL, pN = 0.25){
   n_exp_adj <- round(n_exp * (1 - homotypic.prop))
   log_info(sample = sample, 
            step = "classify_doubletfinder",
-           message = glue::glue("Expected doublets (nExp_adj) : '{n_exp_adj}'."))
+           msg =glue::glue("Expected doublets (nExp_adj) : '{n_exp_adj}'."))
   
   # ---- 🔍 Run DoubletFinder ----
   
@@ -3593,7 +3853,7 @@ classify_doubletfinder <- function(sample_seurat, n_pcs = NULL, pN = 0.25){
   if (length(df_col) != 1) {
     log_error(sample = sample, 
               step = "classify_doubletfinder",
-              message = paste("More than 1 DoubletFinder classification columns present.",
+              msg =paste("More than 1 DoubletFinder classification columns present.",
                               "Cannot uniquely identify the DoubletFinder classification column.",
                               "Please check if DoubletFinder was already run.",
                               sep = "\n"))
@@ -3633,7 +3893,7 @@ classify_doubletfinder <- function(sample_seurat, n_pcs = NULL, pN = 0.25){
   
   log_info(sample = sample, 
            step = "classify_doubletfinder",
-           message =  glue::glue("DoubletFinder doublets identified for sample : '{sample}'."))
+           msg = glue::glue("DoubletFinder doublets identified for sample : '{sample}'."))
   return(invisible(sample_seurat))
 }
 
@@ -3663,7 +3923,7 @@ classify_scdblfinder <- function(sample_seurat){
   if (ncol(subset_seurat) < 50) {
     log_warn(sample = sample, 
              step = "classify_scdblfinder",
-             message = "Fewer than 50 cells remain after filtering empty droplets. Skipping scDblFinder.")
+             msg ="Fewer than 50 cells remain after filtering empty droplets. Skipping scDblFinder.")
     return(invisible(sample_seurat))
   }
   
@@ -3711,7 +3971,7 @@ classify_scdblfinder <- function(sample_seurat){
   
   log_info(sample = sample, 
            step = "classify_scdblfinder",
-           message = glue::glue("scDblFinder doublets identified for sample : '{sample}'."))
+           msg =glue::glue("scDblFinder doublets identified for sample : '{sample}'."))
   return(invisible(sample_seurat))
 }
 
@@ -3741,7 +4001,7 @@ filter_singlets <- function(sample_seurat){
   if (!all(required_cols %in% colnames(sample_seurat@meta.data))) {
     log_error(sample = sample, 
               step = "filter_singlets",
-              message = paste("Missing required columns in metadata: Quality, DoubletFinder, scDblFinder.",
+              msg =paste("Missing required columns in metadata: Quality, DoubletFinder, scDblFinder.",
                               "Please run calc_qc_metrics(), classify_doubletfinder() and classify_scdblfinder()",
                               sep = "\n"))
   }
@@ -3794,7 +4054,7 @@ filter_singlets <- function(sample_seurat){
   
   log_info(sample = sample,
            step = "filter_singlets",
-           message = glue::glue("Retained high-quality singlets for sample : '{sample}'."))
+           msg =glue::glue("Retained high-quality singlets for sample : '{sample}'."))
   return(list(sample_seurat = sample_seurat,
               metadata  = metadata))
 }
@@ -3826,7 +4086,7 @@ merge_filtered <- function(seurat_list, assay, meta_file, output_dir){
   }, error = function(e){
     log_error(sample = "",
               step = "merge_filtered",
-              message = glue::glue("Merge failed : '{e$message}'."))
+              msg =glue::glue("Merge failed : '{e$message}'."))
   }) 
   
   # ---- 🗑️ Remove HTO assay (if present) ----
@@ -3835,7 +4095,7 @@ merge_filtered <- function(seurat_list, assay, meta_file, output_dir){
     merged_seurat[["HTO"]] <- NULL
     log_info(sample = "",
              step = "merge_filtered",
-             message = "Removed HTO assay prior to integration.")
+             msg ="Removed HTO assay prior to integration.")
   }
   
   # ---- 📥 Load Extra Metadata ----
@@ -3846,7 +4106,7 @@ merge_filtered <- function(seurat_list, assay, meta_file, output_dir){
   }, error = function(e){
     log_warn(sample = "",
              step = "merge_filtered",
-             message = glue::glue("Failed to read metadata file : '{e$message}'."))
+             msg =glue::glue("Failed to read metadata file : '{e$message}'."))
     return(data.frame())  # Return empty dataframe to skip merge
   })
   
@@ -3870,7 +4130,7 @@ merge_filtered <- function(seurat_list, assay, meta_file, output_dir){
       
       log_info(sample = "",
                step = "merge_filtered",
-               message = "Extra metadata joined for Spatial analysis. No cell filtering performed.")
+               msg ="Extra metadata joined for Spatial analysis. No cell filtering performed.")
     }
     
     # ---- 🧹 Clean Metadata ----
@@ -3886,11 +4146,11 @@ merge_filtered <- function(seurat_list, assay, meta_file, output_dir){
     
     log_info(sample = "",
              step = "merge_filtered",
-             message = "Extra metadata added successfully.")
+             msg ="Extra metadata added successfully.")
   } else {
     log_info(sample = "",
              step = "merge_filtered",
-             message = "No external metadata was loaded or joined.")
+             msg ="No external metadata was loaded or joined.")
   }
   
   # ---- 💾 Save Merged Seurat Object ----
@@ -3908,7 +4168,7 @@ merge_filtered <- function(seurat_list, assay, meta_file, output_dir){
   
   log_info(sample = "",
            step = "merge_filtered",
-           message = glue::glue("Filtered Seurat object saved to : '{filename}'."))
+           msg =glue::glue("Filtered Seurat object saved to : '{filename}'."))
   return(invisible(merged_seurat))
 }
 
@@ -3924,7 +4184,7 @@ plot_qc <- function(metadata, output_dir){
   if (length(missing_cols) > 0) {
     log_error(sample = "",
               step = "plot_qc",
-              message = glue::glue("Missing required metadata columns : '{paste(missing_cols, collapse = ", ")}'."))
+              msg =glue::glue("Missing required metadata columns : '{paste(missing_cols, collapse = ", ")}'."))
   }
   
   # ---- 🛠️ Helper Functions ----
@@ -4078,7 +4338,7 @@ plot_qc <- function(metadata, output_dir){
   
   log_info(sample = "",
            step = "plot_qc",
-           message = glue::glue("QC plots generated and saved to : '{output_dir}'."))
+           msg =glue::glue("QC plots generated and saved to : '{output_dir}'."))
 }
 
 run_sctransform <- function(filtered_seurat, assay, s_genes, g2m_genes){
@@ -4110,25 +4370,25 @@ run_sctransform <- function(filtered_seurat, assay, s_genes, g2m_genes){
     pad <- base::strrep(" ", 29)
     log_error(sample = "",
               step = "run_sctransform",
-              message = glue::glue("Zero S-phase genes were found in '{assay}' assay\n",
+              msg =glue::glue("Zero S-phase genes were found in '{assay}' assay\n",
                                    "{pad}Cannot perform cell cycle scoring."))
     
   } else {
     log_info(sample = "",
              step = "run_sctransform",
-             message = glue::glue("{length(s_genes)} of {length(s_genes_unique)} S-phase genes found and will be used for scoring."))
+             msg =glue::glue("{length(s_genes)} of {length(s_genes_unique)} S-phase genes found and will be used for scoring."))
   }
   
   if (length(g2m_genes) == 0) {
     pad <- base::strrep(" ", 29)
     log_error(sample = "",
               step = "run_sctransform",
-              message = glue::glue("Zero G2M-phase genes were found in '{assay}' assay\n",
+              msg =glue::glue("Zero G2M-phase genes were found in '{assay}' assay\n",
                                    "{pad}Cannot perform cell cycle scoring."))
   } else {
     log_info(sample = "",
              step = "run_sctransform",
-             message = glue::glue("{length(g2m_genes)} of {length(g2m_genes_unique)} G2M-phase genes found and will be used for scoring."))
+             msg =glue::glue("{length(g2m_genes)} of {length(g2m_genes_unique)} G2M-phase genes found and will be used for scoring."))
   }
   
   # ---- SCTransfrom Workflow ----
@@ -4220,7 +4480,7 @@ run_sctransform <- function(filtered_seurat, assay, s_genes, g2m_genes){
   
   log_info(sample = "",
            step = "run_sctransform",
-           message = "SCTransform workflow completed successfully.")
+           msg ="SCTransform workflow completed successfully.")
   return(invisible(sct_seurat))
 }
 
@@ -4239,7 +4499,7 @@ integrate_sct_data <- function(sct_seurat, assay, reference_samples = NULL){
     
     log_error(sample = "",
               step = "integrate_sct_data",
-              message = "Reduction 'sct_pca' is missing. Please run PCA on SCT assay before integration.")
+              msg ="Reduction 'sct_pca' is missing. Please run PCA on SCT assay before integration.")
   }
   
   # ---- ⚖️ Compute optimal k.weight for integration ----
@@ -4251,7 +4511,7 @@ integrate_sct_data <- function(sct_seurat, assay, reference_samples = NULL){
                    min()/2, 100) 
   log_info(sample = "",
            step = "integrate_sct_data",
-           message = glue::glue("Dataset k.weight : '{kweight}'."))
+           msg =glue::glue("Dataset k.weight : '{kweight}'."))
   
   # ---- 📏 Determine maximum number of dimensions for integration ----
   
@@ -4320,7 +4580,7 @@ integrate_sct_data <- function(sct_seurat, assay, reference_samples = NULL){
   
   log_info(sample = "",
            step = "integrate_sct_data",
-           message = "Integration completed successfully.")
+           msg ="Integration completed successfully.")
   return(invisible(integrated_seurat))
 }
 
@@ -4407,7 +4667,7 @@ cluster_integrated_data <- function(integrated_seurat, assay){
   
   log_info(sample = "",
            step = "cluster_integrated_data",
-           message = "Clustering completed successfully.")
+           msg ="Clustering completed successfully.")
   return(invisible(integrated_seurat))
 }
 
@@ -4431,7 +4691,7 @@ remove_sparse_clusters <- function(integrated_seurat, assay){
   if (length(cluster_cols) == 0) {
     log_error(sample = "",
               step = "remove_sparse_clusters",
-              message = glue::glue("No clustering columns found with prefix : '{pattern}'."))
+              msg =glue::glue("No clustering columns found with prefix : '{pattern}'."))
   }
   
   # ---- 🗑️ Find and Remove Sparse Cells ----
@@ -4459,7 +4719,7 @@ remove_sparse_clusters <- function(integrated_seurat, assay){
       # Optional progress message
       log_info(sample = "",
                step = "remove_sparse_clusters",
-               message = glue::glue("Found '{length(cells_in_sparse_clusters)}' cells to remove from column : '{col}'."))
+               msg =glue::glue("Found '{length(cells_in_sparse_clusters)}' cells to remove from column : '{col}'."))
     }
   }
   
@@ -4476,13 +4736,13 @@ remove_sparse_clusters <- function(integrated_seurat, assay){
   
   log_info(sample = "",
            step = "remove_sparse_clusters",
-           message = glue::glue("Total cells removed from sparse clusters : '{length(unique_sparse_cells)}'."))
+           msg =glue::glue("Total cells removed from sparse clusters : '{length(unique_sparse_cells)}'."))
   
   # ---- 🪵 Log Output and Return Seurat Object ----
   
   log_info(sample = "",
            step = "remove_sparse_clusters",
-           message = "Successfully removed sparse cells.")
+           msg ="Successfully removed sparse cells.")
   return(invisible(integrated_seurat))
 }
 
@@ -4508,7 +4768,7 @@ calc_optimal_resolution <- function(integrated_seurat, reduction, output_dir){
   if (length(cluster_cols) == 0) {
     log_error(sample = "",
               step = "calc_optimal_resolution",
-              message = glue::glue("No clustering columns found with prefix : '{pattern}'."))
+              msg =glue::glue("No clustering columns found with prefix : '{pattern}'."))
   }
   
   # ---- 🌳 Visualize Clustering Stability (Clustree) ----
@@ -4582,7 +4842,7 @@ calc_optimal_resolution <- function(integrated_seurat, reduction, output_dir){
   
   log_info(sample = "",
            step = "calc_optimal_resolution",
-           message = glue::glue("Optimal res identified : '{optimal_res_numeric}'."))
+           msg =glue::glue("Optimal res identified : '{optimal_res_numeric}'."))
   return(invisible(integrated_seurat))
 }
 
@@ -4606,11 +4866,11 @@ identify_markers <- function(integrated_seurat, res, reduction, cluster_col = NU
     active_assay <- all_assays[1]
     log_info(sample = "",
              step = "identify_markers",
-             message = glue::glue("No SCT/RNA assay found. Using assay : '{active_assay}'."))
+             msg =glue::glue("No SCT/RNA assay found. Using assay : '{active_assay}'."))
   } else {
     log_error(sample = "",
               step = "identify_markers",
-              message = "No assays found in Seurat object for DE analysis.")
+              msg ="No assays found in Seurat object for DE analysis.")
   }
   
   # Set active assay
@@ -4635,11 +4895,11 @@ identify_markers <- function(integrated_seurat, res, reduction, cluster_col = NU
   if (length(cluster_cols) == 0 & is.null(cluster_col)) {
     log_error(sample = "",
               step = "identify_markers",
-              message = glue::glue("Either 'res' + 'reduction' OR 'cluster_col' must be provided!"))
+              msg =glue::glue("Either 'res' + 'reduction' OR 'cluster_col' must be provided!"))
   } else if (length(cluster_cols) > 1) {
     log_error(sample = "",
               step = "identify_markers",
-              message = glue::glue("More than 1 matching column found in metadata : '{paste(cluster_cols, collapse = ", ")}'"))
+              msg =glue::glue("More than 1 matching column found in metadata : '{paste(cluster_cols, collapse = ", ")}'"))
   }
   
   # Set active ident
@@ -4663,7 +4923,7 @@ identify_markers <- function(integrated_seurat, res, reduction, cluster_col = NU
     
     log_warn(sample = "",
              step = "identify_markers",
-             message = glue::glue("No markers found for res '{res}' using method '{reduction}'."))
+             msg =glue::glue("No markers found for res '{res}' using method '{reduction}'."))
     return(invisible(FALSE))
   }
   
@@ -4691,7 +4951,7 @@ identify_markers <- function(integrated_seurat, res, reduction, cluster_col = NU
   if (nrow(sig_markers) == 0) {
     log_warn(sample = "",
              step = "identify_markers",
-             message = glue::glue("No markers (p_val_adj < 0.05) identified at res '{cluster_cols}'. Skipping saving."))
+             msg =glue::glue("No markers (p_val_adj < 0.05) identified at res '{cluster_cols}'. Skipping saving."))
     return(invisible(FALSE))
   }
   
@@ -4751,7 +5011,7 @@ identify_markers <- function(integrated_seurat, res, reduction, cluster_col = NU
   
   log_info(sample = "",
            step = "identify_markers",
-           message = glue::glue("Marker analysis complete. Results saved to : '{file_name}'."))
+           msg =glue::glue("Marker analysis complete. Results saved to : '{file_name}'."))
 }
 
 plot_seurat <- function(integrated_seurat, reduction, features, filename, output_dir, raster = FALSE, split_col = NULL){
@@ -4768,7 +5028,7 @@ plot_seurat <- function(integrated_seurat, reduction, features, filename, output
   if (!(reduction %in% names(integrated_seurat@reductions))) {
     log_warn(sample = "",
              step = "plot_umap",
-             message = glue::glue("Reduction '{reduction}' is NOT present in Seurat object."))
+             msg =glue::glue("Reduction '{reduction}' is NOT present in Seurat object."))
     
     # Check alternative reduction name
     alt_reduction <- paste0("umap_", tolower(reduction))
@@ -4776,12 +5036,12 @@ plot_seurat <- function(integrated_seurat, reduction, features, filename, output
     if (alt_reduction %in% names(integrated_seurat@reductions)) {
       log_info(sample = "",
                step = "plot_umap",
-               message = glue::glue("Using alternative reduction : '{alt_reduction}'."))
+               msg =glue::glue("Using alternative reduction : '{alt_reduction}'."))
       reduction <- alt_reduction
     } else {
       log_error(sample = "",
                 step = "plot_umap",
-                message = glue::glue("Alternative reduction '{alt_reduction}' is NOT present."))
+                msg =glue::glue("Alternative reduction '{alt_reduction}' is NOT present."))
     }
   }
   
@@ -4797,11 +5057,11 @@ plot_seurat <- function(integrated_seurat, reduction, features, filename, output
     active_assay <- all_assays[1]
     log_info(sample = "",
              step = "plot_umap",
-             message = glue::glue("No SCT/RNA assay found. Using assay : '{active_assay}'."))
+             msg =glue::glue("No SCT/RNA assay found. Using assay : '{active_assay}'."))
   } else {
     log_error(sample = "",
               step = "plot_umap",
-              message = "No assays found in Seurat object for DE analysis.")
+              msg ="No assays found in Seurat object for DE analysis.")
   }
   
   # Set active assay
@@ -5119,7 +5379,7 @@ plot_seurat <- function(integrated_seurat, reduction, features, filename, output
       
       log_info(sample = "",
                step = "plot_features",
-               message = glue::glue("Successfully plotted feature : '{feature}'."))
+               msg =glue::glue("Successfully plotted feature : '{feature}'."))
     }
   }
   
@@ -5134,7 +5394,7 @@ plot_seurat <- function(integrated_seurat, reduction, features, filename, output
     
     log_error(sample = "",
               step = "plot_features",
-              message = "Image size too large. More than 100 plots cannot be viewed in a single figure")
+              msg ="Image size too large. More than 100 plots cannot be viewed in a single figure")
   }
   
   # Combine all plots
@@ -5173,11 +5433,13 @@ plot_seurat <- function(integrated_seurat, reduction, features, filename, output
                     bg        = "white")
   }
   
-  # ---- 🪵 Log Output ----
+  # ---- 🪵 Log Output and return ----
   
   log_info(sample = "",
            step = "plot_umap",
-           message = glue::glue("UMAP plot saved successfully to : '{file_name}'."))
+           msg =glue::glue("UMAP plot saved successfully to : '{file_name}'."))
+  
+  return(invisible(NULL))
 }
 
 plot_metrics_post_integration <- function(integrated_seurat, output_dir){
@@ -5210,7 +5472,7 @@ plot_metrics_post_integration <- function(integrated_seurat, output_dir){
   
   log_info(sample = "",
            step = "plot_metrics_post_integration",
-           message = "All post-integration QC and UMAP plots generated successfully.")
+           msg ="All post-integration QC and UMAP plots generated successfully.")
 }
 
 calc_module_scores <- function(integrated_seurat, reduction, marker_file, filename = NULL, output_dir){
@@ -5228,7 +5490,7 @@ calc_module_scores <- function(integrated_seurat, reduction, marker_file, filena
   if (!(reduction %in% names(integrated_seurat@reductions))) {
     log_warn(sample = "",
              step = "calc_module_scores",
-             message = glue::glue("Reduction '{reduction}' is NOT present in Seurat object."))
+             msg =glue::glue("Reduction '{reduction}' is NOT present in Seurat object."))
     
     # Check alternative reduction name
     alt_reduction <- paste0("umap_", tolower(reduction))
@@ -5236,12 +5498,12 @@ calc_module_scores <- function(integrated_seurat, reduction, marker_file, filena
     if (alt_reduction %in% names(integrated_seurat@reductions)) {
       log_info(sample = "",
                step = "calc_module_scores",
-               message = glue::glue("Using alternative reduction : '{alt_reduction}'."))
+               msg =glue::glue("Using alternative reduction : '{alt_reduction}'."))
       reduction <- alt_reduction
     } else {
       log_error(sample = "",
                 step = "calc_module_scores",
-                message = glue::glue("Alternative reduction '{alt_reduction}' is NOT present."))
+                msg =glue::glue("Alternative reduction '{alt_reduction}' is NOT present."))
     }
   }
   
@@ -5257,11 +5519,11 @@ calc_module_scores <- function(integrated_seurat, reduction, marker_file, filena
     active_assay <- all_assays[1]
     log_info(sample = "",
              step = "calc_module_scores",
-             message = glue::glue("No SCT/RNA assay found. Using assay : '{active_assay}'."))
+             msg =glue::glue("No SCT/RNA assay found. Using assay : '{active_assay}'."))
   } else {
     log_error(sample = "",
               step = "calc_module_scores",
-              message = "No assays found in Seurat object for DE analysis.")
+              msg ="No assays found in Seurat object for DE analysis.")
   }
   
   # Set active assay
@@ -5270,7 +5532,7 @@ calc_module_scores <- function(integrated_seurat, reduction, marker_file, filena
   if (active_assay != "SCT"){
     log_warn(sample = "",
              step = "calc_module_scores",
-             message = glue::glue(" Currently using assay : '{active_assay}'."))
+             msg =glue::glue(" Currently using assay : '{active_assay}'."))
   }
   
   # ---- 📥 Create Feature List from Marker file ----
@@ -5281,7 +5543,7 @@ calc_module_scores <- function(integrated_seurat, reduction, marker_file, filena
   }, error = function(e){
     log_error(sample = "",
               step = "calc_module_scores",
-              message = glue::glue("Failed to read marker file : '{e$message}'."))
+              msg =glue::glue("Failed to read marker file : '{e$message}'."))
   })
   
   # Initialize an empty list to store all cell type signatures
@@ -5312,7 +5574,7 @@ calc_module_scores <- function(integrated_seurat, reduction, marker_file, filena
     } else {
       log_warn(sample = "",
                step = "calc_module_scores",
-               message = glue::glue("Skipping module '{module_name}'. Fewer than 2 matching markers found."))
+               msg =glue::glue("Skipping module '{module_name}'. Fewer than 2 matching markers found."))
     }
   }
   
@@ -5321,7 +5583,7 @@ calc_module_scores <- function(integrated_seurat, reduction, marker_file, filena
   if (!"data" %in% SeuratObject::Layers(integrated_seurat[[active_assay]])) {
     log_error(sample = "",
               step = "calc_module_scores",
-              message = glue::glue("'data' layer missing in assay '{active_assay}'. Please normalize data first."))
+              msg =glue::glue("'data' layer missing in assay '{active_assay}'. Please normalize data first."))
   }
   
   # Calculate Module Score using Seurat
@@ -5338,7 +5600,7 @@ calc_module_scores <- function(integrated_seurat, reduction, marker_file, filena
                                                    name = "_UCell")
   log_info(sample = "",
            step = "calc_module_scores",
-           message = glue::glue("Successfully calculated module scores."))
+           msg =glue::glue("Successfully calculated module scores."))
   
   # ---- 🔎 Identify Module Score Columns ----
   
@@ -5354,7 +5616,7 @@ calc_module_scores <- function(integrated_seurat, reduction, marker_file, filena
   if (length(seurat_modules) < 2 & length(ucell_modules) < 2) {
     log_error(sample = "", 
               step = "annotate_cells", 
-              message = "Fewer than 2 module score columns (ending in '1' or '_UCell') found. Aborting.")
+              msg ="Fewer than 2 module score columns (ending in '1' or '_UCell') found. Aborting.")
     return(integrated_seurat)
   }
   
@@ -5406,7 +5668,7 @@ calc_module_scores <- function(integrated_seurat, reduction, marker_file, filena
   } else{
     log_warn(sample = "",
              step = "calc_module_scores",
-             message = glue::glue("Skipping Seurat module score plotting as no module were found."))
+             msg =glue::glue("Skipping Seurat module score plotting as no module were found."))
   }
   if (length(ucell_modules) > 0){
     plot_seurat(integrated_seurat, reduction = reduction, features = ucell_modules, filename = paste("Module_plot_UCell", filename, sep = "_"), output_dir = output_dir, split_col = NULL)
@@ -5414,14 +5676,14 @@ calc_module_scores <- function(integrated_seurat, reduction, marker_file, filena
   else{
     log_warn(sample = "",
              step = "calc_module_scores",
-             message = glue::glue("Skipping UCell module score plotting as no module were found."))
+             msg =glue::glue("Skipping UCell module score plotting as no module were found."))
   }
   
   # ---- 🪵 Log Output and Return Seurat Object ----
   
   log_info(sample = "",
            step = "calc_module_scores",
-           message = "Module score calculated and Seurat object saved successfully.")
+           msg ="Module score calculated and Seurat object saved successfully.")
   return(invisible(integrated_seurat))
 }
 
@@ -5440,7 +5702,7 @@ annotate_clusters <- function(integrated_seurat, reduction, assay,
   if (!(reduction %in% names(integrated_seurat@reductions))) {
     log_warn(sample = "",
              step = "annotate_clusters",
-             message = glue::glue("Reduction '{reduction}' is NOT present in Seurat object."))
+             msg =glue::glue("Reduction '{reduction}' is NOT present in Seurat object."))
     
     # Check alternative reduction name
     alt_reduction <- paste0("umap_", tolower(reduction))
@@ -5448,12 +5710,12 @@ annotate_clusters <- function(integrated_seurat, reduction, assay,
     if (alt_reduction %in% names(integrated_seurat@reductions)) {
       log_info(sample = "",
                step = "annotate_clusters",
-               message = glue::glue("Using alternative reduction : '{alt_reduction}'."))
+               msg =glue::glue("Using alternative reduction : '{alt_reduction}'."))
       reduction <- alt_reduction
     } else {
       log_error(sample = "",
                 step = "annotate_clusters",
-                message = glue::glue("Alternative reduction '{alt_reduction}' is NOT present."))
+                msg =glue::glue("Alternative reduction '{alt_reduction}' is NOT present."))
     }
   }
   
@@ -5471,7 +5733,7 @@ annotate_clusters <- function(integrated_seurat, reduction, assay,
   if (length(cluster_cols) == 0) {
     log_error(sample = "",
               step = "annotate_clusters",
-              message = glue::glue("No clustering columns found with prefix : '{pattern}'."))
+              msg =glue::glue("No clustering columns found with prefix : '{pattern}'."))
   }
   
   # ---- 🔎 Identify Module Score Columns ----
@@ -5488,7 +5750,7 @@ annotate_clusters <- function(integrated_seurat, reduction, assay,
   if (length(seurat_modules) < 2 & length(ucell_modules) < 2) {
     log_error(sample = "", 
               step = "annotate_cells", 
-              message = "Fewer than 2 module score columns (ending in '1' or '_UCell') found. Aborting.")
+              msg ="Fewer than 2 module score columns (ending in '1' or '_UCell') found. Aborting.")
     return(integrated_seurat)
   }
   
@@ -5659,7 +5921,7 @@ annotate_clusters <- function(integrated_seurat, reduction, assay,
   saveWorkbook(wb, file = file.path(output_dir, "Cluster_Summary.xlsx"), overwrite = TRUE)
   
   log_info(sample = "", step = "annotate_clusters", 
-           message = glue::glue("Completed weighted cluster consensus across {length(cluster_cols)} resolutions."))
+           msg =glue::glue("Completed weighted cluster consensus across {length(cluster_cols)} resolutions."))
   
   # ---- 3️⃣ Confidence Scoring per Cell  ----
   
@@ -5700,7 +5962,7 @@ annotate_clusters <- function(integrated_seurat, reduction, assay,
   
   log_info(sample = "", 
            step = "annotate_clusters", 
-           message = "Calculated Stability Scores and Consensus CellType.")
+           msg ="Calculated Stability Scores and Consensus CellType.")
   
   # ---- 4️⃣ UMAP Plots for Cluster Visualization ----
   
@@ -5731,7 +5993,7 @@ annotate_clusters <- function(integrated_seurat, reduction, assay,
   
   log_info(sample = "", 
            step = "annotate_clusters", 
-           message = "Consensus annotation completed successfully. New metadata columns added: PredictedCellType, Pmax_Seurat, Consensus_*, CellType, Stability_Score, Confidence.")
+           msg ="Consensus annotation completed successfully. New metadata columns added: PredictedCellType, Pmax_Seurat, Consensus_*, CellType, Stability_Score, Confidence.")
   
   return(invisible(integrated_seurat))
 }
@@ -5936,7 +6198,7 @@ plot_gold_standard_markers <- function(integrated_seurat, reduction = "Harmony",
   if (!(reduction %in% names(integrated_seurat@reductions))) {
     log_warn(sample = "",
              step = "plot_gold_standard_markers",
-             message = glue::glue("Reduction '{reduction}' is NOT present in Seurat object."))
+             msg =glue::glue("Reduction '{reduction}' is NOT present in Seurat object."))
     
     # Check alternative reduction name
     alt_reduction <- paste0("umap_", tolower(reduction))
@@ -5944,12 +6206,12 @@ plot_gold_standard_markers <- function(integrated_seurat, reduction = "Harmony",
     if (alt_reduction %in% names(integrated_seurat@reductions)) {
       log_info(sample = "",
                step = "plot_gold_standard_markers",
-               message = glue::glue("Using alternative reduction : '{alt_reduction}'."))
+               msg =glue::glue("Using alternative reduction : '{alt_reduction}'."))
       reduction <- alt_reduction
     } else {
       log_error(sample = "",
                 step = "plot_gold_standard_markers",
-                message = glue::glue("Alternative reduction '{alt_reduction}' is NOT present."))
+                msg =glue::glue("Alternative reduction '{alt_reduction}' is NOT present."))
     }
   }
   
@@ -5965,11 +6227,11 @@ plot_gold_standard_markers <- function(integrated_seurat, reduction = "Harmony",
     active_assay <- all_assays[1]
     log_info(sample = "",
              step = "plot_gold_standard_markers",
-             message = glue::glue("No SCT/RNA assay found. Using assay : '{active_assay}'."))
+             msg =glue::glue("No SCT/RNA assay found. Using assay : '{active_assay}'."))
   } else {
     log_error(sample = "",
               step = "plot_gold_standard_markers",
-              message = "No assays found in Seurat object for DE analysis.")
+              msg ="No assays found in Seurat object for DE analysis.")
   }
   
   # Set active assay
@@ -5978,7 +6240,7 @@ plot_gold_standard_markers <- function(integrated_seurat, reduction = "Harmony",
   if (active_assay != "SCT"){
     log_warn(sample = "",
              step = "plot_gold_standard_markers",
-             message = glue::glue("Currently using assay : '{active_assay}'."))
+             msg =glue::glue("Currently using assay : '{active_assay}'."))
   }
   
   # ---- 📥 Create Feature List from Marker file ----
@@ -5989,7 +6251,7 @@ plot_gold_standard_markers <- function(integrated_seurat, reduction = "Harmony",
   }, error = function(e){
     log_error(sample = "",
               step = "plot_gold_standard_markers",
-              message = glue::glue("Failed to read marker file : '{e$message}'."))
+              msg =glue::glue("Failed to read marker file : '{e$message}'."))
   })
   
   # Initialize an empty list to store all cell type signatures
@@ -6020,7 +6282,7 @@ plot_gold_standard_markers <- function(integrated_seurat, reduction = "Harmony",
     } else {
       log_warn(sample = "",
                step = "plot_gold_standard_markers",
-               message = glue::glue("Skipping module '{module_name}'. Fewer than 2 matching markers found."))
+               msg =glue::glue("Skipping module '{module_name}'. Fewer than 2 matching markers found."))
     }
   }
   
@@ -8395,10 +8657,10 @@ plot_venn <- function(data, filename, output_dir){
   # ---- 🪵 Log Output ----
   
   log_info(sample = "", 
-           step = "plot_venn",
-           message = glue::glue("Venn plot saved successfully to : '{file_name}'."))
+           step   = "plot_venn",
+           msg    = glue::glue("Venn plot saved successfully to : '{file_name}'."))
+  
   return(invisible(NULL))
-
 }
 
 # ---- 🧩 📊 UPSET PLOT ----
@@ -8421,7 +8683,7 @@ plot_upset <- function(listInput = NULL, selected_sets = NULL,
   if (!is.list(listInput) || length(listInput) == 0) {
     log_warn(sample = "",
               step = "plot_upset", 
-              message = "Input list is empty or invalid. using example dataset")
+              msg ="Input list is empty or invalid. using example dataset")
   }
   
   # Handle Default Input (Example Data)
@@ -8496,8 +8758,8 @@ plot_upset <- function(listInput = NULL, selected_sets = NULL,
   # ---- 🪵 Log Output ----
   
   log_info(sample = "", 
-           step = "plot_upset",
-           message = glue::glue("Upset plot saved successfully to : '{file_name}'."))
+           step   = "plot_upset",
+           msg    = glue::glue("Upset plot saved successfully to : '{file_name}'."))
   
   return(invisible(NULL))
 }
@@ -8541,39 +8803,55 @@ plot_upset <- function(listInput = NULL, selected_sets = NULL,
 # hasn't been coded to work with other types of data. metadata MUST have column
 # "Sample_ID"
 
-plot_pca <- function(expr_mat, metadata, perform_vst, top_n_genes = 5000, skip_plot = FALSE,
-                     filename, output_dir){
+plot_pca <- function(expr_mat, metadata, filename, output_dir,
+                     perform_vst = TRUE, top_n_genes = 500, skip_plot = FALSE){
+  # For ggrepel
+  set.seed(1234)
   
   # ---- ⚙️ Validate Input Parameters ----
   
   validate_inputs(expr_mat = expr_mat, metadata = metadata, 
+                  logic_vars = list(perform_vst = perform_vst,
+                                    skip_plot   = skip_plot),
                   filename = filename, output_dir = output_dir)
-  
-  if (!is.data.frame(metadata)) {
-    stop("`metadata` must be a data.frame")
-  }
-  # if (!is.data.frame(read_data)) {
-  #   stop("`read_data` must be a data.frame")
-  # }
+
   if (!"Sample_ID" %in% colnames(metadata)) {
-    stop("`metadata` must contain a 'Sample_ID' column.")
+    log_error(sample = "",
+              step   = "plot_pca",
+              msg    = glue::glue("`metadata` must contain 'Sample_ID' column."))
   }
   
-  # Warn if output path does not exist
-  if (!dir.exists(output_dir)) {
-    warning("Output path does not exist. Attempting to create: ", output_dir)
-    dir.create(output_dir, recursive = TRUE)
-  }
+  log_warn(sample = "",
+           step   = "plot_pca",
+           msg    = "'expr_mat' must be genes(rows) x samples(columns) matrix.")
   
   # ---- VST Transformation ----
   
   if (perform_vst){
-    dds <- DESeq2::DESeqDataSetFromMatrix(countData = expr_mat,
-                                          colData = metadata,
-                                          design = ~1)
+    
+    log_warn(sample = "",
+             step   = "plot_pca",
+             msg    = glue::glue("Applying VST transformation. VST works on raw counts ONLY.
+                                 Please make sure provided expr_mat is raw_counts."))
+    
+    # Reformat raw_counts_mat and metadata for DESeq2
+    deseq2_data <- prepare_deseq2_input(metadata = metadata,
+                                        expr_mat = expr_mat,
+                                        design   = 1)
+      
+    dds <- DESeq2::DESeqDataSetFromMatrix(countData = deseq2_data$expr_mat,
+                                          colData   = deseq2_data$metadata,
+                                          design    = ~1)
     dds <- DESeq2::estimateSizeFactors(dds)
     vsd <- DESeq2::vst(dds, blind = TRUE)
     expr_mat <- SummarizedExperiment::assay(vsd)
+    
+  } else {
+    
+    log_info(sample = "",
+             step   = "plot_pca",
+             msg    = glue::glue("Using provided matrix directly (skipping VST)."))
+    expr_mat <- as.matrix(expr_mat) 
   }
   
   # ---- Feature Selection ----
@@ -8619,7 +8897,7 @@ plot_pca <- function(expr_mat, metadata, perform_vst, top_n_genes = 5000, skip_p
     if (n_unique < 2 || n_unique == nrow(metadata)) {
       log_warn(sample = "",
                step = "plot_pca",
-               message = glue::glue("Variable '{var}' is either constant or has one unique value per sample; skipping PCA plot."))
+               msg =glue::glue("Variable '{var}' is either constant or has one unique value per sample; skipping PCA plot."))
       next
     }
     
@@ -8645,7 +8923,7 @@ plot_pca <- function(expr_mat, metadata, perform_vst, top_n_genes = 5000, skip_p
     
     log_info(sample = "",
              step = "plot_pca",
-             message = glue::glue("Successfully plotted variable : '{var}'."))
+             msg =glue::glue("Successfully plotted variable : '{var}'."))
   }
   
   # ---- 💾 Save Plot ----
@@ -8665,7 +8943,7 @@ plot_pca <- function(expr_mat, metadata, perform_vst, top_n_genes = 5000, skip_p
   
   log_info(sample = "", 
            step = "plot_pca",
-           message = glue::glue("PCA plot saved successfully to : '{file_name}'."))
+           msg =glue::glue("PCA plot saved successfully to : '{file_name}'."))
   
   return(invisible(pca_results))
 }
@@ -8681,7 +8959,7 @@ plot_umap <- function(expr_mat, metadata, n_pcs = 50, n_neighbors = NULL,
   if(!is.null(n_neighbors) && n_neighbors >= ncol(expr_mat)){
     log_error(sample = "",
               step = "plot_umap",
-              message = glue::glue("n_neighbors 'n_neighbors' MUST be lesser than number of samples."))
+              msg =glue::glue("n_neighbors 'n_neighbors' MUST be lesser than number of samples."))
   }
   
   # Get PC co-ordinates
@@ -8724,7 +9002,7 @@ plot_umap <- function(expr_mat, metadata, n_pcs = 50, n_neighbors = NULL,
     if (n_unique < 2 || n_unique == nrow(metadata)) {
       log_warn(sample = "",
                step = "plot_umap",
-               message = glue::glue("Variable '{group_var}' is either constant or has one unique value per sample; skipping UMAP plot."))
+               msg =glue::glue("Variable '{group_var}' is either constant or has one unique value per sample; skipping UMAP plot."))
       next
     }
     
@@ -8750,7 +9028,7 @@ plot_umap <- function(expr_mat, metadata, n_pcs = 50, n_neighbors = NULL,
     
     log_info(sample = "",
              step = "plot_umap",
-             message = glue::glue("Successfully plotted variable : '{group_var}'."))
+             msg =glue::glue("Successfully plotted variable : '{group_var}'."))
   }
   
   # ---- 💾 Save Plot ----
@@ -8770,7 +9048,7 @@ plot_umap <- function(expr_mat, metadata, n_pcs = 50, n_neighbors = NULL,
   
   log_info(sample = "", 
            step = "plot_umap",
-           message = glue::glue("UMAP plot saved successfully to : '{file_name}'."))
+           msg =glue::glue("UMAP plot saved successfully to : '{file_name}'."))
   
   return(invisible(NULL))
 }
@@ -8878,7 +9156,7 @@ plot_piechart <- function(metadata, segment_col, filename, output_dir, split_col
     
     log_error(sample = "",
               step = "plot_piechart",
-              message = "Image size too large. More than 100 plots cannot be viewed in a single figure")
+              msg ="Image size too large. More than 100 plots cannot be viewed in a single figure")
   }
   
   # Combine all plots
@@ -8907,7 +9185,7 @@ plot_piechart <- function(metadata, segment_col, filename, output_dir, split_col
   
   log_info(sample = "",
            step = "plot_piechart",
-           message = glue::glue("Pie chart saved successfully to : '{file_name}'."))
+           msg =glue::glue("Pie chart saved successfully to : '{file_name}'."))
 }
 
 # ---- DEPRECATED FUNCTIONS ----

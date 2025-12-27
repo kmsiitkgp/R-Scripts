@@ -46,20 +46,67 @@ proj.params <- setup_project(proj             = proj,
                              heatmap.override = heatmap.override,
                              volcano.override = volcano.override)
 
-# ---- PRE-ANALYSIS ----
-
-meta_data <- read.xlsx(file.path(proj.params$proj_dir, paste0(proj, "_Metadata.xlsx")))
-read_data <- NULL
-trial <- TRUE
-main_analysis(meta_data, read_data, proj.params, trial)
-
 # ---- BULK RNA SEQ WORKFLOW ----
 
-meta_data <- read.xlsx(file.path(proj.params$proj_dir, paste0(proj, "_Metadata.xlsx")))
-read_data <- read.xlsx(file.path(proj.params$proj_dir, paste0(proj, "_Raw_counts.xlsx")))
-trial <- FALSE
+# Import metadata
+metadata <- read.xlsx(file.path(proj.params$proj_dir, paste0(proj, "_Metadata.xlsx")))
 
-## Remove bad samples [CASE by CASE BASIS]
-# read_data <- read_data %>%
-#   dplyr::select(everything(), -c("SBQuadFc2", "SBQuadFc4"))
-main_analysis(meta_data, read_data, proj.params, trial)
+# Compile raw counts if available
+raw_counts_mat <- merge_counts(counts_dir = proj.params$counts_dir,
+                               filename   = proj.params$proj, 
+                               output_dir = proj.params$proj_dir)
+
+# Import raw counts
+raw_counts_mat <- read.xlsx(file.path(proj.params$proj_dir, paste0(proj, "_Raw_counts.xlsx"))) %>%
+  tibble::column_to_rownames("SYMBOL")
+
+# Reformat raw_counts_mat and metadata for DESeq2
+deseq2_data <- prepare_deseq2_input(expr_mat = raw_counts_mat,
+                                    metadata = metadata,
+                                    design   = proj.params$deseq2$design)
+
+# Visualization : Plot PCA
+plot_pca(expr_mat    = deseq2_data$expr_mat, 
+         metadata    = deseq2_data$metadata, 
+         top_n_genes = 500,
+         perform_vst = TRUE, 
+         skip_plot   = FALSE,
+         filename    = proj.params$proj,
+         output_dir  = proj.params$proj_dir)
+
+# Remove bad samples based on PCA [CASE by CASE BASIS]
+# remove_samples <- c("SBQuadFc2", "SBQuadFc4")
+remove_samples <- NULL
+raw_counts_mat <- raw_counts_mat[, !(colnames(raw_counts_mat) %in% remove_samples), drop = FALSE]
+
+# Run DESeq2 on each contrast
+contrasts <- proj.params$deseq2$contrast
+
+for (contrast in contrasts) {
+  
+  # ---- Differential Expression (DESeq2) ----
+  
+  output_dir  <- file.path(proj.params$proj_dir, contrast)
+  deseq2_results <- run_deseq2(expr_mat    = deseq2_data$expr_mat, 
+                               metadata    = deseq2_data$metadata,
+                               design      = proj.params$deseq2$design, 
+                               contrast    = contrast,
+                               output_dir  = output_dir,
+                               lfc.cutoff  = 0, 
+                               padj.cutoff = 0.1)
+  
+  # ---- Visualization : MA Plot ----
+  
+  output_dir <- file.path(proj.params$proj_dir, contrast, "DEG_Analysis")
+  plot_ma(dds        = deseq2_results$dds, 
+          output_dir = output_dir)
+  
+  # ---- Visualization : Volcano Plot ----
+  
+  output_dir <- file.path(proj.params$proj_dir, contrast, "DEG_Analysis")
+  plot_volcano(DEGs_df    = deseq2_results$degs, 
+               contrast   = contrast, 
+               output_dir = output_dir)
+
+
+}

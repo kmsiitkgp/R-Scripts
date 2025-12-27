@@ -1,5 +1,3 @@
-# In this case, the replicates for each group are clustered together.
-# So, the within-group variability is low. Hence, we do not subset the data
 
 proj <- "GSE132408"
 species <- "Homo sapiens"
