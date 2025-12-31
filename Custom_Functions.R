@@ -48,30 +48,30 @@ for (pkg in pkgs) {
 # vjust: Vertical alignment (0=bottom, 0.5=middle, 1=top).
 # margin: Controls the external padding (empty space) around the text element.
 #         It takes arguments in the order T(op), R(ight), B(ottom), L(eft).
-  
+
 custom_theme <- ggplot2::theme_classic() + 
   ggplot2::theme(
-  
-  # Plot title
-  plot.title    = ggplot2::element_text(family = "sans", face = "bold",  colour = "black", size = 16, hjust = 0.5),
-  plot.subtitle = ggplot2::element_text(family = "sans", face = "plain", colour = "black", size = 12, hjust = 0.5, margin = ggplot2::margin(b = 5)),
-  
-  # Axis titles
-  axis.title.x  = ggplot2::element_text(family = "sans", face = "bold",  colour = "black", size = 12, margin = ggplot2::margin(t = 10)),
-  axis.title.y  = ggplot2::element_text(family = "sans", face = "bold",  colour = "black", size = 12, margin = ggplot2::margin(r = 10)), 
-  
-  # Axis text
-  axis.text.x   = ggplot2::element_text(family = "sans", face = "plain", colour = "black", size = 10, angle = 45, hjust = 1),
-  axis.text.y   = ggplot2::element_text(family = "sans", face = "plain", colour = "black", size = 10),
-  
-  # Legend styling
-  legend.title  = ggplot2::element_text(family = "sans", face = "bold",  colour = "black", size = 12),
-  legend.text   = ggplot2::element_text(family = "sans", face = "plain", colour = "black", size = 10),
-  legend.position = "right", 
-  legend.key = ggplot2::element_rect(fill = "white", colour = NA),
-  
-  # Additional spacing (optional but improves readability)
-  plot.margin = ggplot2::margin(3, 3, 3, 3, unit = "mm"))
+    
+    # Plot title
+    plot.title    = ggplot2::element_text(family = "sans", face = "bold",  colour = "black", size = 16, hjust = 0.5),
+    plot.subtitle = ggplot2::element_text(family = "sans", face = "plain", colour = "black", size = 12, hjust = 0.5, margin = ggplot2::margin(b = 5)),
+    
+    # Axis titles
+    axis.title.x  = ggplot2::element_text(family = "sans", face = "bold",  colour = "black", size = 12, margin = ggplot2::margin(t = 10)),
+    axis.title.y  = ggplot2::element_text(family = "sans", face = "bold",  colour = "black", size = 12, margin = ggplot2::margin(r = 10)), 
+    
+    # Axis text
+    axis.text.x   = ggplot2::element_text(family = "sans", face = "plain", colour = "black", size = 10, angle = 45, hjust = 1),
+    axis.text.y   = ggplot2::element_text(family = "sans", face = "plain", colour = "black", size = 10),
+    
+    # Legend styling
+    legend.title  = ggplot2::element_text(family = "sans", face = "bold",  colour = "black", size = 12),
+    legend.text   = ggplot2::element_text(family = "sans", face = "plain", colour = "black", size = 10),
+    legend.position = "right", 
+    legend.key = ggplot2::element_rect(fill = "white", colour = NA),
+    
+    # Additional spacing (optional but improves readability)
+    plot.margin = ggplot2::margin(3, 3, 3, 3, unit = "mm"))
 
 custom_palette <- c(
   "#1f77b4", "#ff7f0e", "#2ca02c", "#d62728", "#9467bd", "#8c564b", "#e377c2", "#7f7f7f", "#bcbd22", "#17becf",
@@ -162,6 +162,40 @@ log_section <- function(section_name) {
 
 # ---- BULK RNA SEQ ANALYSIS RELATED FUNCTIONS ----
 
+# --- DESeq2 Design Notes ---
+# The design formula specifies the variables to model in differential expression.
+# 
+# 1. When to merge columns (e.g., Batch + Condition → "Batch_Condition"):
+#    - Use when some combinations of variables are missing (unbalanced design).
+#    - Use when you want to directly compare specific groups (pairwise contrasts).
+#    - Simplifies the model and avoids rank-deficiency errors.
+#
+# 2. When not to merge (keep separate columns, possibly with interactions):
+#    - Use when all combinations exist (balanced design) and you want to estimate
+#      the overall effect of a variable while adjusting for others (e.g., Age, Sex).
+#    - Use when you want to explicitly model interactions (e.g., Sex:Condition).
+#
+# Example:
+#   design = ~ Age + Sex + Condition        # keeps variables separate
+#   design = ~ Batch_Condition              # merged groups for direct pairwise comparisons
+#
+# Notes:
+# - Merging is safer for unbalanced datasets.
+# - Interactions allow testing variable-specific effects, but contrasts become more complex.
+
+# --- CONTRAST NAMING RESTRICTIONS FOR all.vars() ---
+# To avoid errors in as.formula(), group names in 'contrast' MUST NOT:
+# 1. Start with a number (e.g., '10_Control' is invalid)
+# 2. Start with a dot followed by a number (e.g., '.2Group' is invalid)
+# 3. Contain spaces (e.g., 'Wild Type' is invalid)
+# 4. Contain special characters: ! @ # $ % ^ & * ( ) + = [ ] { } | \ ; : ' " < > , / ?
+# 5. Use R Reserved Words: if, else, repeat, while, function, for, in, next, break, 
+#    TRUE, FALSE, NULL, Inf, NaN, NA, NA_integer_, etc.
+#
+# VALID CHARACTERS: Only letters, numbers, dots (.), and underscores (_).
+# MUST START WITH: A letter or a dot (if not followed by a number).
+
+
 # # Copy and paste in wrapper for "User Override Project Directories & Parameters"
 # proj <- ""
 # species <- ""
@@ -177,12 +211,12 @@ log_section <- function(section_name) {
 #   #design        = "Comparisons",            # DESeq2 design formula or column name
 #   #lfc.cutoff    = 0,                        # Log fold change cutoff for significance
 #   #padj.cutoff   = 0.1,                      # Adjusted p-value cutoff for significance
-#   #batch.correct = FALSE                     # Boolean, whether to apply batch correction
+#   #batch_correct = FALSE                     # Boolean, whether to apply batch correction
 # )
 # 
 # # Heatmap overrides
 # heatmap.override <- list(
-#   #force.log        = TRUE,                  # Force log transformation
+#   #force_log        = TRUE,                  # Force log transformation
 #   col.ann          = NULL,                  # Column annotation
 #   #row.ann          = NULL,                  # Row annotation
 #   col.gaps         = NULL,                  # Column gaps
@@ -190,19 +224,19 @@ log_section <- function(section_name) {
 #   col.cluster      = "all",                 # Column clustering
 #   #row.cluster      = "all",                 # Row clustering
 #   #palette         = "rdbu",                # Heatmap palette
-#   #ann.palette     = "discrete",            # Annotation palette
+#   #annotation_palette     = "discrete",            # Annotation palette
 #   #border.color    = NA,                    # Cell border color
-#   #show.expr.legend = TRUE,                  # Show expression legend
+#   #show_expr_legend = TRUE,                  # Show expression legend
 #   #title           = "",                    # Heatmap title
 #   #format           = "tiff"                 # Output file format
 # )
 # 
 # # Volcano plot overrides
 # volcano.override <- list(
-#   #lfc.cutoff  = 0.58,                         # Minimum log2 fold-change to highlight
-#   #padj.cutoff = 0.05,                      # Adjusted p-value cutoff
+#   #lfc_cutoff  = 0.58,                         # Minimum log2 fold-change to highlight
+#   #padj_cutoff = 0.05,                      # Adjusted p-value cutoff
 #   #color       = "vrds",                    # Color palette
-#   label.genes = c()                         # Genes to label on the plot
+#   label_genes = c()                         # Genes to label on the plot
 # )
 # # Setup project
 # proj.params <- setup_project(
@@ -234,33 +268,42 @@ setup_project <- function(proj, species, contrasts,
   default.deseq2 <- list(
     contrasts     = c("Treatment-Control"),   # Vector of contrasts for DE analysis
     design        = "Comparisons",            # DESeq2 design formula or column name
-    lfc.cutoff    = 0,                        # Log fold change cutoff for significance
-    padj.cutoff   = 0.1,                      # Adjusted p-value cutoff for significance
-    batch.correct = FALSE                     # Boolean, whether to apply batch correction
+    lfc_cutoff    = 0,                        # Log fold change cutoff for significance
+    padj_cutoff   = 0.1,                      # Adjusted p-value cutoff for significance
+    batch_correct = FALSE                     # Boolean, whether to apply batch correction
   )
   
   # Default Heatmap Parameters
   default.heatmap <- list(
-    force.log        = FALSE,       # Force log transform (default FALSE i.e. auto detect)
-    col.ann          = NULL,        # NULL, Single/multiple columns from metadata_col for column annotation
-    row.ann          = NULL,        # NULL, Single/multiple columns from metadata_row for row annotation
-    col.gaps         = NULL,        # NULL, Single column from metadata_col to define column gaps in heatmap
-    row.gaps         = NULL,        # NULL, Single column from metadata_row to define row gaps in heatmap
-    col.cluster      = "all",       # Single column from metadata_col, "all", "alphabetical" for clustering columns
-    row.cluster      = "all",       # Single column from metadata_row, "all", "alphabetical" for clustering columns
-    palette          = "rdbu",      # Color palette for heatmap matrix ("rdbu" or "vrds")
-    ann.palette      = "discrete",  # Color palette for heatmap annotation ("discrete" or "continuous")
-    border.color     = NA,          # Color of heatmap cell borders (default NA i.e. no border)
-    show.expr.legend = TRUE,        # Show expression legend (set FALSE if annotations overlap)
-    title            = NA           # Title for heatmap (default NA i.e. no title)
+    label_genes        = NULL,        # NULL, 1 or more genes to be labelled
+    filename           = NULL,        # Suffix added to filename
+    output_dir         = NULL,        # Location to save plot and matrix
+    metadata_col       = NULL,        # Dataframe with samples as rownames and columns for annotation
+    metadata_row       = NULL,        # Dataframe with genes as rownames and columns for annotation
+    col_annotations    = NULL,        # NULL, 1 or more columns from metadata_col for column annotation
+    row_annotations    = NULL,        # NULL, 1 or more columns from metadata_row for row annotation
+    col_gap_by         = NULL,        # NULL, 1 column from metadata_col to define column gaps in heatmap
+    row_gap_by         = NULL,        # NULL, 1 column from metadata_row to define row gaps in heatmap
+    col_cluster_by     = "all",       # NULL, 1 column from metadata_col, "all", "alphabetical" for clustering columns
+    row_cluster_by     = "all",       # NULL, 1 column from metadata_row, "all", "alphabetical" for clustering columns
+    plot_title         = NULL,        # NULL, Title for heatmap (default NULL i.e. no title)
+    heatmap_palette    = "rdbu",      # Color palette for heatmap matrix ("rdbu" or "vrds")
+    annotation_palette = "discrete",  # Color palette for heatmap annotation ("discrete" or "continuous")
+    border_color       = NA,          # Color of heatmap cell borders (default NA i.e. no border)
+    force_log          = FALSE,       # Force log transform (default FALSE i.e. auto detect)
+    show_expr_legend   = TRUE,        # Show expression legend (set FALSE if annotations overlap)
+    save_plot          = FALSE,       # Save the heatmap plot as pdf (default FALSE i.e. no save)
+    save_matrix        = FALSE        # Save the heatmap matrix as xlsx (default FALSE i.e. no save)
   )
   
   # Default Volcano Parameters
   default.volcano <- list(
-    lfc.cutoff   = 0.58,            # Log fold change cutoff for volcano plot
-    padj.cutoff  = 0.05,            # Adjusted p-value cutoff for volcano plot
-    color        = "vrds",          # Color palette for volcano plot ("vrds", etc.)
-    label.genes  = NULL             # Optional vector of genes to label on volcano plot
+    filename     = NULL,               # Suffix added to filename
+    contrast     = "Target-Reference", 
+    label_genes  = NULL,               # NULL, 1 or more genes to be labelled
+    top_n        = 5,                  # If label_genes = NULL, label top_n genes (default 5 genes)
+    lfc_cutoff   = 0.58,               # Log fold change cutoff (default 0.58)
+    padj_cutoff  = 0.05                # Adjusted p-value cutoff (default 0.05)
   )
   
   # Apply Overrides
@@ -275,7 +318,6 @@ setup_project <- function(proj, species, contrasts,
   # Bulk RNA-seq Directories
   counts_dir    <- file.path(proj_dir, "counts")               # Directory containing count files
   contrast_dir  <- file.path(proj_dir, contrasts)              # Directory to store results for each contrast
-  deseq2_dir    <- file.path(contrast_dir, "DEG_Analysis")     # Directory to store DESeq2 results
   pathway_dir   <- file.path(contrast_dir, "Pathway_Analysis") # Directory to store Pathway analysis results
   tf_dir        <- file.path(contrast_dir, "TF_Analysis")      # Directory to store TF analysis results
   
@@ -333,7 +375,6 @@ setup_project <- function(proj, species, contrasts,
       counts_dir  = normalizePath(counts_dir,   mustWork = FALSE),
       gmt_dir     = normalizePath(gmt_dir,      mustWork = FALSE),
       contrast_dir= normalizePath(contrast_dir, mustWork = FALSE),
-      deseq2_dir  = normalizePath(deseq2_dir,   mustWork = FALSE),
       pathway_dir = normalizePath(pathway_dir,  mustWork = FALSE),
       tf_dir      = normalizePath(tf_dir,       mustWork = FALSE),
       
@@ -375,7 +416,6 @@ setup_project <- function(proj, species, contrasts,
   return(proj.params)
 }
 
-
 # Helper functions #1
 save_xlsx <- function(data, file, sheet_name, row_names) {
   wb <- openxlsx::createWorkbook()
@@ -387,21 +427,12 @@ save_xlsx <- function(data, file, sheet_name, row_names) {
   openxlsx::saveWorkbook(wb, file, overwrite = TRUE)
 }
 
-# Helper functions #2
-filter_samples_by_contrast <- function(metadata, contrast) {
-  contrast <- base::gsub(pattern = "\\(|\\)", replacement = "", x = contrast)
-  metadata %>%
-    dplyr::filter(Comparisons %in% stringr::str_split(contrast, "-")[[1]]) %>%
-    dplyr::pull(Sample_ID) %>%
-    as.character()
-}
-
 merge_counts <- function(counts_dir, filename = NULL, output_dir) {
   
   # ---- ⚙️ Validate Input Parameters ----
   
   validate_inputs(counts_dir = counts_dir, filename = filename, output_dir = output_dir)
- 
+  
   # ---- 🔎 Identify Count Files ----
   
   # Pattern matches STAR (ReadsPerGene.out.tab) or standard HTSeq .txt files
@@ -411,8 +442,8 @@ merge_counts <- function(counts_dir, filename = NULL, output_dir) {
   
   if (length(count_files) == 0) {
     log_warn(sample = "", 
-            step    = "merge_counts", 
-            msg     = glue::glue("No count files found in: '{counts_dir}'.
+             step    = "merge_counts", 
+             msg     = glue::glue("No count files found in: '{counts_dir}'.
                                  Provide raw counts as excel for analysis."))
     return(NULL)
   }
@@ -521,7 +552,7 @@ merge_counts <- function(counts_dir, filename = NULL, output_dir) {
   return(invisible(count_matrix))
 }
 
-prepare_deseq2_input <- function(metadata, expr_mat, design = 1) {
+prepare_deseq2_input <- function(expr_mat, metadata, design) {
   
   # ---- ⚙️ Validate Input Parameters ----
   
@@ -576,8 +607,8 @@ prepare_deseq2_input <- function(metadata, expr_mat, design = 1) {
   
   if (is_numeric_outlier || is_name_not_in_meta) {
     log_error(sample = "",
-             step    = "prepare_deseq2_input",
-             msg     = glue::glue("First column '{first_col_name}' looks like gene IDs (Entrez or SYMBOL), not sample counts."))
+              step    = "prepare_deseq2_input",
+              msg     = glue::glue("First column '{first_col_name}' looks like gene IDs (Entrez or SYMBOL), not sample counts."))
   }
   
   # ---- 📝️ Metadata Preparation & Design Validation ----
@@ -590,7 +621,7 @@ prepare_deseq2_input <- function(metadata, expr_mat, design = 1) {
   metadata <- metadata %>%
     dplyr::select(-any_of("sizeFactor")) %>%
     dplyr::filter(!is.na(Sample_ID))
-
+  
   # Assign "Sample_ID" column as row names and convert to valid R names
   rownames(metadata) <- make.names(metadata$Sample_ID)
   
@@ -614,7 +645,7 @@ prepare_deseq2_input <- function(metadata, expr_mat, design = 1) {
   if (length(missing_vars) > 0) {
     log_error(sample = "", 
               step   = "prepare_deseq2_input", 
-              msg    = glue::glue("Design variables not found in metadata: {paste(missing_vars, collapse = ', ')}"))
+              msg    = glue::glue("Design variable(s) not found in metadata: '{paste(missing_vars, collapse = ', ')}'"))
   }
   
   # Identify samples with NA in the design columns
@@ -639,9 +670,27 @@ prepare_deseq2_input <- function(metadata, expr_mat, design = 1) {
   # Retain ONLY samples in metadata for accurate zero count calculations
   expr_mat <- expr_mat[, intersect(colnames(expr_mat), rownames(metadata)), drop = FALSE]
   
-  # Remove rows with NA gene names and replace missing counts with 0
-  expr_mat <- expr_mat[!is.na(rownames(expr_mat)), ]
+  # Remove rows with NA gene names
+  na_rows <- is.na(rownames(expr_mat))
+  expr_mat <- expr_mat[!na_rows, , drop = FALSE]
+  log_info(sample = "",
+           step   = "prepare_deseq2_input",
+           msg    = glue::glue("Removed {sum(na_rows)} rows with missing gene names."))
+  
+  # Replace missing counts with 0
   expr_mat[is.na(expr_mat)] <- 0
+  
+  # Convert all columns to numeric safely
+  expr_mat <- matrix(as.numeric(as.matrix(expr_mat)),
+                     nrow = nrow(expr_mat),
+                     ncol = ncol(expr_mat),
+                     dimnames = dimnames(expr_mat))
+  
+  if (any(is.na(expr_mat))) {
+    log_error(sample = "",
+              step   = "plot_heatmap",
+              msg    = "`expr_mat` contains non-numeric values that could not be converted.")
+  }
   
   # Remove genes with zero counts across all samples
   zero_genes   <- rownames(expr_mat)[which(rowSums(expr_mat) == 0)]
@@ -689,7 +738,9 @@ prepare_deseq2_input <- function(metadata, expr_mat, design = 1) {
   return(invisible(list(metadata = metadata, expr_mat = expr_mat)))
 }
 
-run_deseq2 <- function(expr_mat, metadata, design, contrast, output_dir, lfc.cutoff = 0, padj.cutoff = 0.1) {
+run_deseq2 <- function(expr_mat, metadata, design, contrast, output_dir, 
+                       lfc_cutoff = 0, 
+                       padj_cutoff = 0.1) {
   
   # For ashr
   set.seed(1234)
@@ -727,7 +778,7 @@ run_deseq2 <- function(expr_mat, metadata, design, contrast, output_dir, lfc.cut
   
   # Auto-detect for 'poscounts' if many zeros exist
   is_scRNA <- all(rowSums(expr_mat == 0) > 0)
-
+  
   if (is_scRNA) {
     log_warn(sample = contrast,
              step   = "run_deseq2",
@@ -738,7 +789,7 @@ run_deseq2 <- function(expr_mat, metadata, design, contrast, output_dir, lfc.cut
     keep <- rowSums(DESeq2::counts(dds)) >= 10
     dds <- dds[keep, ]
   }
-
+  
   # ---- 📉 Fit Selection (Parametric vs. Local) ----
   
   # We fit both to determine which dispersion model better suits the data distribution
@@ -793,7 +844,7 @@ run_deseq2 <- function(expr_mat, metadata, design, contrast, output_dir, lfc.cut
     # If design is ~1, Groups is just "All"
     SummarizedExperiment::colData(dds)$Groups <- as.factor("All")
   }
-
+  
   # Define all possible groups that could be compared based on the design
   groups <- unique(df_groups$Groups)
   
@@ -841,11 +892,11 @@ run_deseq2 <- function(expr_mat, metadata, design, contrast, output_dir, lfc.cut
   
   res <- DESeq2::results(object               = dds, 
                          contrast             = contrast_vec,
-                         lfcThreshold         = lfc.cutoff,
+                         lfcThreshold         = lfc_cutoff,
                          altHypothesis        = "greaterAbs",
                          cooksCutoff          = TRUE,
                          independentFiltering = TRUE,
-                         alpha                = padj.cutoff,
+                         alpha                = padj_cutoff,
                          pAdjustMethod        = "BH")
   
   # Use 'ashr' for shrinkage as it is robust for varied effect sizes
@@ -866,7 +917,7 @@ run_deseq2 <- function(expr_mat, metadata, design, contrast, output_dir, lfc.cut
   
   save_xlsx(DEGs_df, file.path(output_dir, "DEGs.xlsx"), "DEGs", row_names = FALSE)
   
-  # Extract VST Counts (Non-blind) for downstream visualization (Heatmaps/PCA)
+  # Extract VST Counts (Non-blind) for downstream visualization
   vsd <- DESeq2::vst(dds, blind = FALSE)
   vst_counts <- SummarizedExperiment::assay(vsd) %>%
     as.data.frame() %>%
@@ -891,94 +942,185 @@ run_deseq2 <- function(expr_mat, metadata, design, contrast, output_dir, lfc.cut
   return(invisible(list(degs = DEGs_df, vst = vst_counts, dds = dds)))
 }
 
-plot_volcano <- function(DEGs_df, proj.params, contrast = "Target-Reference", 
-                         top_n = 5, filename, output_dir) {
+plot_ma <- function(dds, output_dir, filename = NULL) {
   
+  # For ggrepel
   set.seed(1234)
   
   # ---- ⚙️ Validate Input Parameters ----
   
-  required_cols <- c("log2FoldChange", "padj", "SYMBOL")
-  if (!all(required_cols %in% colnames(DEGs_df))) {
-    log_error(sample = contrast, step = "plot_volcano", 
-              msg ="DEGs_df must contain: log2FoldChange, padj, SYMBOL")
-  }
+  validate_inputs(dds = dds, output_dir = output_dir, filename = filename)
   
-  if (!dir.exists(output_dir)) {
-    dir.create(output_dir, recursive = TRUE)
-  }
+  # ---- 🖼️ Generate Plots ----
   
-  if (is.null(proj.params$volcano)) {
-    log_error(sample = contrast, step = "plot_volcano", 
-              msg ="proj.params must contain a 'volcano' list.")
-  }
+  # Prepare the data with "squished" values
+  res_df <- as.data.frame(DESeq2::results(dds)) %>%
+    dplyr::mutate(significant = padj < 0.1 & !is.na(padj),
+                  log2FoldChange_capped = dplyr::case_when(log2FoldChange > 5  ~ 5,
+                                                           log2FoldChange < -5 ~ -5,
+                                                           TRUE                ~ log2FoldChange),
+                  # Assign shapes: 16 is a solid circle, 17 is a solid triangle
+                  is_outlier = log2FoldChange > 5 | log2FoldChange < -5,
+                  point_shape = ifelse(is_outlier, 17, 16))
   
-  required_attrs <- c("lfc.cutoff", "padj.cutoff")
-  for (attr in required_attrs) {
-    if (is.null(proj.params$volcano[[attr]])) {
-      log_error(sample = contrast, 
-                step   = "plot_volcano", 
-                msg    = glue::glue("Missing required proj.params$volcano attribute: {attr}"))
-    }
-  }
+  p <- ggplot(data = res_df, 
+              mapping = aes(x = baseMean, y = log2FoldChange, color = significant)) +
+    geom_point(alpha = 0.5, size = 1.25) +
+    theme_classic() +
+    custom_theme +
+    theme(legend.position = "none") +
+    scale_x_log10(labels = scales::trans_format("log10", scales::math_format(10^.x))) +
+    scale_color_manual(values = c("grey70", "firebrick3")) + 
+    labs(title = "MA Plot",
+         subtitle = "Red points indicate FDR < 0.1",
+         x = "Mean of Normalized Counts",
+         y = "Log2 Fold Change")
+  
+  capped_p <- ggplot(data = res_df, 
+                     mapping = aes(x = baseMean, y = log2FoldChange_capped, color = significant)) +
+    geom_point(alpha = 0.5, size = 1.25, aes(shape = point_shape)) +
+    scale_shape_identity() + # Tells ggplot to use the actual numeric shape codes
+    theme_classic() +
+    custom_theme +
+    theme(legend.position = "none") +
+    scale_x_log10(labels = scales::trans_format("log10", scales::math_format(10^.x))) +
+    scale_color_manual(values = c("grey70", "firebrick3")) +
+    coord_cartesian(ylim = c(-5, 5)) + 
+    labs(title = "MA Plot (with Capped Fold Changes)",
+         subtitle = "Red points indicate FDR < 0.1",
+         x = "Mean of Normalized Counts",
+         y = "Log2 Fold Change")
+  
+  # ---- 💾 Save Plots ----
+  
+  file_extension <- ".pdf"
+  file_name <- file.path(output_dir, paste0("MA_Plot_", filename, file_extension))
+  
+  # Open multi-page PDF
+  grDevices::pdf(file = file_name, width = 8, height = 11.5, onefile = TRUE)  
+  
+  # PAGE 1: Traditional (DESeq2)
+  # This function draws directly to the open PDF device
+  DESeq2::plotMA(object = dds,
+                 alpha  = 0.1, 
+                 main   = "MA Plot (Traditional DESeq2)",
+                 xlab   = "Mean of Normalized Counts",
+                 MLE    = FALSE)
+  
+  print(capped_p)    # PAGE 2: Capped View (ggplot2)
+  print(p)           # PAGE 3: Full View (ggplot2)
+  
+  dev.off() 
+  
+  # ---- 🪵 Log Output and Return ----
+  
+  log_info(sample = "",
+           step   = "plot_ma",
+           msg    = glue::glue("MA plot saved successfully to : '{file_name}'."))
+  
+  return(invisible(NULL))
+}
+
+plot_dispersion <- function(dds, output_dir, filename = NULL) {
+  
+  # ---- ⚙️ Validate Input Parameters ----
+  
+  validate_inputs(dds = dds, output_dir = output_dir, filename = filename)
+  
+  # ---- 💾 Save Plots ----
+  
+  file_extension <- ".pdf"
+  file_name <- file.path(output_dir, paste0("Dispersion_Plot_", filename, file_extension))
+  
+  # Open multi-page PDF
+  grDevices::pdf(file = file_name, width = 8, height = 11.5, onefile = TRUE)  
+  
+  # PAGE 1: Traditional (DESeq2)
+  # This function draws directly to the open PDF device
+  DESeq2::plotDispEsts(object   = dds,
+                       genecol  = "black",
+                       fitcol   = "red",
+                       finalcol = "dodgerblue",
+                       legend   = TRUE,
+                       xlab     = "Mean of Normalized Counts",
+                       ylab     = "Dispersion",
+                       log      = "xy",
+                       cex      = 0.45)
+  
+  dev.off() 
+  
+  # ---- 🪵 Log Output and Return ----
+  
+  log_info(sample = "",
+           step   = "plot_ma",
+           msg    = glue::glue("Dispersion plot saved successfully to : '{file_name}'."))
+  log_info(sample = "",
+           step   = "plot_ma",
+           msg    = "Expected results: Higher the mean, lower the dispersion")
+  
+  return(invisible(NULL))
+}
+
+plot_volcano <- function(res_df, output_dir, filename = NULL, 
+                         contrast    = "Target-Reference", 
+                         label_genes = NULL,
+                         top_n       = 5,
+                         lfc_cutoff  = 0.58, 
+                         padj_cutoff = 0.05) {
+  
+  # For ggrepel
+  set.seed(1234)
+  
+  # ---- ⚙️ Validate Input Parameters ----
+  
+  validate_inputs(res_df = res_df, filename = filename, output_dir = output_dir)
   
   # ---- 🧪 Setup Volcano Parameters ----
-  
-  padj_cutoff <- proj.params$volcano$padj.cutoff
-  lfc_cutoff  <- proj.params$volcano$lfc.cutoff
-  label_genes <- if(!is.null(proj.params$volcano$label.genes)) proj.params$volcano$label.genes else NULL
   
   target <- stringr::str_split(string = contrast, pattern = "-")[[1]][1]
   reference <- stringr::str_split(string = contrast, pattern = "-")[[1]][2]
   
   # ---- 🔄 Data Formatting & Relevance Scoring ----
   
-  DEGs_df <- DEGs_df %>%
+  res_df <- res_df %>%
     dplyr::filter(!is.na(padj)) %>%
-    dplyr::mutate(
-      Direction = dplyr::case_when(
-        padj < padj_cutoff & log2FoldChange > lfc_cutoff  ~ paste0("Up in ", target),
-        padj < padj_cutoff & log2FoldChange < -lfc_cutoff ~ paste0("Up in ", reference),
-        TRUE ~ "Not Significant"
-      ),
-      # Handle padj = 0 for log scaling
-      padj = dplyr::case_when(padj == 0 ~ min(padj[padj > 0], na.rm = TRUE), 
-                              TRUE ~ padj),
-      Significance = dplyr::case_when(
-        abs(log2FoldChange) >= lfc_cutoff & padj <= 0.001 ~ "FDR < 0.001",
-        abs(log2FoldChange) >= lfc_cutoff & padj <= 0.01  ~ "FDR < 0.01",
-        abs(log2FoldChange) >= lfc_cutoff & padj <= 0.05  ~ "FDR < 0.05",
-        TRUE ~ "Not Significant"
-      ),
-      Relevance = {
-        r <- abs(log2FoldChange) * -log10(padj)
-        pmin(r, quantile(r, 0.99, na.rm = TRUE)) # Cap outliers for visualization
-      })
+    dplyr::mutate(Direction = dplyr::case_when(padj < padj_cutoff & log2FoldChange > lfc_cutoff  ~ paste0("Up in ", target),
+                                               padj < padj_cutoff & log2FoldChange < -lfc_cutoff ~ paste0("Up in ", reference),
+                                               TRUE ~ "Not Significant"),
+                  # Handle padj = 0 for log scaling
+                  padj = dplyr::case_when(padj == 0 ~ min(padj[padj > 0], na.rm = TRUE), 
+                                          TRUE ~ padj),
+                  Significance = dplyr::case_when(abs(log2FoldChange) >= lfc_cutoff & padj <= 0.001 ~ "FDR < 0.001",
+                                                  abs(log2FoldChange) >= lfc_cutoff & padj <= 0.01  ~ "FDR < 0.01",
+                                                  abs(log2FoldChange) >= lfc_cutoff & padj <= 0.05  ~ "FDR < 0.05",
+                                                  TRUE ~ "Not Significant"),
+                  Relevance = {
+                    r <- abs(log2FoldChange) * -log10(padj)
+                    pmin(r, quantile(r, 0.99, na.rm = TRUE)) # Cap outliers for visualization
+                  })
   
   # ---- 🎨 Aesthetics & Palettes ----
   
-  volcano_palette <- c(
-    setNames(viridis::viridis(100)[1], paste0("Up in ", target)),
-    setNames(viridis::viridis(100)[50], paste0("Up in ", reference)),
-    #setNames(viridis::viridis(100)[100], "Not Significant"),
-    "Not Significant" = "grey80"
-  )
+  volcano_palette <- c(setNames(viridis::viridis(100)[1], paste0("Up in ", target)),
+                       setNames(viridis::viridis(100)[50], paste0("Up in ", reference)),
+                       #setNames(viridis::viridis(100)[100], "Not Significant"),
+                       "Not Significant" = "grey80")
   
   alpha_palette <- c("FDR < 0.001" = 1, "FDR < 0.01" = 0.8, 
                      "FDR < 0.05" = 0.6, "Not Significant" = 0.4)
   
-  # ---- Axis limits and breaks ----
+  # ---- 📐 Axis limits and breaks ----
   
   # Calculate dynamic axis limits
-  x_vals <- DEGs_df$log2FoldChange
-  y_vals <- -log10(DEGs_df$padj)
+  x_vals <- res_df$log2FoldChange
+  y_vals <- -log10(res_df$padj)
   
   # Keep only finite values
   x_vals <- x_vals[is.finite(x_vals)]
   y_vals <- y_vals[is.finite(y_vals)]
   
-  x_max <- ceiling(max(abs(DEGs_df$log2FoldChange), na.rm = TRUE))
-  y_max <- ceiling(max(-log10(DEGs_df$padj), na.rm = TRUE))
+  x_max <- ceiling(max(abs(res_df$log2FoldChange), na.rm = TRUE))
+  y_max <- ceiling(max(-log10(res_df$padj), na.rm = TRUE))
   
   # Round to nearest integer for nice axis limits
   x_min <- floor(min(x_vals, na.rm = TRUE))
@@ -996,15 +1138,16 @@ plot_volcano <- function(DEGs_df, proj.params, contrast = "Target-Reference",
   y_bin <- if (y_max > 100) 100 else if (y_max > 10) 10 else 1
   y_breaks <- seq(from = y_min, to = ceiling(y_max/y_bin)*y_bin, by = y_bin)
   
-  # ---- 📊 Build Plot ----
+  # ---- 🖼️ Generate Plots ----
   
-  p <- ggplot2::ggplot(data = DEGs_df, 
+  p <- ggplot2::ggplot(data = res_df, 
                        mapping = aes(x = log2FoldChange, y = -log10(padj),
-                                     color = Direction, alpha = Significance,
+                                     color = Direction, 
+                                     alpha = Significance,
                                      size = Relevance)) +
     ggplot2::geom_point(position = ggplot2::position_jitter(width = 0.05, height = 0.05)) +
     ggplot2::theme_classic() +
-    custom_theme + # Assumes custom_theme is defined globally
+    custom_theme + 
     ggplot2::labs(x = expression("log"[2]*"FC"),
                   y = expression("-log"[10]*"padj"),
                   fill = "Direction",
@@ -1032,7 +1175,7 @@ plot_volcano <- function(DEGs_df, proj.params, contrast = "Target-Reference",
   pred_pattern <- "^(Gm[0-9]+|ENSMUSG[0-9]+|ENSG[0-9]+|LOC[0-9]+|C[0-9]+orf[0-9]+|RP[0-9]+-)|Rik$"
   
   # Identify top genes
-  top_genes <- DEGs_df %>%
+  top_genes <- res_df %>%
     dplyr::filter(!stringr::str_detect(string = SYMBOL, pattern = pred_pattern), 
                   padj < padj_cutoff,
                   abs(log2FoldChange) > lfc_cutoff) %>%
@@ -1044,18 +1187,18 @@ plot_volcano <- function(DEGs_df, proj.params, contrast = "Target-Reference",
   
   # Add a column identifying genes to label
   genes_to_label <- if (!is.null(label_genes)) {
-    intersect(label_genes, DEGs_df$SYMBOL) 
+    intersect(label_genes, res_df$SYMBOL) 
   } else {
     top_genes
   }
   
   q <- p + ggrepel::geom_text_repel(
-    data = DEGs_df %>% dplyr::filter(SYMBOL %in% genes_to_label),
+    data = res_df %>% dplyr::filter(SYMBOL %in% genes_to_label),
     aes(label = SYMBOL), 
     direction = "both",
     box.padding = 0.8,                # ↓ smaller padding around label
     point.padding = 0.1,              # minimal space between point and line start
-    max.overlaps = nrow(DEGs_df),
+    max.overlaps = nrow(res_df),
     show.legend = FALSE,
     min.segment.length = 0,           # Only draw segments longer than this
     segment.curvature = -0.5,         # Negative = curve upward, positive = downward
@@ -1066,290 +1209,292 @@ plot_volcano <- function(DEGs_df, proj.params, contrast = "Target-Reference",
     position = ggbeeswarm::position_quasirandom(width = 0.1, varwidth = TRUE)
   )
   
-  # ---- 💾 Save Outputs ----
+  # ---- 💾 Save Plots ----
   
   file_extension <- ".pdf"
-  file_name <- file.path(output_dir, paste0("Volcano_Plot_", contrast, "_", filename, file_extension))
-  ggplot2::ggsave(filename = file_name, 
-                  plot = p, 
-                  width = 7, 
-                  height = 7, 
-                  device = "cairo_pdf")
+  file_name <- file.path(output_dir,
+                         paste0("Volcano_Plot_", filename, file_extension))
   
-  file_extension <- ".pdf"
-  file_name <- file.path(output_dir, paste0("Volcano_Plot_top_", contrast, "_", filename, file_extension))
-  ggplot2::ggsave(filename = file_name,
-                  plot = q, 
-                  width = 7, 
-                  height = 7, 
-                  device = "cairo_pdf")
+  # Open multi-page PDF
+  grDevices::cairo_pdf(filename = file_name, width = 8, height = 11.5, onefile = TRUE) 
   
-  # ---- 🪵 Log Output and Return Plot Object ----
+  print(p)  # Page 1
+  print(q)  # Page 2
+  
+  grDevices::dev.off()
+  
+  # ---- 🪵 Log Output and Return ----
   
   log_info(sample = contrast, 
            step   = "plot_volcano", 
-           msg    = glue::glue("Volcano plots generated. Labeled genes: {paste(genes_to_label, collapse=', ')}"))
+           msg    = glue::glue("Volcano plots saved to '{file_name}'"))
   
-  return(invisible(list(full = p, labeled = q)))
+  return(invisible(NULL))
 }
 
-plot_heatmap <- function(norm_counts, proj.params, disp_genes = c(),
-                         metadata_col = NULL, metadata_row = NULL) {
-  
-  set.seed(1234)
+plot_heatmap <- function(expr_mat, 
+                         label_genes         = NULL,
+                         filename            = NULL, 
+                         output_dir          = NULL,
+                         metadata_col        = NULL, 
+                         metadata_row        = NULL,
+                         col_annotations     = NULL,
+                         row_annotations     = NULL,
+                         col_gap_by          = NULL,
+                         row_gap_by          = NULL,
+                         col_cluster_by      = "all",
+                         row_cluster_by      = "all",
+                         plot_title          = NULL,
+                         heatmap_palette     = "rdbu",
+                         annotation_palette  = "discrete",
+                         border_color        = NA,
+                         force_log           = FALSE,
+                         show_expr_legend    = TRUE,
+                         save_plot           = TRUE,
+                         save_matrix         = TRUE) {
   
   # ---- ⚙️ Validate Input Parameters ----
   
-  validate_inputs(expr_mat = norm_counts, metadata = metadata, 
-                  logic_vars = c(perform_vst, skip_plot))
-                  
-  # norm_counts
-  if (base::anyDuplicated(rownames(norm_counts))) {
+  validate_inputs(expr_mat = expr_mat, 
+                  logic_vars = list(force_log        = force_log,
+                                    show_expr_legend = show_expr_legend,
+                                    save_plot        = save_plot,
+                                    save_matrix      = save_matrix),
+                  filename = filename,
+                  output_dir = output_dir)
+  
+  # Validate `expr_mat`
+  if (nrow(expr_mat) < 2) {
     log_warn(sample = "", 
-             step   = "plot_heatmap",
-             msg    = "Duplicate gene names detected in norm_counts; highest-expression row will be retained.")
-  }
-  
-  # if (base::anyDuplicated(rownames(expr_mat))) {
-  #   log_error(sample = "", 
-  #             step   = "prepare_deseq2_input", 
-  #             msg    = "Duplicate gene symbols detected in count matrix.")
-  # }
-  
-  if (nrow(norm_counts) < 2) {
-    log_warn(sample = "", step = "plot_heatmap", msg ="Input has fewer than 2 genes. Skipping heatmap generation.")
+             step   = "plot_heatmap", 
+             msg    = "Input has fewer than 2 genes. Skipping heatmap generation.")
     return(NULL)
   }
   
-  # metadata_col
+  if (base::anyDuplicated(rownames(expr_mat))) {
+    log_warn(sample = "", 
+             step   = "prepare_deseq2_input", 
+             msg    = "Duplicate gene symbols detected in row names of count matrix.
+             Only highest expressing copy will be retained.")
+  }
+  
+  # Validate `label_genes`
+  if (!is.null(label_genes)){
+    
+    if (!is.character(label_genes)) {
+      log_error(sample = "", 
+                step   = "plot_heatmap",
+                msg    = "`label_genes` must be a character vector of gene names.")
+    } else {
+      missing_genes <- base::setdiff(label_genes, rownames(expr_mat))
+      if (length(missing_genes) > 0) {
+        log_error(sample = "", 
+                  step   = "plot_heatmap",
+                  msg    = glue::glue("Following `label_genes` are missing in the expr_mat: {paste(missing_genes, collapse=', ')}"))
+      }
+    }
+  }
+  
+  # Validate `metadata_col`
   if (!is.null(metadata_col)) {
     
+    # (i) Data Frame
     if (!is.data.frame(metadata_col)) {
       log_error(sample = "", 
                 step   = "plot_heatmap",
                 msg    = "metadata_col must be a data.frame.")
     }
     
+    # (ii) Required columns
     if (!"Sample_ID" %in% colnames(metadata_col)) {
       log_error(sample = "", 
                 step   = "plot_heatmap",
-                msg    = "metadata_col must contain a 'Sample_ID' column.")
+                msg    = "`metadata_col` must contain a 'Sample_ID' column.")
     }
     
+    # (iii) Duplicates
     if (any(duplicated(metadata_col$Sample_ID))) {
       log_error(sample = "", 
                 step   = "plot_heatmap",
-                msg    = "Duplicate Sample_ID values detected in metadata_col.")
+                msg    = "Duplicate Sample_ID values detected in `metadata_col`.")
     }
   }
   
-  # metadata_row
+  # Validate `metadata_row`
   if (!is.null(metadata_row)) {
     
+    # (i) Data Frame
     if (!is.data.frame(metadata_row)) {
       log_error(sample = "",
                 step   = "plot_heatmap",
-                msg    = "metadata_row must be a data.frame.")
+                msg    = "`metadata_row` must be a data.frame.")
     }
     
+    # (ii) Required columns
     if (!"SYMBOL" %in% colnames(metadata_row)) {
       log_error(sample = "", 
                 step   = "plot_heatmap",
-                msg    = "metadata_row must contain a 'SYMBOL' column.")
+                msg    = "`metadata_row` must contain a 'SYMBOL' column.")
     }
     
+    # (iii) Duplicates
     if (any(duplicated(metadata_row$SYMBOL))) {
       log_warn(sample = "",
                step   = "plot_heatmap",
-               msg    = "Duplicate SYMBOL values detected in metadata_row.")
+               msg    = "Duplicate SYMBOL values detected in `metadata_row`.")
     }
   }
   
-  # proj.params$heatmap
-  if (!is.list(proj.params) || is.null(proj.params$heatmap)) {
+  # Validate `plot_title`
+  if (!is.null(plot_title) && (!is.character(plot_title) || length(plot_title) != 1)) {
+    log_warn(sample = "",
+             step   = "plot_heatmap",
+             msg    = "`plot_title` should be a single character string. Using default NULL instead.")
+  }
+  
+  # Validate `heatmap_palette`
+  if (!heatmap_palette %in% c("vrds", "rdbu")) {
     log_error(sample = "", 
-              step = "plot_heatmap",
-              msg =glue::glue("proj.params must be a list containing a 'heatmap' element."))
+              step   = "plot_heatmap",
+              msg    = "`heatmap_palette` must be either 'vrds' or 'rdbu'.")
   }
   
-  hm <- proj.params$heatmap
-  
-  if (!is.logical(hm$force.log) || length(hm$force.log) != 1) {
-    log_error(sample = "", step = "plot_heatmap",
-              msg =glue::glue("proj.params$heatmap$force.log must be a single logical value."))
+  # Validate `annotation_palette`
+  if (!annotation_palette %in% c("discrete", "continuous")) {
+    log_error(sample = "", 
+              step   = "plot_heatmap",
+              msg    = "`annotation_palette` must be either 'discrete' or 'continuous'.")
   }
   
-  if (!is.logical(hm$show.expr.legend) || length(hm$show.expr.legend) != 1) {
-    log_error(sample = "", step = "plot_heatmap",
-              msg =glue::glue("proj.params$heatmap$show.expr.legend must be a single logical value."))
-  }
-  
-  if (!(is.character(hm$title) && length(hm$title) == 1) && !is.na(hm$title)) {
-    log_error(sample = "", step = "plot_heatmap",
-              msg ="proj.params$heatmap$title must be a single character string or NA.")
-  }
-  
-  if (!hm$palette %in% c("vrds", "rdbu")) {
-    log_error(sample = "", step = "plot_heatmap",
-              msg =glue::glue("proj.params$heatmap$palette must be either 'vrds' or 'rdbu'."))
-  }
-  
-  if (!hm$ann.palette %in% c("discrete", "continuous")) {
-    log_error(sample = "", step = "plot_heatmap",
-              msg =glue::glue("proj.params$heatmap$ann.palette must be either 'discrete' or 'continuous'."))
-  }
-  
-  # disp_genes
-  if (!gtools::invalid(disp_genes) && !is.character(disp_genes)) {
-    log_error(sample = "", step = "plot_heatmap",
-              msg ="disp_genes must be a character vector of gene names.")
-  }
-  
-  if (!gtools::invalid(disp_genes)) {
-    missing_genes <- setdiff(disp_genes, rownames(norm_counts))
-    if (length(missing_genes) > 0) {
-      log_error(sample = "", step = "plot_heatmap",
-                msg =glue::glue("disp_genes missing in norm_counts: {paste(missing_genes, collapse=', ')}"))
-    }
-  }
-  
-  # border.color
-  if (!is.null(hm$border.color) && !is.na(hm$border.color)) {
+  # Validate `border_color`
+  if (!is.null(border_color) && !is.na(border_color)) {
     
-    if (!is.character(hm$border.color) || length(hm$border.color) != 1) {
-      log_error(sample = "", step = "plot_heatmap",
-                msg ="proj.params$heatmap$border.color must be a single character color or NA.")
+    if (!is.character(border_color) || length(border_color) != 1) {
+      log_error(sample = "", 
+                step   = "plot_heatmap",
+                msg    = "`border_color` must be a single character color or NA.")
     }
     
-    if (!hm$border.color %in% colors()) {
-      log_warn(sample = "", step = "plot_heatmap",
-               msg =glue::glue("proj.params$heatmap$border.color '{hm$border.color}' is not a standard R color."))
+    if (!border_color %in% colors()) {
+      log_warn(sample = "", 
+               step   = "plot_heatmap",
+               msg    = glue::glue("`border_color` '{border_color}' is not a standard R color."))
     }
   }
   
+  # 🛡 Metadata Validation
   
-  
-  # Validate col.cluster, col.ann, col.gaps
-  # col.cluster must be a single character
-  if (!gtools::invalid(proj.params$heatmap$col.cluster)) {
-    if (!is.character(proj.params$heatmap$col.cluster) || length(proj.params$heatmap$col.cluster) != 1) {
-      log_error(sample = "", step = "plot_heatmap",
-                msg ="proj.params$heatmap$col.cluster must be a single character value.")
+  # Helper function for checking single-character metadata columns
+  validate_single_column <- function(col_value, col_name, metadata_df = NULL) {
+    if (!gtools::invalid(col_value)) {
+      if (!is.character(col_value) || length(col_value) != 1) {
+        log_error(sample = "", 
+                  step   = "plot_heatmap",
+                  msg    = glue::glue("'{col_name}' must be a single character value."))
+      }
+      if (!is.null(metadata_df) && !(col_value %in% colnames(metadata_df))) {
+        log_error(sample = "", 
+                  step   = "plot_heatmap",
+                  msg    = glue::glue("'{col_name}' '{col_value}' must be a column in the metadata dataframe."))
+      }
     }
   }
   
-  # If any of col.cluster (not "all"/"alphabetical"), col.ann, col.gaps require metadata_col
-  requires_metadata_col <- (!gtools::invalid(proj.params$heatmap$col.ann) ||
-                              !gtools::invalid(proj.params$heatmap$col.gaps) ||
-                              (!proj.params$heatmap$col.cluster %in% c("all", "alphabetical")))
+  # Helper function for checking multiple-column metadata annotations
+  validate_multi_column <- function(cols, col_name, metadata_df) {
+    if (!gtools::invalid(cols)) {
+      missing_cols <- setdiff(cols, colnames(metadata_df))
+      if (length(missing_cols) > 0) {
+        log_error(sample = "", 
+                  step  = "plot_heatmap",
+                  msg   = glue::glue("{col_name} missing in metadata: {paste(missing_cols, collapse=', ')}"))
+      }
+    }
+  }
   
-  if (requires_metadata_col && is.null(metadata_col)) {
-    log_error(sample = "", step = "plot_heatmap",
-              msg ="proj.params$heatmap$col.cluster, col.ann, or col.gaps require metadata_col, but it is NULL.")
+  # Validate col_annotations, col_gap_by, col_cluster_by
+  requires_col_metadata <- (!gtools::invalid(col_annotations) ||
+                              !gtools::invalid(col_gap_by) ||
+                              (!col_cluster_by %in% c("all", "alphabetical")))
+  
+  if (requires_col_metadata && is.null(metadata_col)) {
+    log_error(sample = "", 
+              step   = "plot_heatmap",
+              msg    = "col_annotations, col_gap_by, or col_cluster_by require metadata_col, but it is NULL.")
   }
   
   if (!is.null(metadata_col)) {
-    
-    # col.cluster must be a column in metadata_col if not "all"/"alphabetical"
-    if (!gtools::invalid(proj.params$heatmap$col.cluster) &&
-        !proj.params$heatmap$col.cluster %in% c("all", "alphabetical") &&
-        !proj.params$heatmap$col.cluster %in% colnames(metadata_col)) {
-      log_error(sample = "", step = "plot_heatmap",
-                msg =glue::glue("proj.params$heatmap$col.cluster '{proj.params$heatmap$col.cluster}' must be a column in metadata_col."))
-    }
-    
-    # col.ann must exist in metadata_col if specified
-    if (!gtools::invalid(proj.params$heatmap$col.ann)) {
-      missing_cols <- setdiff(proj.params$heatmap$col.ann, colnames(metadata_col))
-      if (length(missing_cols) > 0) {
-        log_error(sample = "", step = "plot_heatmap",
-                  msg =glue::glue("proj.params$heatmap$col.ann missing in metadata_col: {paste(missing_cols, collapse=', ')}"))
-      }
-    }
-    
-    # col.gaps must be a single column in metadata_col if specified
-    if (!gtools::invalid(proj.params$heatmap$col.gaps)) {
-      if (!is.character(proj.params$heatmap$col.gaps) || length(proj.params$heatmap$col.gaps) != 1) {
-        log_error(sample = "", step = "plot_heatmap",
-                  msg ="proj.params$heatmap$col.gaps must be a single character value.")
-      }
-      if (!proj.params$heatmap$col.gaps %in% colnames(metadata_col)) {
-        log_error(sample = "", step = "plot_heatmap",
-                  msg =glue::glue("proj.params$heatmap$col.gaps '{proj.params$heatmap$col.gaps}' must be a column in metadata_col."))
-      }
-    }
+    validate_single_column(col_cluster_by, "col_cluster_by")
+    validate_single_column(col_gap_by, "col_gap_by", metadata_col)
+    validate_multi_column(col_annotations, "col_annotations", metadata_col)
   }
   
-  # Validate row.cluster, row.ann, row.gaps
-  # row.cluster must be a single character
-  if (!gtools::invalid(proj.params$heatmap$row.cluster)) {
-    if (!is.character(proj.params$heatmap$row.cluster) || length(proj.params$heatmap$row.cluster) != 1) {
-      log_error(sample = "", step = "plot_heatmap",
-                msg ="proj.params$heatmap$row.cluster must be a single character value.")
-    }
-  }
+  # Validate row_annotations, row_gap_by, row_cluster_by
+  requires_row_metadata <- (!gtools::invalid(row_annotations) ||
+                              !gtools::invalid(row_gap_by) ||
+                              (!row_cluster_by %in% c("all", "alphabetical")))
   
-  # If any of row.cluster (not "all"/"alphabetical"), row.ann, row.gaps require metadata_row
-  requires_metadata_row <- (!gtools::invalid(proj.params$heatmap$row.ann) ||
-                              !gtools::invalid(proj.params$heatmap$row.gaps) ||
-                              (!proj.params$heatmap$row.cluster %in% c("all", "alphabetical")))
-  
-  if (requires_metadata_row && is.null(metadata_row)) {
-    log_error(sample = "", step = "plot_heatmap",
-              msg ="proj.params$heatmap$row.cluster, row.ann, or row.gaps require metadata_row, but it is NULL.")
+  if (requires_row_metadata && is.null(metadata_row)) {
+    log_error(sample = "", 
+              step   = "plot_heatmap",
+              msg    = "row_annotations, row_gap_by, or row_cluster_by require metadata_row, but it is NULL.")
   }
   
   if (!is.null(metadata_row)) {
-    
-    # row.cluster must be a column in metadata_row if not "all"/"alphabetical"
-    if (!gtools::invalid(proj.params$heatmap$row.cluster) &&
-        !proj.params$heatmap$row.cluster %in% c("all", "alphabetical") &&
-        !proj.params$heatmap$row.cluster %in% colnames(metadata_row)) {
-      log_error(sample = "", step = "plot_heatmap",
-                msg =glue::glue("proj.params$heatmap$row.cluster '{proj.params$heatmap$row.cluster}' must be a column in metadata_row."))
-    }
-    
-    # row.ann must exist in metadata_row if specified
-    if (!gtools::invalid(proj.params$heatmap$row.ann)) {
-      missing_rows <- setdiff(proj.params$heatmap$row.ann, colnames(metadata_row))
-      if (length(missing_rows) > 0) {
-        log_error(sample = "", step = "plot_heatmap",
-                  msg =glue::glue("proj.params$heatmap$row.ann missing in metadata_row: {paste(missing_rows, collapse=', ')}"))
-      }
-    }
-    
-    # row.gaps must be a single column in metadata_row if specified
-    if (!gtools::invalid(proj.params$heatmap$row.gaps)) {
-      if (!is.character(proj.params$heatmap$row.gaps) || length(proj.params$heatmap$row.gaps) != 1) {
-        log_error(sample = "", step = "plot_heatmap",
-                  msg ="proj.params$heatmap$row.gaps must be a single character value.")
-      }
-      if (!proj.params$heatmap$row.gaps %in% colnames(metadata_row)) {
-        log_error(sample = "", step = "plot_heatmap",
-                  msg =glue::glue("proj.params$heatmap$row.gaps '{proj.params$heatmap$row.gaps}' must be a column in metadata_row."))
-      }
-    }
+    validate_single_column(row_cluster_by, "row_cluster_by")
+    validate_single_column(row_gap_by, "row_gap_by", metadata_row)
+    validate_multi_column(row_annotations, "row_annotations", metadata_row)
   }
-  
-  
-  
-  
-  
-  
-  
-  
   
   # ---- 🧪 Prepare Matrix & Normalization ----
   
-  mat <- norm_counts %>%
-    as.data.frame() %>%
-    replace(is.na(.), 0) %>%                                             # Replace NAs with 0
-    dplyr::mutate(across(.cols = everything(), .fns = as.numeric)) %>%   # Ensure all values numeric
-    dplyr::filter(rowSums(.) != 0)                                       # Remove genes with zero counts across all samples
+  # Convert column names to valid R names
+  colnames(expr_mat) <- make.names(colnames(expr_mat))
+  
+  # # Retain ONLY samples in metadata for accurate zero count calculations
+  # if (!is.null(metadata_col)){
+  #   expr_mat <- expr_mat[, intersect(colnames(expr_mat), rownames(metadata_col)), drop = FALSE]
+  # }
+  
+  # Remove rows with NA gene names
+  na_rows <- is.na(rownames(expr_mat))
+  expr_mat <- expr_mat[!na_rows, , drop = FALSE]
+  log_info(sample = "",
+           step   = "plot_heatmap",
+           msg    = glue::glue("Removed {sum(na_rows)} rows with missing gene names."))
+  
+  # Replace missing counts with 0
+  expr_mat[is.na(expr_mat)] <- 0
+  
+  # Convert all columns to numeric safely
+  expr_mat <- matrix(as.numeric(as.matrix(expr_mat)),
+                     nrow = nrow(expr_mat),
+                     ncol = ncol(expr_mat),
+                     dimnames = dimnames(expr_mat))
+  
+  if (any(is.na(expr_mat))) {
+    log_error(sample = "",
+              step   = "plot_heatmap",
+              msg    = "`expr_mat` contains non-numeric values that could not be converted.")
+  }
+  
+  # Remove genes with zero counts across all samples
+  zero_genes   <- rownames(expr_mat)[which(rowSums(expr_mat) == 0)]
+  expr_mat <- expr_mat[rowSums(expr_mat) != 0, , drop = FALSE]
+  log_info(sample = "",
+           step   = "plot_heatmap",
+           msg    = glue::glue("Removed {length(zero_genes)} genes with zero counts across all samples."))
+  
+  # Remove samples with zero total reads
+  zero_samples <- colnames(expr_mat)[which(colSums(expr_mat) == 0)]
+  expr_mat <- expr_mat[, colSums(expr_mat) != 0, drop = FALSE]
+  log_info(sample = "",
+           step   = "plot_heatmap",
+           msg    = glue::glue("Removed {length(zero_samples)} samples with zero total counts."))
   
   # Handle duplicate gene symbols if any
-  if (any(duplicated(rownames(mat)))) {
-    mat <- mat %>%
+  if (any(duplicated(rownames(expr_mat)))) {
+    expr_mat <- expr_mat %>%
       tibble::rownames_to_column("SYMBOL") %>%  
       dplyr::mutate(total_expr = rowSums(across(-SYMBOL))) %>%  # Sum across all samples
       dplyr::group_by(SYMBOL) %>%
@@ -1359,35 +1504,30 @@ plot_heatmap <- function(norm_counts, proj.params, disp_genes = c(),
       dplyr::select(-total_expr)                                # Drop the temporary column
   }
   
-  # Handle duplicate samples if any
-  if (any(duplicated(colnames(mat)))) {
-    log_error(sample = "", step = "plot_heatmap", msg ="Duplicate columns detected in norm_counts.")
-  }
-  
   # Convert rownames and colnames to valid R names
-  rownames(mat) <- make.names(rownames(mat))
-  colnames(mat) <- make.names(colnames(mat))
+  rownames(expr_mat) <- make.names(rownames(expr_mat))
+  colnames(expr_mat) <- make.names(colnames(expr_mat))
   
   # Check for high dynamic range to trigger log transform
-  quantiles <- stats::quantile(x = as.vector(as.matrix(mat)), probs = c(0, 0.01, 0.99, 1), na.rm = TRUE)
+  quantiles <- stats::quantile(x = as.vector(as.matrix(expr_mat)), probs = c(0, 0.01, 0.99, 1), na.rm = TRUE)
   huge_range <- (quantiles[4] - quantiles[1]) > 100   # Range of values greater than 100
   only_pos <- quantiles[1] >= 0                       # Min value greater than 0
-  if ((huge_range & only_pos) | proj.params$heatmap$force.log){
-    mat <- log2(1 + mat)
+  if ((huge_range & only_pos) | force_log){
+    expr_mat <- log2(1 + expr_mat)
   }
   
   # Perform Z-score scaling (across rows i.e. genes)
-  mat_scaled <- mat %>% t() %>% scale() %>% t() 
-  mat_scaled[is.na(mat_scaled)] <- 0
+  expr_mat_scaled <- expr_mat %>% t() %>% scale() %>% t() 
+  expr_mat_scaled[is.na(expr_mat_scaled)] <- 0
   
   # ---- 🏷️ Prepare Annotations & Colors ----
   
   # Column (Sample) Annotation
   col_annotation <- if (!is.null(metadata_col)) {
     metadata_col %>%
-      dplyr::select(Sample_ID, all_of(proj.params$heatmap$col.ann)) %>%
+      dplyr::select(Sample_ID, all_of(col_annotations)) %>%
       dplyr::mutate(Sample_ID = make.names(Sample_ID)) %>%
-      dplyr::filter(Sample_ID %in% colnames(mat)) %>%
+      dplyr::filter(Sample_ID %in% colnames(expr_mat)) %>%
       tibble::remove_rownames() %>%
       tibble::column_to_rownames("Sample_ID") %>%
       as.data.frame() %>%
@@ -1397,9 +1537,9 @@ plot_heatmap <- function(norm_counts, proj.params, disp_genes = c(),
   # Row (Gene) Annotation
   row_annotation <- if (!is.null(metadata_row)) {
     metadata_row %>%
-      dplyr::select(SYMBOL, all_of(proj.params$heatmap$row.ann)) %>%
+      dplyr::select(SYMBOL, all_of(row_annotations)) %>%
       dplyr::mutate(SYMBOL = make.names(SYMBOL)) %>%
-      dplyr::filter(SYMBOL %in% rownames(mat)) %>%
+      dplyr::filter(SYMBOL %in% rownames(expr_mat)) %>%
       tibble::remove_rownames() %>%
       tibble::column_to_rownames("SYMBOL") %>%
       as.data.frame() %>%
@@ -1427,9 +1567,9 @@ plot_heatmap <- function(norm_counts, proj.params, disp_genes = c(),
     levels <- sort(ann_list[[i]])   # Get levels within each annotation variable (Eg: CT1, CT2)
     n_levels <- length(levels)      # Get number of levels within each annotation variable
     
-    palette_colors <- if (proj.params$heatmap$ann.palette == "discrete" | n_levels == 1){
+    palette_colors <- if (annotation_palette == "discrete" | n_levels == 1){
       base_colors[color_index:(color_index + n_levels - 1)]
-    } else if (proj.params$heatmap$ann.palette == "continuous"){
+    } else if (annotation_palette == "continuous"){
       alphas <- seq(1 / n_levels, 1, length.out = n_levels)
       base::sapply(X = alphas, 
                    FUN = function(x) { colorspace::adjust_transparency(col = base_colors[color_index], alpha = x) })
@@ -1447,64 +1587,67 @@ plot_heatmap <- function(norm_counts, proj.params, disp_genes = c(),
   n_breaks <- 100
   
   # Define Color Palette for Heatmap 
-  heatmap_palette <- if (proj.params$heatmap$palette == "vrds") {
+  heatmap_palette <- if (heatmap_palette == "vrds") {
     viridis::viridis(n_breaks) 
-  } else if (proj.params$heatmap$palette == "rdbu") {
+  } else if (heatmap_palette == "rdbu") {
     colorRampPalette(rev(RColorBrewer::brewer.pal(n = 11, name = "RdBu")))(n_breaks)
   } else {
-    log_error(sample = "", step = "plot_heatmap", 
-              msg =glue::glue("Invalid heatmap palette. proj.params$heatmap$palette must be either 'vrds' or 'rdbu'."))
+    log_error(sample = "", 
+              step   = "plot_heatmap", 
+              msg    = "`heatmap_palette` '{heatmap_palette}' must be either 'vrds' or 'rdbu'.")
   }
   
   # Handle min and max thresholds with soft clamping
-  mat_min <- min(mat_scaled, na.rm = TRUE)
-  mat_max <- max(mat_scaled, na.rm = TRUE)
-  mat_min <- dplyr::case_when(mat_min >= 0 ~ 0, 
-                              mat_min <= -3 ~ -3, 
-                              TRUE ~ mat_min)
-  mat_max <- dplyr::case_when(mat_max <= 0 ~ 0, 
-                              mat_max >= 3 ~ 3, 
-                              TRUE ~ mat_max)
+  expr_mat_min <- min(expr_mat_scaled, na.rm = TRUE)
+  expr_mat_max <- max(expr_mat_scaled, na.rm = TRUE)
+  expr_mat_min <- dplyr::case_when(expr_mat_min >= 0 ~ 0, 
+                                   expr_mat_min <= -3 ~ -3, 
+                                   TRUE ~ expr_mat_min)
+  expr_mat_max <- dplyr::case_when(expr_mat_max <= 0 ~ 0, 
+                                   expr_mat_max >= 3 ~ 3, 
+                                   TRUE ~ expr_mat_max)
   
   # Custom breaks to ensure zero-centering
-  if (mat_max == 0) {
-    breaks <- seq(from = floor(mat_min), to = 0, length.out = n_breaks)
-  } else if (mat_min == 0) {
-    breaks <- seq(from = 0, to = ceiling(mat_max), length.out = n_breaks)
+  if (expr_mat_max == 0) {
+    breaks <- seq(from = floor(expr_mat_min), to = 0, length.out = n_breaks)
+  } else if (expr_mat_min == 0) {
+    breaks <- seq(from = 0, to = ceiling(expr_mat_max), length.out = n_breaks)
   } else {
-    breaks <- c(seq(from = floor(mat_min), to = 0, length.out = n_breaks / 2),
-                seq(from = mat_max / n_breaks, to = ceiling(mat_max), length.out = n_breaks / 2))
+    breaks <- c(seq(from = floor(expr_mat_min), to = 0, length.out = n_breaks / 2),
+                seq(from = expr_mat_max / n_breaks, to = ceiling(expr_mat_max), length.out = n_breaks / 2))
   }
   
   # ---- 🏁 Gaps Logic ----
   
   # Define gaps in columns
   gaps_col <- NULL
-  if (!gtools::invalid(proj.params$heatmap$col.gaps)) {
-    if (proj.params$heatmap$col.gaps %in% colnames(col_annotation)) {
+  if (!gtools::invalid(col_gap_by)) {
+    if (col_gap_by %in% colnames(col_annotation)) {
       gaps_col <- col_annotation %>%
-        dplyr::count(.data[[proj.params$heatmap$col.gaps]]) %>%
+        dplyr::count(.data[[col_gap_by]]) %>%
         dplyr::mutate(n = cumsum(n)) %>%
         dplyr::pull(n) %>%
-        .[. < ncol(mat_scaled)]
+        .[. < ncol(expr_mat_scaled)]
     } else {
-      log_warn(sample = "", step = "plot_heatmap", 
-               msg =glue::glue("proj.params$heatmap$col.gaps '{proj.params$heatmap$col.gaps}' is absent in metadata_col."))
+      log_warn(sample = "", 
+               step   = "plot_heatmap", 
+               msg    = glue::glue("col_gap_by '{col_gap_by}' is absent in metadata_col."))
     }
   }
   
   # Define gaps in rows
   gaps_row <- NULL
-  if (!gtools::invalid(proj.params$heatmap$row.gaps)) {
-    if (proj.params$heatmap$row.gaps %in% colnames(row_annotation)) {
+  if (!gtools::invalid(row_gap_by)) {
+    if (row_gap_by %in% colnames(row_annotation)) {
       gaps_row <- row_annotation %>%
-        dplyr::count(.data[[proj.params$heatmap$row.gaps]]) %>%
+        dplyr::count(.data[[row_gap_by]]) %>%
         dplyr::mutate(n = cumsum(n)) %>%
         dplyr::pull(n) %>%
-        .[. < nrow(mat_scaled)]
+        .[. < nrow(expr_mat_scaled)]
     } else {
-      log_warn(sample = "", step = "plot_heatmap", 
-               msg =glue::glue("proj.params$heatmap$row.gaps '{proj.params$heatmap$row.gaps}' is absent in metadata_row."))
+      log_warn(sample = "",
+               step   = "plot_heatmap", 
+               msg    = glue::glue("row_gap_by '{row_gap_by}' is absent in metadata_row."))
     }
   }
   
@@ -1517,14 +1660,14 @@ plot_heatmap <- function(norm_counts, proj.params, disp_genes = c(),
   #   #   since correlation distances are not strictly Euclidean and Ward may produce unintuitive results.
   
   # Logical ordering for columns (Samples)
-  if (proj.params$heatmap$col.cluster %in% colnames(col_annotation)) {
+  if (col_cluster_by %in% colnames(col_annotation)) {
     
     # Initialize column order
     col_order <- c()
     
     # Identify all groups
     col_vars <- col_annotation %>%
-      dplyr::pull(proj.params$heatmap$col.cluster) %>%
+      dplyr::pull(col_cluster_by) %>%
       unique() %>%
       sort()  # While calculating gaps_col, we use count() which sorts 
     # alphabetically. So, WE MUST sort col_vars to match gaps_col
@@ -1535,13 +1678,13 @@ plot_heatmap <- function(norm_counts, proj.params, disp_genes = c(),
       # Get samples belonging to this group
       samples <- col_annotation %>%
         tibble::rownames_to_column("Sample_ID") %>%
-        dplyr::filter(.data[[proj.params$heatmap$col.cluster]] == col_var) %>%
+        dplyr::filter(.data[[col_cluster_by]] == col_var) %>%
         dplyr::pull(Sample_ID) %>%
-        base::intersect(., colnames(mat_scaled))
+        base::intersect(., colnames(expr_mat_scaled))
       
       if (length(samples) > 1){
         # Hierarchical clustering within cluster
-        temp_mat  <- mat_scaled[, samples, drop = FALSE]
+        temp_mat  <- expr_mat_scaled[, samples, drop = FALSE]
         col_dist  <- stats::dist(x = t(temp_mat), method = "euclidean")
         col_clust <- stats::hclust(d = col_dist, method = "ward.D2")  
         col_order <- c(col_order, colnames(temp_mat)[col_clust$order])
@@ -1549,25 +1692,25 @@ plot_heatmap <- function(norm_counts, proj.params, disp_genes = c(),
         col_order <- c(col_order, samples)
       } else{}
     }
-  } else if (proj.params$heatmap$col.cluster == "all") {
-    col_dist  <- stats::dist(x = t(mat_scaled), method = "euclidean")
+  } else if (col_cluster_by == "all") {
+    col_dist  <- stats::dist(x = t(expr_mat_scaled), method = "euclidean")
     col_clust <- stats::hclust(d = col_dist, method = "ward.D2")
-    col_order <- colnames(mat_scaled)[col_clust$order]
-  } else if (proj.params$heatmap$col.cluster == "alphabetical"){
-    col_order <- sort(colnames(mat_scaled))
+    col_order <- colnames(expr_mat_scaled)[col_clust$order]
+  } else if (col_cluster_by == "alphabetical"){
+    col_order <- sort(colnames(expr_mat_scaled))
   } else {
-    col_order <- colnames(mat_scaled)
+    col_order <- colnames(expr_mat_scaled)
   }
   
   # Logical ordering for rows (Genes)
-  if (proj.params$heatmap$row.cluster %in% colnames(row_annotation)) {
+  if (row_cluster_by %in% colnames(row_annotation)) {
     
     # Initialize column order
     row_order <- c()
     
     # Identify all groups
     row_vars <- row_annotation %>%
-      dplyr::pull(proj.params$heatmap$row.cluster) %>%
+      dplyr::pull(row_cluster_by) %>%
       unique() %>%
       sort()  # While calculating gaps_row, we used count() which sorts
     # alphabetically. So, WE MUST sort row_vars to match gaps_row
@@ -1578,13 +1721,13 @@ plot_heatmap <- function(norm_counts, proj.params, disp_genes = c(),
       # Get genes belonging to this group
       genes <- row_annotation %>%
         tibble::rownames_to_column("SYMBOL") %>%
-        dplyr::filter(.data[[proj.params$heatmap$row.cluster]] == row_var) %>%
+        dplyr::filter(.data[[row_cluster_by]] == row_var) %>%
         dplyr::pull(SYMBOL) %>%
-        base::intersect(., rownames(mat_scaled))
+        base::intersect(., rownames(expr_mat_scaled))
       
       if (length(genes) > 1){
         # Hierarchical clustering within cluster
-        temp_mat  <- mat_scaled[genes, , drop = FALSE]
+        temp_mat  <- expr_mat_scaled[genes, , drop = FALSE]
         row_dist  <- stats::dist(x = temp_mat, method = "euclidean")
         row_clust <- stats::hclust(d = row_dist, method = "ward.D2")
         row_order <- c(row_order, rownames(temp_mat)[row_clust$order])
@@ -1592,44 +1735,45 @@ plot_heatmap <- function(norm_counts, proj.params, disp_genes = c(),
         row_order <- c(row_order, genes)
       } else{}
     }
-  } else if (proj.params$heatmap$row.cluster == "all") {
-    row_dist  <- stats::dist(x = mat_scaled, method = "euclidean")
+  } else if (row_cluster_by == "all") {
+    row_dist  <- stats::dist(x = expr_mat_scaled, method = "euclidean")
     row_clust <- stats::hclust(d = row_dist, method = "ward.D2")
-    row_order <- rownames(mat_scaled)[row_clust$order]
-  } else if (proj.params$heatmap$row.cluster == "alphabetical"){
-    row_order <- sort(rownames(mat_scaled))
+    row_order <- rownames(expr_mat_scaled)[row_clust$order]
+  } else if (row_cluster_by == "alphabetical"){
+    row_order <- sort(rownames(expr_mat_scaled))
   } else {
-    row_order <- rownames(mat_scaled) # Default to input order
+    row_order <- rownames(expr_mat_scaled) # Default to input order
   }
   
   # Final order of rows and columns
-  reordered <- mat_scaled[row_order, col_order]
+  reordered <- expr_mat_scaled[row_order, col_order]
   
   # ---- 🎨 Heatmap Aesthetics ----
   
   # For text to be readable, ideal fontsize = 10 points. 
-  # For plot to be pretty, ideal cell.width and cell.height = fontsize + 5 points
+  # For plot to be pretty, ideal cell_width and cell_height = fontsize + 5 points
   # In 8.5 x 11 inch page, ideal plot area ~ 6 x 8 inch (excluding figure legend,
   # column/row annotations, plot margins). So, plot area ~ 6*72 points wide and 
   # 8*72 points high.
   
   # Set font sizes
   fontsize <- 10
-  fontsize.row <- fontsize * 1
-  fontsize.col <- fontsize * 1
-  fontsize.number <- fontsize * 0.8
-  angle.col <- 45                           # column label angle
+  fontsize_number <- fontsize * 0.8
+  angle_col <- 45                           # column label angle
   
   # Set cell width, height (in points) dynamically
-  cell.width <- min(fontsize + 5, (6 * 72) / ncol(reordered))
-  cell.height <- min(fontsize + 5, (8 * 72) / nrow(reordered))
+  cell_width <- min(fontsize + 5, (6 * 72) / ncol(reordered))
+  cell_height <- min(fontsize + 5, (8 * 72) / nrow(reordered))
   
   # Truncate long plot title
-  main.title <- stringr::str_wrap(string = proj.params$heatmap$title, width = 20)
+  # NOTE: pheatmap() throws error if plot_title = NULL
+  plot_title <- if(!is.null(plot_title)) {
+    stringr::str_wrap(string = plot_title, width = 20)
+  } else { NA }
   
   # Truncate long row labels
-  labels.row <- if (cell.height == fontsize + 5 && length(disp_genes) > 0) {
-    dplyr::if_else(condition = rownames(reordered) %in% make.names(disp_genes), 
+  labels_row <- if (cell_height == fontsize + 5 && length(label_genes) > 0) {
+    dplyr::if_else(condition = rownames(reordered) %in% make.names(label_genes), 
                    true = stringr::str_trunc(string = rownames(reordered), width = 15), 
                    false = " ")
   } else {
@@ -1637,7 +1781,7 @@ plot_heatmap <- function(norm_counts, proj.params, disp_genes = c(),
   }
   
   # Truncate long column labels
-  labels.col <- if (cell.width == fontsize + 5) {
+  labels_col <- if (cell_width == fontsize + 5) {
     stringr::str_trunc(string = colnames(reordered), width = 15)
   } else{
     rep(x = " ", times = ncol(reordered))
@@ -1654,22 +1798,22 @@ plot_heatmap <- function(norm_counts, proj.params, disp_genes = c(),
                            gaps_row          = gaps_row,
                            gaps_col          = gaps_col,
                            
-                           cellwidth         = cell.width,     
-                           cellheight        = cell.height,  
-                           show_rownames     = cell.height >= fontsize,
-                           show_colnames     = cell.width >= fontsize,
-                           labels_row        = labels.row,
-                           labels_col        = labels.col,
-                           angle_col         = angle.col,        # column label angle
+                           cellwidth         = cell_width,     
+                           cellheight        = cell_height,  
+                           show_rownames     = cell_height >= fontsize,
+                           show_colnames     = cell_width >= fontsize,
+                           labels_row        = labels_row,
+                           labels_col        = labels_col,
+                           angle_col         = angle_col,        # column label angle
                            fontsize          = fontsize,         # points; 72 points = 1 inch
-                           fontsize_row      = fontsize.row,     # points
-                           fontsize_col      = fontsize.col,     # points
-                           fontsize_number   = fontsize.number,  # points
+                           fontsize_row      = fontsize,         # points
+                           fontsize_col      = fontsize,         # points
+                           fontsize_number   = fontsize_number,  # points
                            silent            = TRUE, 
                            
-                           main              = main.title,
-                           border_color      = proj.params$heatmap$border.color,
-                           legend            = proj.params$heatmap$show.expr.legend,
+                           main              = plot_title,
+                           border_color      = border_color,
+                           legend            = show_expr_legend,
                            
                            scale                    = "none",
                            cluster_rows             = FALSE,
@@ -1698,172 +1842,77 @@ plot_heatmap <- function(norm_counts, proj.params, disp_genes = c(),
     warning("Matrix is too large for Excel even after transpose. Consider saving as CSV or binary format.")
   }
   
-  # ---- 🪵 Log Output and Return Objects ----
+  # ---- 💾 Save Plots ----
+  
+  if (save_plot){
+    file_extension <- ".pdf"
+    file_name <- file.path(output_dir,
+                           paste0("Heatmap_Plot_", filename, file_extension))
+    
+    # Open multi-page PDF
+    grDevices::cairo_pdf(filename = file_name, width = 8, height = 11.5, onefile = TRUE) 
+    
+    # Page 1
+    grid::grid.draw(x = ph$gtable)
+    
+    grDevices::dev.off()
+  }
+  
+  if (save_matrix){
+    file_extension <- ".xlsx"
+    file_name <- file.path(output_dir,
+                           paste0("Heatmap_Matrix_", filename, file_extension))
+    
+    wb <- openxlsx::createWorkbook()
+    openxlsx::addWorksheet(wb, sheetName = "Heatmap_matrix")
+    openxlsx::writeData(wb, sheet = "Heatmap_matrix", x = ph_mat, rowNames = TRUE)
+    openxlsx::saveWorkbook(wb, file = file_name, overwrite = TRUE)
+  }
+  
+  # ---- 🪵 Log Output and Return ----
   
   log_info(sample = "", 
-           step = "plot_heatmap", 
-           msg =glue::glue("Generated heatmap with {nrow(reordered)} genes and {ncol(reordered)} samples."))
+           step   = "plot_heatmap", 
+           msg    = glue::glue("Generated heatmap with {nrow(reordered)} genes and {ncol(reordered)} samples."))
   
   return(invisible(list(ph = ph, mat = ph_mat)))
 }
+
+analyze_pathway <- function(res_df, species, gmt_dir, output_dir, 
+                             minsize = 15, maxsize = 500) {
   
-plot_ma <- function(dds, output_dir, filename = NULL) {
-  
-  # For ggrepel
+  # For fgsea
   set.seed(1234)
   
   # ---- ⚙️ Validate Input Parameters ----
   
-  validate_inputs(dds = dds, output_dir = output_dir, filename = filename)
+  validate_inputs(res_df = res_df, output_dir = output_dir)
   
-  # ---- 🖼️ Generate Plots ----
-  
-  # Prepare the data with "squished" values
-  res_df <- as.data.frame(DESeq2::results(dds)) %>%
-    dplyr::mutate(significant = padj < 0.1 & !is.na(padj),
-                  log2FoldChange_capped = dplyr::case_when(log2FoldChange > 5  ~ 5,
-                                                           log2FoldChange < -5 ~ -5,
-                                                           TRUE                ~ log2FoldChange),
-                  # Assign shapes: 16 is a solid circle, 17 is a solid triangle
-                  is_outlier = log2FoldChange > 5 | log2FoldChange < -5,
-                  point_shape = ifelse(is_outlier, 17, 16))
-
-  p <- ggplot(data = res_df, 
-              mapping = aes(x = baseMean, y = log2FoldChange, color = significant)) +
-    geom_point(alpha = 0.5, size = 1.25) +
-    theme_classic() +
-    custom_theme +
-    theme(legend.position = "none") +
-    scale_x_log10(labels = scales::trans_format("log10", scales::math_format(10^.x))) +
-    scale_color_manual(values = c("grey70", "firebrick3")) + 
-    labs(title = "MA Plot",
-         subtitle = "Red points indicate FDR < 0.1",
-         x = "Mean of Normalized Counts",
-         y = "Log2 Fold Change")
-  
-  capped_p <- ggplot(data = res_df, 
-              mapping = aes(x = baseMean, y = log2FoldChange_capped, color = significant)) +
-    geom_point(alpha = 0.5, size = 1.25, aes(shape = point_shape)) +
-    scale_shape_identity() + # Tells ggplot to use the actual numeric shape codes
-    theme_classic() +
-    custom_theme +
-    theme(legend.position = "none") +
-    scale_x_log10(labels = scales::trans_format("log10", scales::math_format(10^.x))) +
-    scale_color_manual(values = c("grey70", "firebrick3")) +
-    coord_cartesian(ylim = c(-5, 5)) + 
-    labs(title = "MA Plot (with Capped Fold Changes)",
-         subtitle = "Red points indicate FDR < 0.1",
-         x = "Mean of Normalized Counts",
-         y = "Log2 Fold Change")
-  
-  # ---- 💾 Save Plot ----
-  
-  file_extension <- ".pdf"
-  file_name <- file.path(output_dir, paste0("MA_Plot_", filename, file_extension))
-  
-  # Open multi-page PDF
-  grDevices::pdf(file = file_name, width = 8, height = 11.5, onefile = TRUE)  
-  
-  # PAGE 1: Traditional (DESeq2)
-  # This function draws directly to the open PDF device
-  DESeq2::plotMA(object = dds,
-                 alpha  = 0.1, 
-                 main   = "MA Plot (Traditional DESeq2)",
-                 xlab   = "Mean of Normalized Counts",
-                 MLE    = FALSE)
-  
-  # PAGE 2: Capped View (ggplot2)
-  print(capped_p)    # We must use print() for ggplot objects
-  
-  # PAGE 3: Full View (ggplot2)
-  print(p) 
-  
-  dev.off() 
-
-  # ---- 🪵 Log Output and return ----
-  
-  log_info(sample = "",
-           step   = "plot_ma",
-           msg    = glue::glue("MA plot saved successfully to : '{file_name}'."))
-  
-  return(invisible(NULL))
-}
-
-plot_dispersion <- function(dds, output_dir, file_name = "Dispersion_Plot.pdf") {
-  
-  set.seed(1234)
-  
-  # ---- Input Checks ----
-  if (!inherits(dds, "DESeqDataSet")) {
-    stop("`dds` must be a DESeqDataSet object.")
-  }
-  
-  if (!dir.exists(output_dir)) {
-    warning("Output path does not exist. Creating: ", output_dir)
-    dir.create(output_dir, recursive = TRUE)
-  }
-  
-  # ---- Dispersion Plot ----
-  output_file <- file.path(output_dir, file_name)
-  message("Saving dispersion plot to: ", output_file)
-  
-  grDevices::pdf(file = output_file, width = 8.5, height = 11)
-  
-  DESeq2::plotDispEsts(
-    object  = dds,
-    genecol = "black",
-    fitcol  = "red",
-    finalcol= "dodgerblue",
-    legend  = TRUE,
-    xlab    = "Mean of Normalized Counts",
-    ylab    = "Dispersion",
-    log     = "xy",
-    cex     = 0.45
-  )
-  
-  grDevices::dev.off()
-  
-  message("Dispersion plot completed successfully.")
-  # Expected results: Higher the mean, lower the dispersion
-}
-
-# DEGs_df with column SYMBOL, padj, log2FoldChange
-# k <- # overlapping genes between input and pathway
-# n <- # overlapping genes between input and collection
-# K <- # genes in pathway
-# N <- # genes in collection
-pathway_analysis <- function(DEGs_df, proj.params, output_dir) {
-  
-  set.seed(1234)
-  
-  # ---- ⚙️ Validate Input Parameters ----
-  
-  required_attrs <- c("gmt_dir", "species")
-  for (attr in required_attrs) {
-    if (is.null(proj.params[[attr]])) {
-      log_error(sample = "", step = "pathway_analysis", 
-                msg =glue::glue("Missing required proj.params attribute: {attr}"))
+  # Validate `gmt_dir`
+  if (!is.null(gmt_dir)) {
+    if (!dir.exists(gmt_dir)){
+      log_error(sample = "",
+                step   = "pathway_analysis",
+                msg    = "`gmt_dir` location '{gmt_dir}' does not exist.") 
     }
+  } else {
+    log_error(sample = "",
+              step   = "pathway_analysis",
+              msg    = "`gmt_dir` is NULL i.e. not defined.")
   }
-  
-  if (!dir.exists(output_dir)) {
-    dir.create(output_dir, recursive = TRUE)
-  }
-  
+
   # ---- 🧪 Data Preparation ----
   
-  gmt_files <- list.files(file.path(proj.params$gmt_dir, proj.params$species), full.names = TRUE)
-  
   # Initialize result dataframes 
-  fgsea_df <- data.frame()
-  gsea_df <- data.frame()
-  ora_df_up <- data.frame()
-  ora_df_down <- data.frame()
+  fgsea_df         <- data.frame()
+  gsea_df          <- data.frame()
+  ora_df_up        <- data.frame()
+  ora_df_down      <- data.frame()
   concise_fgsea_df <- data.frame()
   
   # Define input genes for GSEA (Ranked list)
   # IMPORTANT: Rank genes from high LFC to low lFC, so +NES ~ up-regulated
-  ranked_df <- DEGs_df %>%
+  ranked_df <- res_df %>%
     dplyr::distinct(SYMBOL, .keep_all = TRUE) %>%
     dplyr::filter(!is.na(padj), !is.na(SYMBOL)) %>%
     dplyr::mutate(log2FoldChange = as.numeric(log2FoldChange),
@@ -1873,93 +1922,92 @@ pathway_analysis <- function(DEGs_df, proj.params, output_dir) {
   ranked_list <- ranked_df$log2FoldChange
   names(ranked_list) <- ranked_df$SYMBOL
   
-  # Define input for ORA (Significant only)
-  sig_genes_up <- DEGs_df %>% 
+  # Define input for ORA (Significant genes only)
+  sig_genes_up <- res_df %>% 
     dplyr::filter(padj <= 0.05, log2FoldChange > 0) %>% 
     dplyr::pull(SYMBOL)
-  sig_genes_down <- DEGs_df %>% 
+  sig_genes_down <- res_df %>% 
     dplyr::filter(padj <= 0.05, log2FoldChange < 0) %>% 
     dplyr::pull(SYMBOL)
-  universe_genes <- unique(DEGs_df$SYMBOL)
+  universe_genes <- unique(res_df$SYMBOL)
   
   # ---- 🔄 Enrichment Loop ----
   
+  gmt_files <- list.files(file.path(gmt_dir, species), full.names = TRUE)
+  
   for (gmt_file in gmt_files) {
+    
     # gmt_name <- gsub(pattern = "^.*/|.v[0-9].*$", replacement = "", x = gmt_file)
     gmt_name <- gsub(pattern = "^.*/|", replacement = "", x = gmt_file)
     
     # Format gene sets for fgsea and keep only genes present in ranked_list
     gmt <- fgsea::gmtPathways(gmt_file)
-    gmt <- lapply(gmt, function(x){x[x %in% names(ranked_list)]})
+    gmt <- lapply(X = gmt, FUN = intersect, y = names(ranked_list))
     
     # Format gene sets for clusterProfiler and keep only genes present in ranked_list
-    pathway_gene_df <- data.frame(pathways = base::rep(names(gmt), times = base::unname(lengths(gmt))),
-                                  genes = unlist(gmt, use.names = FALSE))
+    # pathway_gene_df <- data.frame(pathways = base::rep(x = names(gmt), times = base::unname(lengths(gmt))),
+    #                                genes = unlist(gmt, use.names = FALSE))
+    pathway_gene_df <- utils::stack(x = gmt)
+    colnames(pathway_gene_df) <- c("genes", "pathways")
+    pathway_gene_df <- pathway_gene_df[, c("pathways", "genes")] # Reorder
     
     # Run fgseaMultilevel (GSEA)
-    fgsea_res <- fgsea::fgseaMultilevel(pathways = gmt,
-                                        stats = ranked_list,
-                                        scoreType = dplyr::case_when(min(ranked_list) > 0 ~ "pos",
-                                                                     max(ranked_list) < 0 ~ "neg",
-                                                                     TRUE ~ "std"),
-                                        minSize = 1,
-                                        maxSize = 500, # recommended 500 genes max
+    fgsea_res <- fgsea::fgseaMultilevel(pathways    = gmt,
+                                        stats       = ranked_list,
+                                        scoreType   = dplyr::case_when(min(ranked_list) > 0 ~ "pos",
+                                                                       max(ranked_list) < 0 ~ "neg",
+                                                                       TRUE ~ "std"),
+                                        minSize     = minsize,
+                                        maxSize     = maxsize, 
                                         nPermSimple = 10000)
     
     # Run clusterProfiler GSEA
-    gsea_res <- clusterProfiler::GSEA(geneList = ranked_list,
-                                      TERM2GENE = pathway_gene_df,
-                                      minGSSize = 10,
-                                      maxGSSize = 500,
-                                      pvalueCutoff = 0.05,
+    gsea_res <- clusterProfiler::GSEA(geneList      = ranked_list,
+                                      TERM2GENE     = pathway_gene_df,
+                                      minGSSize     = minsize,
+                                      maxGSSize     = maxsize,
+                                      pvalueCutoff  = 0.05,
                                       pAdjustMethod = "BH",
-                                      verbose = FALSE,
-                                      by = "fgsea")
+                                      verbose       = FALSE,
+                                      by            = "fgsea")
     
     # Run clusterProfiler ORA (enricher)
     # NOTE: Avoid using clusterProfiler::enrichGO() as it doesnt use proper 
-    # background in universe parameter and includes GO terms outside the 
+    # background in universe parameter and includes GO terms outside of the 
     # intended gene set collection.
-    ora_res_up <- clusterProfiler::enricher(gene = sig_genes_up,
-                                            universe = universe_genes,
-                                            TERM2GENE = pathway_gene_df,
-                                            minGSSize = 10,
-                                            maxGSSize = 500,
-                                            pvalueCutoff = 0.05,
+    ora_res_up <- clusterProfiler::enricher(gene          = sig_genes_up,
+                                            universe      = universe_genes,
+                                            TERM2GENE     = pathway_gene_df,
+                                            minGSSize     = minsize,
+                                            maxGSSize     = maxsize,
+                                            pvalueCutoff  = 0.05,
                                             pAdjustMethod = "BH",
-                                            qvalueCutoff = 0.2)
+                                            qvalueCutoff  = 0.2)
     
-    ora_res_down <- clusterProfiler::enricher(gene = sig_genes_down,
-                                              universe = universe_genes,
-                                              TERM2GENE = pathway_gene_df,
-                                              minGSSize = 10,
-                                              maxGSSize = 500,
-                                              pvalueCutoff = 0.05,
+    ora_res_down <- clusterProfiler::enricher(gene          = sig_genes_down,
+                                              universe      = universe_genes,
+                                              TERM2GENE     = pathway_gene_df,
+                                              minGSSize     = minsize,
+                                              maxGSSize     = maxsize,
+                                              pvalueCutoff  = 0.05,
                                               pAdjustMethod = "BH",
-                                              qvalueCutoff = 0.2)
+                                              qvalueCutoff  = 0.2)
     
     # Identify overlapping pathways and collapse into major pathways
     concise_fgsea_res <- fgsea::collapsePathways(fgseaRes = fgsea_res,
                                                  pathways = gmt,
-                                                 stats = ranked_list)
+                                                 stats    = ranked_list)
     concise_fgsea_res <- fgsea_res %>%
       dplyr::filter(pathway %in% concise_fgsea_res$mainPathways)
     
     # Accumulate results
-    fgsea_df <- dplyr::bind_rows(fgsea_df, fgsea_res)
-    concise_fgsea_df <- dplyr::bind_rows(concise_fgsea_df, concise_fgsea_res)
-    if (!is.null(gsea_res)) {
-      gsea_df <- dplyr::bind_rows(gsea_df, gsea_res@result)
-    }
-    
-    if (!is.null(ora_res_up)) {
-      ora_df_up <- dplyr::bind_rows(ora_df_up, ora_res_up@result)
-    }
-    
-    if (!is.null(ora_res_down)) {
-      ora_df_down <- dplyr::bind_rows(ora_df_down, ora_res_down@result)
-    }
-  } 
+    if (!is.null(fgsea_res))         { fgsea_df         <- dplyr::bind_rows(fgsea_df,         fgsea_res) }
+    if (!is.null(concise_fgsea_res)) { concise_fgsea_df <- dplyr::bind_rows(concise_fgsea_df, concise_fgsea_res) }
+    if (!is.null(gsea_res))          { gsea_df          <- dplyr::bind_rows(gsea_df,          gsea_res@result) }
+    if (!is.null(ora_res_up))        { ora_df_up        <- dplyr::bind_rows(ora_df_up,        ora_res_up@result) }
+    if (!is.null(ora_res_down))      { ora_df_down      <- dplyr::bind_rows(ora_df_down,      ora_res_down@result) }
+ 
+  }
   
   # ---- 🧹 Column Standardization & Formatting ----
   
@@ -1970,69 +2018,84 @@ pathway_analysis <- function(DEGs_df, proj.params, output_dir) {
               padj = "p.adjust", 
               pval = "pvalue")
   
-  # (Standardizing ORA and Directions...)
-  ora_df <- dplyr::bind_rows(ora_df_up %>% dplyr::mutate(Direction = "Upregulated"), 
-                             ora_df_down %>% dplyr::mutate(Direction = "Downregulated"))
+  # Put your data frames in a named list
+  dfs <- list(fgsea_df      = fgsea_df,
+              gsea_df       = gsea_df,
+              ora_df_up     = ora_df_up,
+              ora_df_down   = ora_df_down)
+  df_names <- names(dfs)
   
-  if (nrow(ora_df) > 0){
-    ora_df <- ora_df %>%
-      tidyr::separate(col = GeneRatio, into = c("k", "n")) %>%
-      tidyr::separate(col = BgRatio, into = c("K", "N")) %>%
-      dplyr::mutate_at(c("k", "n", "K", "N"), as.numeric) %>%
-      dplyr::mutate(GeneRatio = k / n,
-                    BackgroundRatio = K / N,
-                    EnrichmentRatio = GeneRatio / BackgroundRatio,
-                    combined_score = GeneRatio * -log10(p.adjust),
-                    NES = NA_integer_) %>%
-      dplyr::rename(any_of(lookup))
-  }
-  
-  for (i in c("fgsea_df", "gsea_df")){
-    df <- get(i) %>% 
-      dplyr::mutate(Direction = dplyr::case_when(NES > 0 ~ "Upregulated",
-                                                 NES < 0 ~ "Downregulated",
-                                                 TRUE ~ "No change")) %>%
-      dplyr::rename(any_of(lookup))
-    assign(x = i, value = df)
-  }
-
-  for (i in c("fgsea_df", "gsea_df", "ora_df")){
+  dfs <- lapply(X = df_names, FUN = function(df_name) {
     
-    df <- get(i)
-    if (nrow(df) > 0){
+    # Extract specific df
+    df <- dfs[[df_name]]
+    if (nrow(df) == 0) return(df)  # skip empty data frames
+    
+    # Add Direction column
+    if (df_name == "ora_df_up"){
+      df$Direction <- "Upregulated"
+    } else if (df_name == "ora_df_down"){
+      df$Direction <- "Downregulated"
+    } else {
       df <- df %>%
-        dplyr::filter(padj <= 0.05) %>%
-        tibble::remove_rownames() %>%
-        tidyr::separate(col = pathway, into = c("Collection", "Description"), sep = "_", extra = "merge") %>%
-        dplyr::mutate(Description = base::gsub(pattern = "_", replacement = " ", x= Description),
-                      geneID = base::sapply(X = geneID, FUN = paste, collapse = "/")) %>%
-        dplyr::rowwise() %>%
-        dplyr::mutate(leading_edge_size = length(unlist(stringr::str_split(geneID, "/")))) %>%
-        dplyr::ungroup() %>%
-        as.data.frame() %>%
-        dplyr::select(Collection, Description, leading_edge_size, K, pval, padj, NES, Direction, everything(), -geneID, geneID)
-      
-      max_len <-  max(df$leading_edge_size, na.rm = TRUE)
-      sep_char <- ifelse(grepl(",", df$geneID[1], fixed = TRUE), ",", "/")
-      
-      # across() allows you to apply a function(s) to multiple columns at once. 
-      # map_chr() iterates over a list/vector and applies a function to each 
-      # element (in this context, each cell within the selected columns),
-      # returning a character vector.
-      if (is.finite(max_len) & max_len > 0){
-        df <- df %>% 
-          tidyr::separate(col = geneID, into = paste0("gene", 1:max_len), sep = sep_char, remove = TRUE, fill = "right") %>%
-          dplyr::mutate(across(.cols = starts_with("gene", ignore.case = FALSE), 
-                               .fns = function (col) { col %>% 
-                                   purrr::map_chr(.f = function (x){gsub('c\\(', "", x) }) %>%
-                                   purrr::map_chr(.f = function (x){gsub('\\)', "", x) }) %>%
-                                   purrr::map_chr(.f = function (x){gsub('"', "", x) }) %>%
-                                   trimws() })) %>%
-          dplyr::select(Collection, Description, leading_edge_size, K, padj, NES, Direction, everything())
-      }
-      assign(x = i, value = df)
+        dplyr::mutate(Direction = dplyr::case_when(NES > 0 ~ "Upregulated",
+                                                 NES < 0 ~ "Downregulated",
+                                                 TRUE    ~ "No change"))
     }
-  }
+    
+    # ORA df specific formatting
+    # k <- # overlap between pathway and input (sig_genes_up/sig_genes_down/gmt/ranked_list)
+    # n <- # overlap between collection and input (sig_genes_up/sig_genes_down/gmt/ranked_list)
+    # K <- # overlap between pathway and universe
+    # N <- # overlap between collection and universe
+    if (df_name %in% c("ora_df_up", "ora_df_down")){
+      df <- df %>%
+        tidyr::separate(col = GeneRatio, into = c("k", "n")) %>%
+        tidyr::separate(col = BgRatio,   into = c("K", "N")) %>%
+        dplyr::mutate(across(.cols = c(k, n, K, N), .fns = as.numeric)) %>%
+        dplyr::mutate(GeneRatio       = k / n,
+                      BackgroundRatio = K / N,
+                      EnrichmentRatio = GeneRatio / BackgroundRatio,
+                      combined_score  = GeneRatio * -log10(p.adjust),
+                      NES             = NA_integer_)
+    }
+    
+    # Standardize column names based on look up table
+    df <- df %>%
+      dplyr::rename(any_of(lookup))
+    
+    # Format results
+    # IMPORTANT: gsea_df and ora_df store geneID as string "CXCL11/CCL2/..."
+    # fgsea_df stores geneID as list of vectors which we convert to string "CXCL11/CCL2/..."
+    df <- df %>%
+      dplyr::filter(padj <= 0.05) %>%
+      tibble::remove_rownames() %>%
+      tidyr::separate(col = pathway, into = c("Collection", "Description"), sep = "_", extra = "merge") %>%
+      dplyr::mutate(Description = base::gsub(pattern = "_", replacement = " ", x = Description),
+                    geneID = base::sapply(X = geneID, FUN = paste, collapse = "/")) %>%
+      dplyr::rowwise() %>%
+      dplyr::mutate(leading_edge_size = length(unlist(stringr::str_split(geneID, "/")))) %>%
+      dplyr::ungroup() %>%
+      as.data.frame() %>%
+      dplyr::select(Collection, Description, leading_edge_size, K, padj, NES, Direction, everything(), -geneID, geneID)
+    
+    # Generate separate column for each gene in enriched pathways
+    max_len <- max(df$leading_edge_size, na.rm = TRUE)
+    if (is.finite(max_len) & max_len > 0) {
+      df <- df %>%
+        tidyr::separate(col = geneID, into = paste0("gene", 1:max_len), sep = "/", remove = TRUE, fill = "right")
+    }
+    
+    return(df)
+  })
+  
+  # Restore names
+  dfs <- stats::setNames(dfs, df_names)
+  
+  # Put them back into separate variables if needed
+  fgsea_df <- dfs$fgsea_df
+  gsea_df  <- dfs$gsea_df
+  ora_df   <- dplyr::bind_rows(dfs$ora_df_up, dfs$ora_df_down)
   
   # ---- 🤝 Consensus Result ----
   
@@ -2050,98 +2113,131 @@ pathway_analysis <- function(DEGs_df, proj.params, output_dir) {
   
   # ---- 💾 Save Outputs ----
   
-  gsea_res_list <- list(consensus = consensus_df,
-                        fgsea = fgsea_df, 
-                        gsea = gsea_df, 
-                        ora = ora_df)
+  pathway_results_list <- list(fgsea     = fgsea_df, 
+                               gsea      = gsea_df, 
+                               ora       = ora_df,
+                               consensus = consensus_df)
   # Save as excel
+  file_name <- file.path(output_dir, "Pathway_results.xlsx")
   wb <- openxlsx::createWorkbook()
-  for (i in seq_along(gsea_res_list)) {
-    openxlsx::addWorksheet(wb, sheetName = names(gsea_res_list)[i])
-    openxlsx::writeData(wb, sheet = names(gsea_res_list)[i], x = gsea_res_list[[i]], rowNames = FALSE)
+  for (i in seq_along(pathway_results_list)) {
+    openxlsx::addWorksheet(wb, sheetName = names(pathway_results_list)[i])
+    openxlsx::writeData(wb, sheet = names(pathway_results_list)[i], x = pathway_results_list[[i]], rowNames = FALSE)
   }
-  openxlsx::saveWorkbook(wb, file.path(output_dir, "Pathway_results.xlsx"), overwrite = TRUE)
+  openxlsx::saveWorkbook(wb, file_name, overwrite = TRUE)
   
   # ---- 🪵 Log Output and Return ----
   
-  log_info(sample = "", step = "pathway_analysis", 
-           msg =glue::glue("Pathway analysis finished. Consensus results generated for {nrow(consensus_df)} terms."))
+  log_info(sample = "", 
+           step   = "pathway_analysis", 
+           msg    = glue::glue("Pathway analysis results saved to '{file_name}'."))
   
-  return(invisible(list(fgsea = fgsea_df, 
-                        gsea = gsea_df, 
-                        ora = ora_df, 
-                        consensus = consensus_df)))
+  return(invisible(list(fgsea = fgsea_df, gsea = gsea_df, ora = ora_df, consensus = consensus_df)))
 }
+
+analyze_tf <- function(expr_mat, res_df, species, 
+                       stats = c("ulm", "mlm", "viper"), 
+                       minsize = 5, top_n = 500) {
   
-### decoupleR Analysis [RECOMMENDED as it can run multiple algorithms & give consensus]
-# input can be vst_counts or DEGs with t-statistic (-log10padj*log2FC)
-tf_analysis <- function(input, species = "Homo sapiens", top = 500) {
+  # decoupleR analysis RECOMMENDED over progeny/dorothea as it can run 
+  # multiple algorithms & give consensus result
+  
+  # stats can be "aucell", fgsea", "gsva", "mdt", "mlm", "ora", "udt", "ulm", 
+  # "viper", "wmean", "wsum". We use ulm, mlm, and viper provide a balance of 
+  # sensitivity and specificity
   
   set.seed(1234)
   
   # ---- ⚙️ Validate Input Parameters ----
   
-  if (!is.matrix(input)) {
-    log_error(sample = "", step = "tf_analysis", msg ="`input` must be a matrix.")
-  }
+  validate_inputs(expr_mat = expr_mat, res_df = res_df) 
   
   if (!species %in% c("Homo sapiens", "Mus musculus")) {
-    log_error(sample = "", step = "tf_analysis", 
-              msg ="`species` must be either 'Homo sapiens' or 'Mus musculus'.")
+    log_error(sample = "", 
+              step   = "tf_analysis", 
+              msg    = "`species` must be either 'Homo sapiens' or 'Mus musculus'.")
   }
+  
+  if (is.null(expr_mat) && !is.null(res_df)){
+    log_info(sample = "", 
+             step   = "tf_analysis", 
+             msg    = "`expr_mat` is NULL. Using `res_df` for Transcription factor analysis.")
+  } else if (!is.null(expr_mat) && is.null(res_df)){
+    log_info(sample = "", 
+             step   = "tf_analysis", 
+             msg    = "`res_df` is NULL. Using `expr_mat` for Transcription factor analysis.")
+  } else if (is.null(expr_mat) && is.null(res_df)){
+    log_error(sample = "", 
+              step   = "tf_analysis", 
+              msg    = "Either `expr_mat` or `res_df` is needed for Transcription factor analysis.
+              Both cannot be NULL.")
+  }
+  
+  # ---- 🕸️ Load Regulatory Networks ----
   
   # Map species to decoupleR organism format
   organism <- dplyr::case_when(species == "Homo sapiens" ~ "human",
                                species == "Mus musculus" ~ "mouse",
                                TRUE ~ "rat")
   
-  # ---- 🕸️ Load Regulatory Networks ----
-  
   # PROGENy: Pathway activity (Top weights per pathway)
-  progeny_pathway_net <- decoupleR::get_progeny(organism = organism, top = top)
+  progeny_pathway_net <- decoupleR::get_progeny(organism = organism, top = top_n)
   
   # CollecTRI: Transcription Factor gene regulatory network (GRN)
   # CollecTRI is chosen over DoRothEA for high-confidence, literature-backed interactions
   
-  # get_collectri returns mor column without edge weights (-1 or +1)
+  # get_collectri() returns mor column without edge weights from -1 or +1
   collectri_tf_net <- decoupleR::get_collectri(organism = organism, split_complexes = FALSE)
   
-  # # get_dorothea returns mor column with edge weights (-1 through +1)
+  # get_dorothea() returns mor column with edge weights from -1 through +1
   # dorothea_tf_net <- decoupleR::get_dorothea(organism = organism, levels = c('A', 'B', 'C'))
   # viper works better with edge weights but dorothea's edge weights are solely based on confidence
   
+  # ---- 📝 Format Input for DecoupleR ----
+  
+  # Calculate a signed significance score for gene ranking.
+  # We combine statistical confidence (-log10 p-value) with directionality
+  # using sign(log2FoldChange), rather than the raw fold-change magnitude.
+  # This prevents genes with extreme fold changes but weak statistical support
+  # from dominating the ranking, and aligns with best practices for
+  # transcription factor and pathway activity inference (e.g. VIPER, decoupleR).
+  
+  if (!is.null(expr_mat)) {
+    input_mat <- as.matrix(expr_mat)
+  } else {
+    # If using res_df, create't-statistic' equivalent using padj & log2FoldChange
+    input_mat <- res_df %>%
+      as.data.frame() %>%
+      dplyr::mutate(t = -log10(pmax(padj, .Machine$double.xmin)) * sign(log2FoldChange)) %>%
+      dplyr::filter(!is.na(t), !is.na(SYMBOL)) %>%
+      dplyr::select(SYMBOL, t) %>%
+      tibble::column_to_rownames("SYMBOL") %>%
+      as.matrix()
+  }
+  
   # ---- 📉 Run DecoupleR (Consensus Statistics) ----
   
-  # stats can be either of c("aucell", fgsea", "gsva", "mdt", "mlm", "ora", 
-  #                          "udt", "ulm", "viper", "wmean", "wsum")
-  
-  # ulm, mlm, and viper provide a balance of sensitivity and specificity
-  stats <- c("ulm", "mlm", "viper")
-  
-  log_info(sample = "", step = "tf_analysis", 
-           msg =glue::glue("Estimating activity for {organism} using ulm, mlm, and viper."))
-  
   # Calculate Pathway Activity
-  pathway_df <- decoupleR::decouple(mat = input, 
-                                    network = progeny_pathway_net,
+  pathway_df <- decoupleR::decouple(mat        = input_mat,
+                                    network    = progeny_pathway_net,
                                     statistics = stats, 
-                                    minsize = 5)
+                                    minsize    = minsize)
   
   # Calculate Transcription Factor Activity
-  tf_df <- decoupleR::decouple(mat = input, 
-                               network = collectri_tf_net,
+  tf_df <- decoupleR::decouple(mat        = input_mat, 
+                               network    = collectri_tf_net,
                                statistics = stats, 
-                               minsize = 5)
+                               minsize    = minsize)
   
-  # tf_df <- decoupleR::decouple(mat = input, 
-  #                              network = dorothea_tf_net,
-  #                              statistics = "viper", 
-  #                              minsize = 5)
+  # tf_df <- decoupleR::decouple(mat        = input_mat,
+  #                              network    = dorothea_tf_net,
+  #                              statistics = "viper",
+  #                              minsize    = minsize)
   
   # ---- 🧹 Significance Filtering (BH Correction) ----
   
-  # Function to handle internal grouping and adjustment
-  process_sig <- function(df) {
+  # Function to calculate padj for each method i.e ulm/mlm/viper
+  calc_padj <- function(df) {
     df %>%
       dplyr::group_by(statistic) %>%
       dplyr::mutate(padj = stats::p.adjust(p_value, method = "BH")) %>%
@@ -2149,23 +2245,20 @@ tf_analysis <- function(input, species = "Homo sapiens", top = 500) {
       dplyr::filter(padj <= 0.05)
   }
   
-  pathway_sig <- process_sig(pathway_df)
-  tf_sig <- process_sig(tf_df)
+  pathway_sig_df <- calc_padj(pathway_df)
+  tf_sig_df <- calc_padj(tf_df)
   
   # ---- 🪵 Log Output and Return ----
   
-  log_info(sample = "", step = "tf_analysis", 
-           msg =glue::glue("TF Analysis complete. Significant hits: {nrow(tf_sig)} TFs, {nrow(pathway_sig)} Pathways."))
+  log_info(sample = "", 
+           step   = "tf_analysis", 
+           msg    = glue::glue("TF Analysis complete. Significant hits: {nrow(tf_sig_df)} TFs, {nrow(pathway_sig_df)} Pathways."))
   
-  result <- list(all_pathways = pathway_df,
-                 all_tfs      = tf_df,
-                 sig_pathways = pathway_sig,
-                 sig_tf       = tf_sig
-  )
-  
-  return(invisible(result))
+  return(invisible(list(pathway     = pathway_df,
+                        tf          = tf_df,
+                        pathway_sig = pathway_sig_df,
+                        tf_sig      = tf_sig_df)))
 }
-
 
 # No "_" in Description column so that str_wrap works
 # Collection column needed
@@ -2339,11 +2432,11 @@ plot_pathway <- function(pathway_df, vst_counts, metadata, samples, method, outp
         unique()
       
       if (length(plot_genes) >= 2){
-        norm_counts <- vst_counts[plot_genes, samples, drop = FALSE]
+        expr_mat <- vst_counts[plot_genes, samples, drop = FALSE]
         metadata_col <- metadata %>% dplyr::filter(Sample_ID %in% samples)
         metadata_row <- NULL
         disp_genes <- c()
-        proj.params$heatmap$title <- stringr::str_wrap(string = pathway, width = 30)
+        plot_title <- stringr::str_wrap(string = pathway, width = 30)
         
         ph <- plot_heatmap(norm_counts, proj.params, metadata_col, metadata_row, disp_genes)
         heatmap_plot_list[[length(heatmap_plot_list) + 1]] <- ph$ph$gtable
@@ -2451,7 +2544,7 @@ plot_tf <- function(input, contrast, metadata, samples, output_dir, n_tfs = 20){
       metadata_col <- metadata %>% dplyr::filter(Sample_ID %in% samples)
       metadata_row <- NULL
       disp_genes <- c()
-      proj.params$heatmap$title <- paste0("Top TFs (", stat, ") method")
+      plot_title <- paste0("Top TFs (", stat, ") method")
       
       ph <- plot_heatmap(norm_counts, proj.params, metadata_col, metadata_row, disp_genes)
       heatmap_plot_list[[length(heatmap_plot_list) + 1]] <- ph$ph$gtable
@@ -2483,156 +2576,6 @@ plot_tf <- function(input, contrast, metadata, samples, output_dir, n_tfs = 20){
   }
   
   return(invisible(list(barplots = bar_plot_list, heatmaps = heatmap_plot_list)))
-}
-
-main_analysis <- function(metadata, read_data, proj.params, trial) {
-  
- 
-  output_dir <- proj.params$proj_dir
-
-    # Loop through contrasts
-    for (n in seq_along(contrasts)) {
-      
-      # ---- Visualization: Volcano Plot ----
-      DEGs_df <- deseq2_results$degs
-      contrast <- proj.params$deseq2$contrasts[n]
-      output_dir <- proj.params$deseq2_dir[n]
-      plot_volcano(DEGs_df, proj.params, contrast, output_dir)
-      
-      
-      # ---- Visualization: Heatmap ----
-      contrast <- proj.params$deseq2$contrasts[n]
-      DEGs_df <- deseq2_results$degs
-      vst_counts <- deseq2_results$vst
-      samples <- filter_samples_by_contrast(metadata, contrast)
-      samples <- intersect(colnames(vst_counts), samples)
-      sig_genes <- DEGs_df %>% dplyr::filter(padj <= 0.05) %>% dplyr::pull(SYMBOL)
-      
-      if (length(sig_genes) != 0){
-        
-        norm_counts <- vst_counts[sig_genes, samples, drop = FALSE]
-        metadata_col <- metadata %>% dplyr::filter(Sample_ID %in% samples)
-        metadata_row <- NULL
-        disp_genes <- c()
-        output_dir <- proj.params$deseq2_dir[n]
-        
-        ph <- plot_heatmap(norm_counts, proj.params, metadata_col, metadata_row, disp_genes)
-        
-        jpeg(file.path(output_dir, "Heatmap.jpeg"), width = 5, height = 7, units = "in", res = 300)
-        gridExtra::grid.arrange(grobs = list(ph$ph$gtable), ncol = 1)
-        dev.off()
-        
-        save_xlsx(ph$mat, file.path(output_dir, "Heatmap_Matrix.xlsx"), "Heatmap_matrix", row_names = TRUE)
-      } 
-      
-      # ---- Pathway Analysis ----
-      
-      # Perform pathway analysis
-      output_dir <- proj.params$pathway_dir[n]
-      gsea_res_list <- pathway_analysis(DEGs_df, proj.params, output_dir)
-      
-      # Plot Bar, Dot, Heatmap for top 10 Up & Down Pathways
-      top_pathways_gsea <- gsea_res_list$consensus %>%
-        dplyr::group_by(Collection, Consensus, Description) %>%
-        dplyr::slice_min(order_by = match(method, c("FGSEA", "GSEA", "ORA")), n = 1) %>%
-        dplyr::ungroup() %>%
-        dplyr::group_by(Collection, Consensus) %>%
-        dplyr::slice_max(order_by = abs(NES), n = 10, with_ties = FALSE) %>%
-        dplyr::ungroup()
-      
-      top_pathways_ora <- gsea_res_list$consensus %>%
-        dplyr::filter(method == "ORA") %>%
-        dplyr::group_by(Collection, Consensus) %>%
-        dplyr::slice_min(order_by = padj, n = 10, with_ties = FALSE) %>%
-        dplyr::ungroup()
-      
-      output_dir <- proj.params$pathway_dir[n]
-      samples <- filter_samples_by_contrast(metadata, contrast)
-      samples <- intersect(colnames(vst_counts), samples)
-      plot_pathway(top_pathways_gsea, vst_counts, metadata, samples, "GSEA", output_dir)
-      plot_pathway(top_pathways_ora, vst_counts, metadata, samples, "ORA", output_dir)
-      
-      # ---- Transcription Factor (TF) Analysis ----
-      
-      # Perform TF analysis on DEGs using t-statistics
-      t_stats_mat <- DEGs_df %>% 
-        as.data.frame() %>%
-        dplyr::mutate(t = -log10(padj) * log2FoldChange) %>%
-        dplyr::filter(!is.na(t)) %>%
-        dplyr::select(SYMBOL, t) %>%
-        tibble::column_to_rownames("SYMBOL") %>%
-        as.matrix()
-      
-      tf_res_degs <- tf_analysis(t_stats_mat, proj.params$species)
-      
-      # Perform TF analysis on vst counts 
-      samples <- filter_samples_by_contrast(metadata, contrast)
-      samples <- intersect(colnames(vst_counts), samples)
-      norm_counts_sub <- vst_counts[, samples]
-      
-      tf_res_counts <- tf_analysis(norm_counts_sub, proj.params$species)
-      
-      # Plot Bar, Heatmap for top 20 Up and Down TFs
-      contrast <- contrasts[n]
-      output_dir <- proj.params$tf_dir[n]
-      samples <- filter_samples_by_contrast(metadata, contrast)
-      samples <- intersect(colnames(vst_counts), samples)
-      plot_tf(tf_res_degs, contrast, metadata, samples, output_dir, n_tfs = 20)
-      plot_tf(tf_res_counts, contrast, metadata, samples, output_dir, n_tfs = 20)
-    }
-    
-    # ---- Visualization: Dispersion Estimates ----
-    dds <- deseq2_results$dds
-    output_dir <- proj.params$proj_dir
-    plot_dispersion(dds, output_dir)
-    
-    # ---- VST Counts (Blind) ----
-    # NOTE: vst counts are affected by design ONLY when blind=FALSE
-    dds <- deseq2_results$dds
-    output_dir <- proj.params$proj_dir
-    vsd_blind <- DESeq2::vst(dds, blind = TRUE)
-    vst_counts_blind <- SummarizedExperiment::assay(vsd_blind) %>%
-      as.data.frame() %>%
-      tibble::rownames_to_column("ID") %>%
-      add_annotation() %>%
-      dplyr::filter(!is.na(SYMBOL)) %>%
-      dplyr::group_by(SYMBOL) %>%
-      dplyr::summarize(across(.cols = where(is.numeric), .fns = mean, na.rm = TRUE), .groups = "drop") %>%
-      tibble::remove_rownames() %>%
-      tibble::column_to_rownames("SYMBOL") %>%
-      dplyr::select(-dplyr::starts_with("ENSEMBL"), -dplyr::starts_with("ENTREZ")) %>%
-      as.matrix()
-    
-    save_xlsx(vst_counts_blind, file.path(output_dir, "VST_counts_blind.xlsx"), "VST_blind", row_names = TRUE)
-    
-    # ---- Perform LRT Test ----
-    dds <- deseq2_results$dds
-    dds_LRT <- DESeq2::DESeq(dds, test = "LRT", reduced = ~1)
-    res_LRT <- DESeq2::results(dds_LRT) %>%
-      as.data.frame() %>%
-      tibble::rownames_to_column("ID") %>%
-      add_annotation()
-    
-    # ---- Visualization: Heatmap ----
-    output_dir <- proj.params$proj_dir
-    samples <- colnames(vst_counts_blind)
-    sig_genes <- res_LRT %>% dplyr::filter(padj <= 0.05) %>% dplyr::pull(SYMBOL)
-    norm_counts <- vst_counts_blind[sig_genes, samples, drop = FALSE]
-    metadata_col <- metadata %>% dplyr::filter(Sample_ID %in% samples)
-    metadata_row <- NULL
-    disp_genes <- c()
-    proj.params$heatmap.title <- ""
-    if (length(sig_genes) != 0){
-      
-      ph <- plot_heatmap(norm_counts, proj.params, metadata_col, metadata_row, disp_genes)
-      
-      jpeg(file.path(output_dir, "Heatmap.jpeg"), width = 5, height = 7, units = "in", res = 300)
-      gridExtra::grid.arrange(grobs = list(ph$ph$gtable), ncol = 1)
-      dev.off()
-      
-      save_xlsx(ph$mat, file.path(output_dir, "Heatmap_Matrix.xlsx"), "Heatmap_matrix", row_names = TRUE)
-    }
-
 }
 
 get_annotations <- function() {
@@ -2669,7 +2612,7 @@ get_annotations <- function() {
     
     # Download the appropriate Ensembldb database
     edb <- ah[[latest_id]]
-
+    
     # ---- 🧬 Extract ENSEMBL Annotations ----
     
     ensembl <- ensembldb::genes(x = edb, 
@@ -2721,7 +2664,7 @@ get_annotations <- function() {
     annotations_list[[species]] <- annotations
     
     log_info(sample = species, step = "get_annotations", 
-            msg =glue::glue("Successfully retrieved {nrow(annotations)} gene annotations."))
+             msg =glue::glue("Successfully retrieved {nrow(annotations)} gene annotations."))
   }
   
   # ---- 🪵 Log Output and Return ----
@@ -2761,8 +2704,8 @@ add_annotation <- function(normalized_counts) {
     sample = "",
     step   = "add_annotation",
     msg =glue::glue("Auto-detected ID format: {best_match}\n",
-                         "Overlap counts:\n",
-                         "{paste(names(overlap_counts), overlap_counts, sep = ' \\t: ', collapse = '\\n')}")
+                    "Overlap counts:\n",
+                    "{paste(names(overlap_counts), overlap_counts, sep = ' \\t: ', collapse = '\\n')}")
   )
   
   # Determine Species
@@ -2810,7 +2753,7 @@ add_annotation <- function(normalized_counts) {
   
   return(normalized_counts)
 }
-  
+
 
 norm_counts_DESeq2 <- function(metadata, read_data, proj.params) {
   
@@ -2924,6 +2867,7 @@ validate_inputs <- function(sample = NULL,
                             counts_dir = NULL,
                             expr_mat = NULL,
                             dds = NULL,
+                            res_df = NULL,
                             xlsx_file = NULL, 
                             logic_vars = NULL,
                             metadata_cols = NULL) {
@@ -2935,31 +2879,31 @@ validate_inputs <- function(sample = NULL,
   
   
   # ---- ⚡ Check if user accidentally passed a undefined variable ----
-
+  
   # Capture user-supplied args safely
   called_args <- as.list(match.call(expand.dots = FALSE))[-1]
-
+  
   # Collect all undefined variables
   bad_vars <- character()
-
+  
   # Iterate through each variable passed to the function
   for (var_name in names(called_args)) {
-
+    
     val <- tryCatch(expr = eval(called_args[[var_name]], envir = parent.frame()),
                     error = function(e) { e })
-
+    
     # Case 1: evaluation failed (object not defined)
     if (inherits(val, "error")) {
       bad_vars <- c(bad_vars, glue::glue("'{var_name}' is not defined in the calling environment"))
       next
     }
-
+    
     # Case 2: user accidentally passed a function (e.g. metadata())
     if (is.function(val)) {
       bad_vars <- c(bad_vars, glue::glue("'{var_name}' refers to a function, not a user-defined object"))
     }
   }
-
+  
   # Print all undefined variables
   if (length(bad_vars) > 0) {
     log_error(sample = sample %||% "",
@@ -3190,8 +3134,8 @@ validate_inputs <- function(sample = NULL,
     # Check 1: Directory must exist
     if (!dir.exists(output_dir)) {
       log_warn(sample  = sample,
-                step    = step, 
-                msg =glue::glue("PATH WARN: Output directory '{output_dir}' does not exist.
+               step    = step, 
+               msg =glue::glue("PATH WARN: Output directory '{output_dir}' does not exist.
                                      Attempting to create."))
       dir.create(output_dir, recursive = TRUE)
     }
@@ -3257,40 +3201,39 @@ validate_inputs <- function(sample = NULL,
   
   if (!is.null(expr_mat)) {
     if (is.data.frame(expr_mat)) {
-      
       log_warn(sample = sample,
                step   = step,
-               msg    = "expr_mat is a data.frame and will be converted to a numeric matrix.")
+               msg    = "`expr_mat` is a data.frame and will be converted to a numeric matrix.")
       
     } else if (!is.matrix(expr_mat)) {
-      
       log_error(sample = sample,
                 step   = step,
-                msg    = "expr_mat must be a matrix or data.frame.")
+                msg    = "`expr_mat` must be a matrix or data.frame.")
     }
     
-    if (!all(apply(X = expr_mat, MARGIN = 2, FUN = is.numeric))) {
+    expr_mat_numeric <- apply(X = expr_mat, MARGIN = 2, FUN = function(x){as.numeric(as.character(x))})
+    if (any(is.na(expr_mat_numeric))) {
       log_error(sample = sample,
                 step   = step,
-                msg    = "expr_mat contains non-numeric columns and cannot be converted safely.")
+                msg    = "`expr_mat` contains non-numeric columns that cannot be converted safely.")
     }
     
-    if (is.null(rownames(expr_mat)) || any(rownames(expr_mat) == "")) {
-      log_error(sample  = sample,
-                step    = step, 
-                msg =glue::glue("expr_mat must have non-empty rownames representing genes."))
+    if (is.null(rownames(expr_mat))) {
+      log_error(sample = sample,
+                step   = step, 
+                msg    = "`expr_mat` must have rownames representing genes.")
     }
     
-    if (is.null(colnames(expr_mat)) || any(colnames(expr_mat) == "")) {
-      log_error(sample  = sample,
-                step    = step, 
-                msg =glue::glue("expr_mat must have non-empty colnames representing sample IDs."))
+    if (is.null(colnames(expr_mat))) {
+      log_error(sample = sample,
+                step   = step, 
+                msg    = "`expr_mat` must have colnames representing sample names.")
     }
     
     if (any(duplicated(colnames(expr_mat)))) {
-      log_error(sample  = sample,
-                step    = step, 
-                msg =glue::glue("Duplicate sample names detected in expr_mat."))
+      log_error(sample = sample,
+                step   = step, 
+                msg    = "Duplicate sample names detected in expr_mat.")
     }
   }
   
@@ -3304,18 +3247,59 @@ validate_inputs <- function(sample = NULL,
       if (!is.logical(val) || length(val) != 1) {
         log_error(sample = sample,
                   step   = "validate_inputs",
-                  msg    = glue::glue("INPUT ERROR: '{logic_var}' must be a single logical (TRUE/FALSE)."))
+                  msg    = glue::glue("INPUT ERROR: `{logic_var}` must be a single logical (TRUE/FALSE)."))
       }
     }
   }
   
-  # ---- 1️⃣3️⃣ 'DESeq2 object' Check ---
+  # ---- 1️⃣4️⃣ 'DESeq2 object' Check ----
   
   if (!is.null(dds)) {
     if (!inherits(dds, "DESeqDataSet")) {
       log_error(sample = sample,
                 step   = "validate_inputs",
                 msg    = "`dds` must be a DESeqDataSet object.")
+    }
+  }
+  
+  # ---- 1️⃣5️⃣ `res_df` Check ----
+  
+  if (!is.null(res_df)) {
+    
+    # (i) Data frame
+    if (!is.data.frame(res_df)) {
+      log_error(sample = "",
+                step   = "plot_volcano",
+                msg    = "`res_df` must be a data.frame.")
+    }
+    
+    # (ii) Required columns
+    required_cols <- c("log2FoldChange", "padj", "SYMBOL")
+    missing_cols  <- base::setdiff(required_cols, colnames(res_df))
+    
+    if (length(missing_cols) > 0) {
+      log_error(sample = "",
+                step   = "plot_volcano",
+                msg    = glue::glue("`res_df` is missing required column(s): '{paste(missing_cols, collapse = ", ")}'."))
+    }
+    
+    # (iii) Required column types
+    if (!is.numeric(res_df$log2FoldChange)) {
+      log_error(sample = "",
+                step   = "plot_volcano",
+                msg    = "`res_df$log2FoldChange` must be numeric.")
+    }
+    
+    if (!is.numeric(res_df$padj)) {
+      log_error(sample = "",
+                step   = "plot_volcano",
+                msg    = "`res_df$padj` must be numeric.")
+    }
+    
+    if (!is.character(res_df$SYMBOL)) {
+      log_error(sample = "",
+                step   = "plot_volcano",
+                msg    = "`res_df$SYMBOL` must be a character vector.")
     }
   }
   
@@ -3435,7 +3419,7 @@ load_spaceranger <- function(sample, bin, matrix_dir){
     log_error(sample = sample, 
               step = "load_spaceranger",
               msg =glue::glue("Failed to load binned data from '{data_dir}' for bin size '{bin}'.\n",
-                                   "{pad}Please verify the Space Ranger output structure."))
+                              "{pad}Please verify the Space Ranger output structure."))
   })
   
   # Add sample identifier to Seurat object
@@ -3492,7 +3476,7 @@ classify_dropletutils <- function(sample_seurat){
       log_info(sample = sample, 
                step = "classify_dropletutils",
                msg =glue::glue("emptyDrops check: '{n_improve}' droplets need more iterations.\n",
-                                    "{pad}Current niters = '{niters}'."))
+                               "{pad}Current niters = '{niters}'."))
     }
     
     df
@@ -3503,7 +3487,7 @@ classify_dropletutils <- function(sample_seurat){
       log_warn(sample = sample, 
                step = "classify_dropletutils",
                msg =paste("emptyDrops failed: no counts available for ambient profile.\n",
-                               base::strrep(" ", 35), "Setting all barcodes as non-empty (FDR < 0.05)."))
+                          base::strrep(" ", 35), "Setting all barcodes as non-empty (FDR < 0.05)."))
       
       # Create dummy dataframe with FDR < 0.05
       data.frame(Total = colSums(SingleCellExperiment::counts(sce)),
@@ -3712,9 +3696,9 @@ calc_qc_metrics <- function(sample_seurat, assay){
   log_info(sample = sample, 
            step = "calc_qc_metrics",
            msg = glue::glue("Cutoffs applied: nGenes ≥ {gene_cutoff}\n",
-                                 "{pad}nUMIs ≥ {umi_cutoff}\n",
-                                 "{pad}MitoRatio ≤ {mito_cutoff}\n",
-                                 "{pad}Novelty ≥ {novelty_cutoff}"))
+                            "{pad}nUMIs ≥ {umi_cutoff}\n",
+                            "{pad}MitoRatio ≤ {mito_cutoff}\n",
+                            "{pad}Novelty ≥ {novelty_cutoff}"))
   
   # Create Quality column, drop 'barcode' column and restore it as rownames
   sample_metadata <- sample_metadata %>%
@@ -3854,9 +3838,9 @@ classify_doubletfinder <- function(sample_seurat, n_pcs = NULL, pN = 0.25){
     log_error(sample = sample, 
               step = "classify_doubletfinder",
               msg =paste("More than 1 DoubletFinder classification columns present.",
-                              "Cannot uniquely identify the DoubletFinder classification column.",
-                              "Please check if DoubletFinder was already run.",
-                              sep = "\n"))
+                         "Cannot uniquely identify the DoubletFinder classification column.",
+                         "Please check if DoubletFinder was already run.",
+                         sep = "\n"))
   }
   
   # ---- 🔍 Build Classification Vector ----
@@ -4002,8 +3986,8 @@ filter_singlets <- function(sample_seurat){
     log_error(sample = sample, 
               step = "filter_singlets",
               msg =paste("Missing required columns in metadata: Quality, DoubletFinder, scDblFinder.",
-                              "Please run calc_qc_metrics(), classify_doubletfinder() and classify_scdblfinder()",
-                              sep = "\n"))
+                         "Please run calc_qc_metrics(), classify_doubletfinder() and classify_scdblfinder()",
+                         sep = "\n"))
   }
   
   # Columns to retain (if available)
@@ -4371,7 +4355,7 @@ run_sctransform <- function(filtered_seurat, assay, s_genes, g2m_genes){
     log_error(sample = "",
               step = "run_sctransform",
               msg =glue::glue("Zero S-phase genes were found in '{assay}' assay\n",
-                                   "{pad}Cannot perform cell cycle scoring."))
+                              "{pad}Cannot perform cell cycle scoring."))
     
   } else {
     log_info(sample = "",
@@ -4384,7 +4368,7 @@ run_sctransform <- function(filtered_seurat, assay, s_genes, g2m_genes){
     log_error(sample = "",
               step = "run_sctransform",
               msg =glue::glue("Zero G2M-phase genes were found in '{assay}' assay\n",
-                                   "{pad}Cannot perform cell cycle scoring."))
+                              "{pad}Cannot perform cell cycle scoring."))
   } else {
     log_info(sample = "",
              step = "run_sctransform",
@@ -4439,8 +4423,8 @@ run_sctransform <- function(filtered_seurat, assay, s_genes, g2m_genes){
   
   # 7️⃣ Prepare SCT Assay for Differential Expression
   sct_seurat <- quiet_msg(Seurat::PrepSCTFindMarkers(object = sct_seurat,
-                                           assay = "SCT",
-                                           verbose = FALSE))
+                                                     assay = "SCT",
+                                                     verbose = FALSE))
   
   # 8️⃣ Filter Out Unwanted Variable Features (Ribo, Mito, etc.)
   # NOTE: PCA, UMAP, and clustering should not be influenced by these genes.
@@ -5433,7 +5417,7 @@ plot_seurat <- function(integrated_seurat, reduction, features, filename, output
                     bg        = "white")
   }
   
-  # ---- 🪵 Log Output and return ----
+  # ---- 🪵 Log Output and Return ----
   
   log_info(sample = "",
            step = "plot_umap",
@@ -6182,7 +6166,7 @@ consolidate_gold_standard_markers <- function(data_dir = NULL, K_MODULES = NULL)
   saveWorkbook(wb, file_name, overwrite = TRUE)
   
   message(paste0("\n✅ Success! Clustered log2FC matrix saved to:\n", file_name))
-
+  
 }
 
 plot_gold_standard_markers <- function(integrated_seurat, reduction = "Harmony", 
@@ -8582,7 +8566,7 @@ plot_venn <- function(data, filename, output_dir){
                             ext.text = TRUE,           # Draw external text (labels)
                             #cat.default.pos = "outer",
                             disable.logging = TRUE)
-                                
+  
   # ---- 💾 Save Overlapping Genes (Excel Output) ----
   
   # 1️⃣ Detect Unique Overlapping Genes Across All Combinations
@@ -8653,7 +8637,7 @@ plot_venn <- function(data, filename, output_dir){
   openxlsx::writeData(wb, sheet = "Input", x = data, rowNames = FALSE)
   
   openxlsx::saveWorkbook(wb, file = file_name, overwrite = TRUE)
-
+  
   # ---- 🪵 Log Output ----
   
   log_info(sample = "", 
@@ -8682,8 +8666,8 @@ plot_upset <- function(listInput = NULL, selected_sets = NULL,
   # Check required inputs after defaulting
   if (!is.list(listInput) || length(listInput) == 0) {
     log_warn(sample = "",
-              step = "plot_upset", 
-              msg ="Input list is empty or invalid. using example dataset")
+             step = "plot_upset", 
+             msg ="Input list is empty or invalid. using example dataset")
   }
   
   # Handle Default Input (Example Data)
@@ -8814,7 +8798,7 @@ plot_pca <- function(expr_mat, metadata, filename, output_dir,
                   logic_vars = list(perform_vst = perform_vst,
                                     skip_plot   = skip_plot),
                   filename = filename, output_dir = output_dir)
-
+  
   if (!"Sample_ID" %in% colnames(metadata)) {
     log_error(sample = "",
               step   = "plot_pca",
@@ -8838,7 +8822,7 @@ plot_pca <- function(expr_mat, metadata, filename, output_dir,
     deseq2_data <- prepare_deseq2_input(metadata = metadata,
                                         expr_mat = expr_mat,
                                         design   = 1)
-      
+    
     dds <- DESeq2::DESeqDataSetFromMatrix(countData = deseq2_data$expr_mat,
                                           colData   = deseq2_data$metadata,
                                           design    = ~1)
@@ -8926,12 +8910,13 @@ plot_pca <- function(expr_mat, metadata, filename, output_dir,
              msg =glue::glue("Successfully plotted variable : '{var}'."))
   }
   
-  # ---- 💾 Save Plot ----
+  # ---- 💾 Save Plots ----
   
-  file_name <- file.path(output_dir, paste0("PCA_Plot_", filename, ".pdf"))
+  file_extension <- ".pdf"
+  file_name <- file.path(output_dir, paste0("PCA_Plot_", filename, file_extension))
   
   # Open multi-page PDF
-  grDevices::pdf(file = file_name, width = 8, height = 11.5, onefile = TRUE)  
+  grDevices::cairo_pdf(filename = file_name, width = 8, height = 11.5, onefile = TRUE)  
   
   for (var in names(all_plots)) {
     print(all_plots[[var]])  # each plot goes to a new page
@@ -8939,7 +8924,7 @@ plot_pca <- function(expr_mat, metadata, filename, output_dir,
   
   dev.off() 
   
-  # ---- 🪵 Log Output ----
+  # ---- 🪵 Log Output and Return PCA co-ordinates ----
   
   log_info(sample = "", 
            step = "plot_pca",
@@ -8964,7 +8949,7 @@ plot_umap <- function(expr_mat, metadata, n_pcs = 50, n_neighbors = NULL,
   
   # Get PC co-ordinates
   pca_results <- plot_pca(expr_mat = expr_mat, metadata = metadata, skip_plot = TRUE,
-                  filename = filename, output_dir = output_dir)
+                          filename = filename, output_dir = output_dir)
   
   # Select top 50 PCs for UMAP
   if(ncol(pca_results$x) > n_pcs){
@@ -9033,10 +9018,11 @@ plot_umap <- function(expr_mat, metadata, n_pcs = 50, n_neighbors = NULL,
   
   # ---- 💾 Save Plot ----
   
-  file_name <- file.path(output_dir, paste0("UMAP_Plot_", filename, ".pdf"))
+  file_extension <- ".pdf"
+  file_name <- file.path(output_dir, paste0("UMAP_Plot_", filename,  file_extension))
   
   # Open multi-page PDF
-  grDevices::pdf(file = file_name, width = 8, height = 11.5, onefile = TRUE)  
+  grDevices::cairo_pdf(filename = file_name, width = 8, height = 11.5, onefile = TRUE)   
   
   for (var in names(all_plots)) {
     print(all_plots[[var]])  # each plot goes to a new page
@@ -9056,7 +9042,7 @@ plot_umap <- function(expr_mat, metadata, n_pcs = 50, n_neighbors = NULL,
 # ---- 🥧 PIE CHART ----
 
 plot_piechart <- function(metadata, segment_col, filename, output_dir, split_col = NULL){
-
+  
   # ---- ⚙️ Validate Input Parameters ----
   
   validate_inputs(metadata = metadata,
@@ -9134,9 +9120,9 @@ plot_piechart <- function(metadata, segment_col, filename, output_dir, split_col
   }
   
   # ---- Extract shared legend from entire dataset ----
-
+  
   dummy <- ggplot(data = metadata, 
-              mapping = aes(x = 1, fill = .data[[segment_col]])) +
+                  mapping = aes(x = 1, fill = .data[[segment_col]])) +
     geom_bar(width = 1) +
     scale_fill_manual(values = pie_palette,
                       aesthetics = "fill") +
