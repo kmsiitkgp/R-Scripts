@@ -1771,16 +1771,18 @@ plot_heatmap <- function(expr_mat,
     stringr::str_wrap(string = plot_title, width = 20)
   } else { NA }
   
-  # Truncate long row labels
-  labels_row <- if (cell_height == fontsize + 5 && length(label_genes) > 0) {
-    dplyr::if_else(condition = rownames(reordered) %in% make.names(label_genes), 
+  # Truncate long row labels and display ONLY is cell_height is sufficient
+  labels_row <- if (!is.null(label_genes)){
+    dplyr::if_else(condition = rownames(reordered) %in% make.names(label_genes),
                    true = stringr::str_trunc(string = rownames(reordered), width = 15), 
                    false = " ")
+  } else if (cell_height == fontsize + 5) {
+    stringr::str_trunc(string = rownames(reordered), width = 15)
   } else {
     rep(x = " ", times = nrow(reordered))
   }
   
-  # Truncate long column labels
+  # Truncate long column labels and display ONLY is cell_width is sufficient
   labels_col <- if (cell_width == fontsize + 5) {
     stringr::str_trunc(string = colnames(reordered), width = 15)
   } else{
@@ -1879,7 +1881,7 @@ plot_heatmap <- function(expr_mat,
 }
 
 analyze_pathway <- function(res_df, species, gmt_dir, output_dir, 
-                             minsize = 15, maxsize = 500) {
+                            minsize = 15, maxsize = 500) {
   
   # For fgsea
   set.seed(1234)
@@ -1900,7 +1902,7 @@ analyze_pathway <- function(res_df, species, gmt_dir, output_dir,
               step   = "pathway_analysis",
               msg    = "`gmt_dir` is NULL i.e. not defined.")
   }
-
+  
   # ---- 🧪 Data Preparation ----
   
   # Initialize result dataframes 
@@ -2006,7 +2008,7 @@ analyze_pathway <- function(res_df, species, gmt_dir, output_dir,
     if (!is.null(gsea_res))          { gsea_df          <- dplyr::bind_rows(gsea_df,          gsea_res@result) }
     if (!is.null(ora_res_up))        { ora_df_up        <- dplyr::bind_rows(ora_df_up,        ora_res_up@result) }
     if (!is.null(ora_res_down))      { ora_df_down      <- dplyr::bind_rows(ora_df_down,      ora_res_down@result) }
- 
+    
   }
   
   # ---- 🧹 Column Standardization & Formatting ----
@@ -2039,8 +2041,8 @@ analyze_pathway <- function(res_df, species, gmt_dir, output_dir,
     } else {
       df <- df %>%
         dplyr::mutate(Direction = dplyr::case_when(NES > 0 ~ "Upregulated",
-                                                 NES < 0 ~ "Downregulated",
-                                                 TRUE    ~ "No change"))
+                                                   NES < 0 ~ "Downregulated",
+                                                   TRUE    ~ "No change"))
     }
     
     # ORA df specific formatting
@@ -2260,41 +2262,37 @@ analyze_tf <- function(expr_mat, res_df, species,
                         tf_sig      = tf_sig_df)))
 }
 
-# No "_" in Description column so that str_wrap works
-# Collection column needed
-# (combined_score, GeneRatio, k) OR (NES, leading_edge_size) columns needed
-plot_pathway <- function(pathway_df, vst_counts, metadata, samples, method, output_dir){
+plot_pathway <- function(pathway_df, expr_mat, metadata, method, output_dir){
   
   set.seed(1234)
+  # pathway_df$Collection, pathway_df$leading_edge_size,
+  # pathway_df$Direction, pathway_df$padj, pathway_df$Description
   
-  if (nrow(pathway_df) == 0){
-    message("Input data frame is empty. Skipping plotting.")
-    return(NULL)
+  # ---- ⚙️ Validate Input Parameters ----
+    
+  validate_inputs(expr_mat = expr_mat, metadata = metadata, output_dir = output_dir)  
+  
+  if (is.null(method) || !method %in% c("GSEA", "ORA")) {
+    log_error(sample = "",
+              step   = "plot_pathway",
+              msg    = "`method` '{method}' must be either 'GSEA' or 'ORA'.")
   }
   
-  if (is.null(method) || method == "") {
-    stop("⚠️ 'method' must be defined before creating output directories.")
-  }
+  # Map method -> x-axis column
+  score_var_map <- c(ORA = "GeneRatio", GSEA = "NES") # ORA = "combined_score"
+  x_axis_map    <- c(ORA = "GeneRatio", GSEA = "NES")
+  x_label_map   <- c(ORA = "GeneRatio", GSEA = "Normalized Enrichment Score (NES)")
+  x_limits_map  <- list(ORA = c(0, NA), GSEA = c(pmin(0, floor(min(plot_df$NES, na.rm = TRUE))), NA))
   
-  # ---- Create output directories ----
-  bar_output_dir <- file.path(output_dir, method, "Bar_Plots")
-  dot_output_dir <- file.path(output_dir, method, "Dot_Plots")
-  heatmap_output_dir <- file.path(output_dir, method, "Heatmaps")
-  dirs <- c(output_dir,
-            bar_output_dir,
-            dot_output_dir,
-            heatmap_output_dir)
+  score_var     <- score_var_map[[method]]
+  x_axis        <- x_axis_map[[method]]
+  x_label       <- x_label_map[[method]]
+  x_limits      <- x_limits_map[[method]]
   
-  for (d in dirs) {
-    if (!dir.exists(d)) {
-      dir.create(d, recursive = TRUE)
-      message("📂 Created directory: ", d)
-    }
-  }
+  size_col      <- "leading_edge_size"
+  color_col     <- "Direction"
+  alpha_col     <- "padj"
   
-  # ----   ----
-  dot_plot_list <- list()
-  bar_plot_list <- list()
   plot_colors <- c("Upregulated" = "#E69F00", "Downregulated" = "#56B4E9")
   
   # str_wrap() wraps only between words, and it defines "words" based on spaces (" ").
@@ -2303,104 +2301,79 @@ plot_pathway <- function(pathway_df, vst_counts, metadata, samples, method, outp
     dplyr::mutate(Description = gsub(pattern = "_", replacement = " ", x = Description),
                   Description = stringr::str_wrap(string = Description, width = 30))
   
-  # Decide if there are multiple collections or single collection.
-  # If multiple, plot each collection separately,
+  # Identify collections from input df (KEGG, GOMF, etc..)
   collections <- unique(pathway_df$Collection)
   n_collections <- length(unique(pathway_df$Collection))
   
-  for (i in seq_len(n_collections)){
+  # Save one dot/bar plot with all collections
+  dot_plot_list <- list()
+  bar_plot_list <- list()
+  
+  for (collection in collections){
     
-    # Save heatmap for pathways in each collection
-    heatmap_plot_list <- list()
+    # Subset pathways for specific collection and re-order (score_var highest to lowest)
+    plot_df <- pathway_df %>% 
+      dplyr::filter(Collection == collection) %>% 
+      dplyr::filter(!is.na(.data[[score_var]])) %>%
+      dplyr::arrange(dplyr::desc(.data[[score_var]]))
     
-    plot_df <- pathway_df %>% dplyr::filter(Collection == collections[i])
-    
-    # Choose x axis column, size column and labels
-    if (method == "ORA"){
-      x_col <- sym("GeneRatio")
-      x_label <- "GeneRatio"
-      size_col <- sym("leading_edge_size")
-      color_col <- sym("Direction")
-      score_var <- dplyr::case_when("GeneRatio" %in% colnames(pathway_df) ~ "GeneRatio",
-                                    "combined_score" %in% colnames(pathway_df) ~ "combined_score", 
-                                    TRUE ~ NA_character_)
-      x_limits <- c(0, NA)  # start at 0, auto end
-      
-      pathway_df <- pathway_df %>%
-        dplyr::filter(!is.na(.data[[score_var]])) %>%
-        dplyr::arrange(dplyr::desc(.data[[score_var]]))
-      
-    } else if (method == "GSEA"){
-      x_col <- sym("NES")
-      x_label <- "Normalized Enrichment Score (NES)"
-      size_col <- sym("leading_edge_size")
-      color_col <- sym("Direction")
-      score_var <- "NES"
-      x_min <- ifelse(floor(min(plot_df$NES, na.rm = TRUE)) > 0, 0, floor(min(plot_df$NES, na.rm = TRUE)))
-      x_limits <- c(x_min, NA)
-      
-    }
-    
-    # Pad with empty rows if fewer than 15 pathways 
+    # Pad with empty rows if fewer than 20 pathways 
     n_missing <- 20 - nrow(plot_df)
-    if(n_missing > 0){
-      empty_df <- matrix(data = "", 
-                         nrow = n_missing,
-                         ncol = ncol(plot_df)) %>%
-        as.data.frame() %>%
-        dplyr::mutate(Description = paste0("", seq_len(n_missing)))
-      plot_df <- dplyr::bind_rows(plot_df, empty_df)
-    }
+    plot_df <- dplyr::bind_rows(plot_df, 
+                                data.frame(Description = as.character(seq_len(n_missing))))
     
+    # Adjust fontsize of pathway names based on their length
     max_label_len <- max(nchar(plot_df$Description), na.rm = TRUE)
     y_text_size <- dplyr::case_when(max_label_len > 50 ~ 6,
                                     max_label_len > 35 ~ 7,
                                     max_label_len > 25 ~ 8,
                                     TRUE ~ 10)
     
-    # ---- Plot bar plot ---- 
-    p1 <- ggplot2::ggplot(data = plot_df,
-                          aes(x = !!x_col,
-                              y = reorder(Description, !!x_col),
-                              fill = !!color_col,
-                              alpha = -log10(padj))) +
+    # ---- Plot Bar plot ---- 
+    
+    bar_p <- ggplot2::ggplot(data    = plot_df,
+                             mapping = aes(x     = .data[[x_axis]],
+                                           y     = reorder(Description, .data[[x_axis]]),
+                                           fill  = .data[[color_col]],
+                                           alpha = -log10(.data[[alpha_col]]))) +
       ggplot2::geom_col(width = 0.75, na.rm = TRUE) +
-      ggplot2::theme_classic() +
       ggplot2::labs(x = x_label,
                     y = "",
-                    title = paste("Top", collections[i], "Pathways"),
+                    title = paste("Top", collection, "Pathways"),
                     fill = "Direction") +
+      ggplot2::theme_classic() +
       custom_theme +
       theme(axis.text.y = element_text(size = y_text_size)) +
       coord_cartesian(clip = "off") +
       scale_x_continuous(limits = x_limits, expand = expansion(mult = c(0, 0.05))) +
       scale_alpha_continuous(range = c(0.5, 1)) +
       scale_fill_manual(values = plot_colors) +
-      guides(fill = guide_legend(override.aes = list(shape = 22, size = 6)),
+      guides(fill  = guide_legend(override.aes = list(shape = 22, size = 6)),
              color = guide_legend(override.aes = list(shape = 22, size = 6)),
              alpha = guide_legend(override.aes = list(shape = 22, size = 6))) +
-      ggplot2::geom_text(aes(label =  !!size_col), x = 0, hjust = -0.1, size = 3, show.legend = FALSE)
+      ggplot2::geom_text(aes(label = .data[[size_col]]), x = 0, hjust = -0.5, size = 3, show.legend = FALSE)
     
-    bar_plot_list <- c(bar_plot_list, list(p1))
+    bar_plot_list[[collection]] <- bar_p
     
-    # ---- Plot dot plot ---- 
+    # ---- Plot Dot plot ---- 
+    
     vals <- c(min(plot_df[[size_col]], na.rm = TRUE), max(plot_df[[size_col]], na.rm = TRUE))
     breaks <- as.vector(floor(quantile(vals) / 10) * 10)
     
-    p2 <- ggplot2::ggplot(data = plot_df,
-                          aes(x = !!x_col,
-                              y = reorder(Description, !!x_col),
-                              fill = !!color_col,
-                              alpha = -log10(padj),
-                              color = !!color_col,
-                              size = !!size_col)) +
-      ggplot2::geom_point() +
-      ggplot2::theme_classic() +
+    dot_p <- ggplot2::ggplot(data    = plot_df,
+                             mapping = aes(x     = .data[[x_axis]],
+                                           y     = reorder(Description, .data[[x_axis]]),
+                                           fill  = .data[[color_col]],
+                                           alpha = -log10(.data[[alpha_col]]),
+                                           color = .data[[color_col]],
+                                           size  = .data[[size_col]])) +
       ggplot2::labs(x = x_label ,
                     y = "",
-                    title = paste("Top", collections[i], "Pathways"),
+                    title = paste("Top", collection, "Pathways"),
                     color = "Direction",
                     size = "Counts") +
+      ggplot2::geom_point() +
+      ggplot2::theme_classic() +
       custom_theme +
       theme(axis.text.y = element_text(size = y_text_size)) +
       coord_cartesian(clip = "off") + 
@@ -2408,82 +2381,119 @@ plot_pathway <- function(pathway_df, vst_counts, metadata, samples, method, outp
       scale_alpha_continuous(range = c(0.5, 1)) +
       scale_color_manual(values = plot_colors) +
       scale_fill_manual(values = plot_colors) + # need for coloring the legend
-      guides(fill = guide_legend(override.aes = list(shape = 22, size = 6)),
+      guides(fill  = guide_legend(override.aes = list(shape = 22, size = 6)),
              color = guide_legend(override.aes = list(shape = 22, size = 6)),
              alpha = guide_legend(override.aes = list(shape = 15, size = 6))) +
       ggplot2::scale_size(breaks = breaks) 
     
-    dot_plot_list <- c(dot_plot_list, list(p2))
+    dot_plot_list[[collection]] <- dot_p
     
-    # ---- Plot heatmap ----
+    # ---- Plot Heatmap ----
     
-    pathways <- pathway_df %>% 
-      dplyr::filter(Collection == collections[i]) %>%
-      dplyr::pull(Description) %>%
-      unique()
-    
-    for (pathway in pathways) {
-      plot_genes <- pathway_df %>% 
-        dplyr::filter(Collection == collections[i], Description == pathway) %>%
-        dplyr::select(dplyr::starts_with("gene", ignore.case = FALSE)) %>%
-        unlist(use.names = FALSE) %>%
-        trimws() %>%
-        na.omit() %>% 
+    if (!is.null(expr_mat)){
+      
+      # Generate one pdf per collection with heatmaps of all its pathways
+      heatmap_plots <- list()
+      
+      pathways <- pathway_df %>% 
+        dplyr::filter(Collection == collection) %>%
+        dplyr::pull(Description) %>%
         unique()
       
-      if (length(plot_genes) >= 2){
-        expr_mat <- vst_counts[plot_genes, samples, drop = FALSE]
-        metadata_col <- metadata %>% dplyr::filter(Sample_ID %in% samples)
-        metadata_row <- NULL
-        disp_genes <- c()
+      # Store heatmaps in list
+      for (pathway in pathways) {
+        
+        # Identify genes to plot in heatmap
+        plot_genes <- pathway_df %>%
+          filter(Collection == collection, Description == pathway) %>%
+          tidyr::pivot_longer(cols = dplyr::matches("^(gene|Gene)[0-9]+$"),
+                              values_to = "gene") %>%
+          dplyr::pull(gene) %>%        # extract as vector
+          base::trimws() %>%
+          na.omit() %>%
+          .[. != ""] %>%              # remove empty strings
+          base::unique()
+        
+        # Skip plotting if less than 2 genes
+        if (length(plot_genes) < 2) { next }
+        
+        ht_mat <- expr_mat[plot_genes, ,drop = FALSE]
         plot_title <- stringr::str_wrap(string = pathway, width = 30)
         
-        ph <- plot_heatmap(norm_counts, proj.params, metadata_col, metadata_row, disp_genes)
-        heatmap_plot_list[[length(heatmap_plot_list) + 1]] <- ph$ph$gtable
+        # Plot heatmap
+        ph <- plot_heatmap(expr_mat            = ht_mat, 
+                           label_genes         = NULL,
+                           filename            = NULL,
+                           output_dir          = NULL,
+                           metadata_col        = metadata, 
+                           metadata_row        = NULL,
+                           col_annotations     = proj.params$heatmap$col_annotations,
+                           row_annotations     = proj.params$heatmap$row_annotations,
+                           col_gap_by          = proj.params$heatmap$col_gap_by,
+                           row_gap_by          = proj.params$heatmap$row_gap_by,
+                           col_cluster_by      = proj.params$heatmap$col_cluster_by,
+                           row_cluster_by      = proj.params$heatmap$row_cluster_by,
+                           plot_title          = plot_title,
+                           heatmap_palette     = proj.params$heatmap$heatmap_palette,
+                           annotation_palette  = proj.params$heatmap$annotation_palette,
+                           border_color        = proj.params$heatmap$border_color,
+                           force_log           = proj.params$heatmap$force_log,
+                           show_expr_legend    = proj.params$heatmap$show_expr_legend,
+                           save_plot           = FALSE,
+                           save_matrix         = FALSE)
+        
+        heatmap_plots[[pathway]] <- ph$ph$gtable
       }
-    }
-    
-    if (length(heatmap_plot_list) > 0) {
-      pdf(file.path(heatmap_output_dir, paste0("Heatmaps_", collections[i], "_", method, ".pdf")),
-          width = 8.5, height = 11)
-      for (ht in heatmap_plot_list) {
-        grid::grid.newpage()
-        grid::grid.draw(ht)
+      
+      # Save stored heatmap as pdf
+      if (length(heatmap_plots) > 0) {
+        
+        file_extension <- ".pdf"
+        file_name <- file.path(output_dir, paste0("Heatmap_", collection, "_", method, file_extension))
+        
+        # Open multi-page PDF
+        grDevices::cairo_pdf(filename = file_name, width = 8, height = 11.5, onefile = TRUE)  
+        
+        for (ht in heatmap_plots) {
+          grid::grid.newpage()
+          grid::grid.draw(ht)
+        }
+        
+        dev.off() 
       }
-      dev.off()
     }
   }
   
-  bar_plots <- cowplot::plot_grid(plotlist = bar_plot_list, ncol = 3, nrow = 3)
-  ggplot2::ggsave(filename = file.path(bar_output_dir, paste0("Bar_plot_pathways_", method, ".tiff")),
-                  plot = bar_plots,
-                  device = "jpeg",
-                  width = 3*7,
-                  height = 3*7,
-                  units = "in",
-                  dpi = 300,
-                  bg = "white")
+  # Save Bar plot
+  file_extension <- ".pdf"
+  file_name <- file.path(output_dir, paste0("Bar_plot_pathways_", method, file_extension))
+  bar_plots <- cowplot::plot_grid(plotlist = bar_plot_list, align = "hv", ncol = 3, nrow = 3)
+  ggplot2::ggsave(filename = file_name,
+                  plot     = bar_plots,
+                  device   = cairo_pdf,
+                  width    = 3 * 7,
+                  height   = 3 * 7,
+                  units    = "in",
+                  dpi      = 300,
+                  bg       = "white")
   
-  dot_plots <- cowplot::plot_grid(plotlist = dot_plot_list, ncol = 3, nrow = 3)
-  ggplot2::ggsave(filename = file.path(dot_output_dir, paste0("Dot_plot_pathways_", method, ".tiff")),
-                  plot = dot_plots,
-                  device = "jpeg",
-                  width = 3*7,
-                  height = 3*7,
-                  units = "in",
-                  dpi = 300,
-                  bg = "white")
+  # Save Dot plot
+  file_extension <- ".pdf"
+  file_name <- file.path(output_dir, paste0("Dot_plot_pathways_", method, file_extension))
+  dot_plots <- cowplot::plot_grid(plotlist = dot_plot_list, align = "hv", ncol = 3, nrow = 3)
+  ggplot2::ggsave(filename = file_name,
+                  plot     = dot_plots,
+                  device   = cairo_pdf,
+                  width    = 3 * 7,
+                  height   = 3 * 7,
+                  units    = "in",
+                  dpi      = 300,
+                  bg       = "white")
 }
 
-plot_tf <- function(input, contrast, metadata, samples, output_dir, n_tfs = 20){
+plot_tf <- function(tf_df, contrast, metadata, samples, output_dir, n_tfs = 20){
   
   set.seed(1234)
-  
-  # ---- Create output directories ----
-  if (!dir.exists(output_dir)) {
-    dir.create(output_dir, recursive = TRUE)
-    message("📂 Created directory: ", output_dir)
-  }
   
   # NOTE: wsum returns wsum, norm_wsum and corr_wsum.
   # wsum (DONT USE): Biased toward larger gene sets (more genes → bigger sum)
@@ -2491,15 +2501,16 @@ plot_tf <- function(input, contrast, metadata, samples, output_dir, n_tfs = 20){
   # corr_sum (DONT USE): corrects for high correlation as it can make enrichment appear stronger
   
   target <- stringr::str_split(string = contrast, pattern = "-")[[1]][1]
-  ref <- stringr::str_split(string = contrast, pattern = "-")[[1]][2]
-  stats <- c("consensus", "ulm", "mlm", "viper") #unique(input$all_tfs$statistic)
-  bar_plot_list <- list()
-  heatmap_plot_list <- list()
+  ref    <- stringr::str_split(string = contrast, pattern = "-")[[1]][2]
+  stats <- unique(tf_df$statistic)   c("consensus", "ulm", "mlm", "viper") #
+  bar_plots     <- list()
+  heatmap_plots <- list()
   
   for (stat in stats) {
     
-    if (length(unique(input$all_tfs[["condition"]])) == 1){
-      top_tf <- input$all_tfs %>%
+    # TF activity from DEGs (condition column contains "t")
+    if (length(unique(tf_df[["condition"]])) == 1){
+      top_tf <- tf_df %>%
         dplyr::mutate(Direction = dplyr::case_when(score < 0 ~ "Downregulated",
                                                    score > 0 ~ "Upregulated",
                                                    TRUE ~ "No change")) %>%
@@ -2524,38 +2535,37 @@ plot_tf <- function(input, contrast, metadata, samples, output_dir, n_tfs = 20){
       bar_plot_list <- c(bar_plot_list, list(p))
     }
     
+    # TF activity from expr_mat 
+    # `condition` column contains sample names
+    # `source` column has TF
     else{
-      top_tf <- input$all_tfs %>%
+      top_tf <- tf_df %>%
         dplyr::filter(statistic == stat) %>%
         dplyr::group_by(source) %>%
         dplyr::summarise(std = sd(score, na.rm = TRUE), .groups = "drop") %>%
         dplyr::slice_max(order_by = abs(std), n = n_tfs, with_ties = FALSE) %>%
         dplyr::pull(source)
       
-      tf_mat <- input$all_tfs %>%
+      tf_mat <- tf_df %>%
         dplyr::filter(statistic == stat) %>%
         tidyr::pivot_wider(id_cols = "condition", names_from = "source", values_from = "score") %>%
         tibble::column_to_rownames("condition") %>%
-        dplyr::select(all_of(top_tf)) %>%
         as.matrix() %>%
         t()
       
       norm_counts <- tf_mat[top_tf, samples, drop = FALSE]
-      metadata_col <- metadata %>% dplyr::filter(Sample_ID %in% samples)
-      metadata_row <- NULL
-      disp_genes <- c()
       plot_title <- paste0("Top TFs (", stat, ") method")
       
       ph <- plot_heatmap(norm_counts, proj.params, metadata_col, metadata_row, disp_genes)
-      heatmap_plot_list[[length(heatmap_plot_list) + 1]] <- ph$ph$gtable
+      heatmap_plots[[length(heatmap_plots) + 1]] <- ph$ph$gtable
     }
   }
   
   # Save combined heatmaps
-  if (length(heatmap_plot_list) > 0) {
+  if (length(heatmap_plots) > 0) {
     pdf(file.path(output_dir, "Heatmap_TFs.pdf"),
         width = 10, height = 8)
-    for (ht in heatmap_plot_list) {
+    for (ht in heatmap_plots) {
       grid::grid.newpage()
       grid::grid.draw(ht)
     }
@@ -2575,7 +2585,7 @@ plot_tf <- function(input, contrast, metadata, samples, output_dir, n_tfs = 20){
                     bg = "white")
   }
   
-  return(invisible(list(barplots = bar_plot_list, heatmaps = heatmap_plot_list)))
+  return(invisible(list(barplots = bar_plot_list, heatmaps = heatmap_plots)))
 }
 
 get_annotations <- function() {

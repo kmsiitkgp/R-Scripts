@@ -208,7 +208,7 @@ for (contrast in contrasts) {
   
   # ---- 🌿 Visualization : Pathway Enrichment ----
   
-  # Plot Bar, Dot, Heatmap for top 10 Up & Down Pathways for each collection
+  # Identify top 10 Up & top 10 Down GSEA pathways for each collection
   top_gsea <- pathway_results$consensus %>%
     dplyr::filter(method != "ORA") %>%
     # Deduplicate by method priority
@@ -220,6 +220,7 @@ for (contrast in contrasts) {
     dplyr::slice_max(order_by = abs(NES), n = 10, with_ties = FALSE) %>%
     dplyr::ungroup()
   
+  # Identify top 10 Up & top 10 Down ORA pathways for each collection
   top_ora <- pathway_results$consensus %>%
     dplyr::filter(method == "ORA") %>%
     # Rank based on padj for each direction
@@ -227,16 +228,24 @@ for (contrast in contrasts) {
     dplyr::slice_min(order_by = padj, n = 10, with_ties = FALSE) %>%
     dplyr::ungroup()
   
-  samples <- filter_samples_by_contrast(metadata, contrast)
-  samples <- intersect(colnames(vst_counts), samples)
-  pathway_dir <- file.path(proj_dir, contrast, "Pathway_Analysis")
+  # Identify samples for current contrast
+  samples <- metadata %>%
+    dplyr::filter(Comparisons %in% all.vars(expr = as.formula(paste0("~", contrast)))) %>%
+    dplyr::pull(Sample_ID) %>%
+    as.character() %>%
+    base::intersect(colnames(deseq2_results$vst))
   
+  pathway_dir <- file.path(proj_dir, contrast, "Pathway_Analysis")
   plot_pathway(pathway_df = top_gsea, 
-               method     = "GSEA", 
+               method     = "GSEA",
+               expr_mat   = deseq2_results$vst[, samples], 
+               metadata   = metadata,
                output_dir = pathway_dir)
   
   plot_pathway(pathway_df = top_ora, 
-               method     = "ORA", 
+               method     = "ORA",
+               expr_mat   = deseq2_results$vst[, samples], 
+               metadata   = metadata,
                output_dir = pathway_dir)
  
 
@@ -266,18 +275,25 @@ for (contrast in contrasts) {
   
   # ---- 🌿 Visualization : Regulatory Networks ----
    
-  output_dir <- proj.params$pathway_dir[n]
-  samples <- filter_samples_by_contrast(metadata, contrast)
-  samples <- intersect(colnames(vst_counts), samples)
-  plot_pathway(top_pathways_gsea, vst_counts, metadata, samples, "GSEA", output_dir)
-  plot_pathway(top_pathways_ora, vst_counts, metadata, samples, "ORA", output_dir)
+  # Identify samples for current contrast
+  samples <- metadata %>%
+    dplyr::filter(Comparisons %in% all.vars(expr = as.formula(paste0("~", contrast)))) %>%
+    dplyr::pull(Sample_ID) %>%
+    as.character() %>%
+    base::intersect(colnames(deseq2_results$vst))
+  
+  tf_dir <- file.path(proj_dir, contrast, "Regulatory_Network_Analysis")
   
   # Plot Bar, Heatmap for top 20 Up and Down TFs
   contrast <- contrasts[n]
   output_dir <- proj.params$tf_dir[n]
-  samples <- filter_samples_by_contrast(metadata, contrast)
-  samples <- intersect(colnames(vst_counts), samples)
-  plot_tf(tf_res_degs, contrast, metadata, samples, output_dir, n_tfs = 20)
+ 
+  plot_tf(tf_df = tf_activity_samples, 
+          contrast = contrast, 
+          metadata = metadata, 
+          samples, 
+          output_dir = tf_dir,
+          n_tfs      = 20)
   plot_tf(tf_res_counts, contrast, metadata, samples, output_dir, n_tfs = 20)
   
 }
