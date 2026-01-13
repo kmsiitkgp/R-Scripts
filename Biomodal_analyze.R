@@ -392,6 +392,437 @@ addWorksheet(wb, "mc")
 writeData(wb, sheet = "mc", frac_mc)
 saveWorkbook(wb, file.path(path, "Biomodal_final_results.xlsx"), overwrite = TRUE)
 
+# Overlap with Felix Fang data
+path <- "C:/Users/kailasamms/OneDrive - Cedars-Sinai Health System/Desktop/Collaboration projects data/Biomodal"
+ff_data <- read.xlsx(file.path(path, "can-24-0890_supplementary_tables_suppst.xlsx"),
+                     sheet = "supplementary_table_s3",
+                     startRow = 2) %>%
+  dplyr::filter(feature %in% c("Promoter", "5' UTR"))
+
+# 5hmc up genes in promoter in biomodal
+biomodal_5hmc_up <- read.xlsx(file.path(path, "Biomodal_final_results_.xlsx"),
+                              sheet = "hmc") %>%
+  dplyr::filter(Annotation %in% c("Promoter"), FC > 1) %>%
+  dplyr::pull(Name) %>%
+  unique()
+
+biomodal_5hmc_down <-  read.xlsx(file.path(path, "Biomodal_final_results_.xlsx"),
+                                 sheet = "hmc") %>%
+  dplyr::filter(Annotation %in% c("Promoter"), FC < 1) %>%
+  dplyr::pull(Name) %>%
+  unique()
+
+biomodal_5mc_up <- read.xlsx(file.path(path, "Biomodal_final_results_.xlsx"),
+                              sheet = "mc") %>%
+  dplyr::filter(Annotation %in% c("Promoter"), FC > 1) %>%
+  dplyr::pull(Name) %>%
+  unique()
+
+biomodal_5mc_down <-  read.xlsx(file.path(path, "Biomodal_final_results_.xlsx"),
+                                 sheet = "mc") %>%
+  dplyr::filter(Annotation %in% c("Promoter"), FC < 1) %>%
+  dplyr::pull(Name) %>%
+  unique()
+
+sig_genes_up_5hmc <- intersect(ff_data$gene, biomodal_5hmc_up)
+sig_genes_down_5hmc <- intersect(ff_data$gene, biomodal_5hmc_down)
+
+sig_genes_up_5mc <- intersect(ff_data$gene, biomodal_5mc_up)
+sig_genes_down_5mc <- intersect(ff_data$gene, biomodal_5mc_down)
+
+sig_genes_up <- union(sig_genes_up_5hmc, sig_genes_down_5mc)
+sig_genes_down <- union(sig_genes_down_5hmc, sig_genes_up_5mc)
+
+gmt_dir <- "C:/Users/kailasamms/OneDrive - Cedars-Sinai Health System/Documents/GSEA_genesets"
+gmt_files <- list.files(file.path(gmt_dir, species), full.names = TRUE)
+# Initialize result dataframes 
+fgsea_df         <- data.frame()
+gsea_df          <- data.frame()
+ora_df_up        <- data.frame()
+ora_df_down      <- data.frame()
+concise_fgsea_df <- data.frame()
+for (gmt_file in gmt_files) {
+  
+  # Format gene sets for fgsea and keep only genes present in ranked_list
+  gmt <- fgsea::gmtPathways(gmt_file)
+ 
+  # Format gene sets for clusterProfiler and keep only genes present in ranked_list
+  pathway_gene_df <- utils::stack(x = gmt)
+  colnames(pathway_gene_df) <- c("genes", "pathways")
+  pathway_gene_df <- pathway_gene_df[, c("pathways", "genes")] # Reorder
+  
+  ora_res_up <- clusterProfiler::enricher(gene          = sig_genes_up,
+                                          universe      = NULL,
+                                          TERM2GENE     = pathway_gene_df,
+                                          minGSSize     = 15,
+                                          maxGSSize     = 500,
+                                          pvalueCutoff  = 0.05,
+                                          pAdjustMethod = "BH",
+                                          qvalueCutoff  = 0.2)
+  
+  ora_res_down <- clusterProfiler::enricher(gene          = sig_genes_down,
+                                          universe      = NULL,
+                                          TERM2GENE     = pathway_gene_df,
+                                          minGSSize     = 15,
+                                          maxGSSize     = 500,
+                                          pvalueCutoff  = 0.05,
+                                          pAdjustMethod = "BH",
+                                          qvalueCutoff  = 0.2)
+  
+  if (!is.null(ora_res_up))        { ora_df_up        <- dplyr::bind_rows(ora_df_up,        ora_res_up@result) }
+  if (!is.null(ora_res_down))      { ora_df_down      <- dplyr::bind_rows(ora_df_down,      ora_res_down@result) }
+}
+
+# Rename columns consistently across different methods
+lookup <- c(pathway = "ID", 
+            geneID = "leadingEdge", geneID = "core_enrichment", 
+            K = "size", K = "setSize", 
+            padj = "p.adjust", 
+            pval = "pvalue")
+
+# Put your data frames in a named list
+dfs <- list(fgsea_df      = fgsea_df,
+            gsea_df       = gsea_df,
+            ora_df_up     = ora_df_up,
+            ora_df_down   = ora_df_down)
+df_names <- names(dfs)
+
+dfs <- lapply(X = df_names, FUN = function(df_name) {
+  
+  # Extract specific df
+  df <- dfs[[df_name]]
+  if (nrow(df) == 0) return(df)  # skip empty data frames
+  
+  # Add Direction column
+  if (df_name == "ora_df_up"){
+    df$Direction <- "Upregulated"
+  } else if (df_name == "ora_df_down"){
+    df$Direction <- "Downregulated"
+  } else {
+    df <- df %>%
+      dplyr::mutate(Direction = dplyr::case_when(NES > 0 ~ "Upregulated",
+                                                 NES < 0 ~ "Downregulated",
+                                                 TRUE    ~ "No change"))
+  }
+  
+  # ORA df specific formatting
+  # k <- # overlap between pathway and input (sig_genes_up/sig_genes_down/gmt/ranked_list)
+  # n <- # overlap between collection and input (sig_genes_up/sig_genes_down/gmt/ranked_list)
+  # K <- # overlap between pathway and universe
+  # N <- # overlap between collection and universe
+  if (df_name %in% c("ora_df_up", "ora_df_down")){
+    df <- df %>%
+      tidyr::separate(col = GeneRatio, into = c("k", "n")) %>%
+      tidyr::separate(col = BgRatio,   into = c("K", "N")) %>%
+      dplyr::mutate(across(.cols = c(k, n, K, N), .fns = as.numeric)) %>%
+      dplyr::mutate(GeneRatio       = k / n,
+                    BackgroundRatio = K / N,
+                    EnrichmentRatio = GeneRatio / BackgroundRatio,
+                    combined_score  = GeneRatio * -log10(p.adjust),
+                    NES             = NA_integer_)
+  }
+  
+  # Standardize column names based on look up table
+  df <- df %>%
+    dplyr::rename(any_of(lookup))
+  
+  # Format results
+  # IMPORTANT: gsea_df and ora_df store geneID as string "CXCL11/CCL2/..."
+  # fgsea_df stores geneID as list of vectors which we convert to string "CXCL11/CCL2/..."
+  df <- df %>%
+    #dplyr::filter(padj <= 0.05) %>%
+    tibble::remove_rownames() %>%
+    tidyr::separate(col = pathway, into = c("Collection", "Description"), sep = "_", extra = "merge") %>%
+    dplyr::mutate(Description = base::gsub(pattern = "_", replacement = " ", x = Description),
+                  geneID = base::sapply(X = geneID, FUN = paste, collapse = "/")) %>%
+    dplyr::rowwise() %>%
+    dplyr::mutate(leading_edge_size = length(unlist(stringr::str_split(geneID, "/")))) %>%
+    dplyr::ungroup() %>%
+    as.data.frame() %>%
+    dplyr::select(Collection, Description, leading_edge_size, K, padj, NES, Direction, everything(), -geneID, geneID)
+  
+  # Generate separate column for each gene in enriched pathways
+  max_len <- max(df$leading_edge_size, na.rm = TRUE)
+  if (is.finite(max_len) & max_len > 0) {
+    df <- df %>%
+      tidyr::separate(col = geneID, into = paste0("gene", 1:max_len), sep = "/", remove = TRUE, fill = "right")
+  }
+  
+  return(df)
+})
+
+# Restore names
+dfs <- stats::setNames(dfs, df_names)
+ora_df   <- dplyr::bind_rows(dfs$ora_df_up, dfs$ora_df_down)
+
+consensus_df <- dplyr::bind_rows(fgsea_df %>% dplyr::mutate(method = "FGSEA"), 
+                                 gsea_df %>% dplyr::mutate(method = "GSEA"), 
+                                 ora_df %>% dplyr::mutate(method = "ORA")) %>%
+  dplyr::add_count(Collection, Description, Direction, name = "n_methods") %>%
+  #dplyr::filter(n_methods > 1) %>%
+  dplyr::mutate(Consensus = Direction) %>%
+  dplyr::arrange(Collection, Description, desc(NES)) %>%
+  dplyr::select(n_methods, method, Consensus, Collection, Description, 
+                leading_edge_size, K, padj, NES, Direction, everything(), 
+                -starts_with("gene",ignore.case = FALSE),
+                starts_with("gene", ignore.case = FALSE)) 
+
+# Identify top 10 Up & top 10 Down ORA pathways for each collection
+top_ora <- consensus_df %>%
+  dplyr::filter(method == "ORA", pval <= 0.05) %>%
+  # Rank based on padj for each direction
+  dplyr::group_by(Collection, Consensus) %>%
+  dplyr::slice_min(order_by = padj, n = 10, with_ties = FALSE) %>%
+  dplyr::ungroup()
+
+pathway_results_list <- list(ora       = top_ora)
+
+# Save as excel
+file_name <- file.path(path, "Pathway_results.xlsx")
+wb <- openxlsx::createWorkbook()
+for (i in seq_along(pathway_results_list)) {
+  openxlsx::addWorksheet(wb, sheetName = names(pathway_results_list)[i])
+  openxlsx::writeData(wb, sheet = names(pathway_results_list)[i], x = pathway_results_list[[i]], rowNames = FALSE)
+}
+openxlsx::saveWorkbook(wb, file_name, overwrite = TRUE)
+
+
+plot_pathway <- function(pathway_df, expr_mat, metadata, method, output_dir){
+  
+  
+  # pathway_df$Collection, pathway_df$leading_edge_size,
+  # pathway_df$Direction, pathway_df$padj, pathway_df$Description
+  
+  # ---- ⚙️ Validate Input Parameters ----
+  
+  validate_inputs(expr_mat = expr_mat, metadata = metadata, output_dir = output_dir)  
+  
+  if (is.null(method) || !method %in% c("GSEA", "ORA")) {
+    log_error(sample = "",
+              step   = "plot_pathway",
+              msg    = glue::glue("`method` '{method}' is invalid. Must be 'GSEA' or 'ORA'."))
+  }
+  
+  # ---- 📊 Define Plotting Mapping Logic ----
+  
+  # Map method -> plotting aesthetics
+  x_axis_map    <- c(ORA = "GeneRatio", GSEA = "NES")
+  x_label_map   <- c(ORA = "Gene Ratio", GSEA = "Normalized Enrichment Score (NES)")
+  
+  x_axis  <- x_axis_map[[method]]
+  x_label <- x_label_map[[method]]
+  
+  size_col      <- "leading_edge_size"
+  color_col     <- "Direction"
+  alpha_col     <- "pval"
+  
+  plot_colors <- c("Upregulated" = "#E69F00", "Downregulated" = "#56B4E9")
+  
+  # Pre-process descriptions for better wrapping in plots
+  pathway_df <- pathway_df %>%
+    dplyr::mutate(Description = base::gsub(pattern = "_", replacement = " ", x = Description),
+                  Description = stringr::str_wrap(string = Description, width = 30))
+  
+  collections   <- unique(pathway_df$Collection)
+  dot_plots     <- list()
+  bar_plots     <- list()
+  
+  # ---- 🔄 Iterate Through Pathway Collections ----
+  
+  for (collection in collections) {
+    
+    # Subset and rank pathways based on score_var
+    plot_df <- pathway_df %>% 
+      dplyr::filter(Collection == collection) %>% 
+      dplyr::filter(!is.na(.data[[x_axis]])) %>%
+      dplyr::arrange(dplyr::desc(.data[[x_axis]]))
+    
+    if (nrow(plot_df) == 0) next
+    
+    # Pad with empty rows if fewer than 20 pathways for consistent plot scaling
+    n_missing <- 20 - nrow(plot_df)
+    if (n_missing > 0) {
+      plot_df <- dplyr::bind_rows(plot_df, 
+                                  data.frame(Description = as.character(base::seq_len(n_missing))))
+    }
+    
+    # Dynamic Y-axis text sizing
+    max_label_len <- base::max(base::nchar(plot_df$Description), na.rm = TRUE)
+    y_text_size <- dplyr::case_when(max_label_len > 50 ~ 6,
+                                    max_label_len > 35 ~ 7,
+                                    max_label_len > 25 ~ 8,
+                                    TRUE ~ 10)
+    
+    # Calculate limits dynamically per collection
+    x_min <- if (method == "GSEA") { base::pmin(0, floor(min(plot_df[[x_axis]], na.rm = TRUE))) } else  { 0 }
+    x_limits <- c(x_min, NA)
+    
+    # ---- 📈 Generate Bar Plot ---- 
+    
+    bar_p <- ggplot2::ggplot(data = plot_df,
+                             mapping = aes(x     = .data[[x_axis]],
+                                           y     = stats::reorder(Description, .data[[x_axis]]),
+                                           fill  = .data[[color_col]],
+                                           alpha = -log10(.data[[alpha_col]]))) +
+      ggplot2::geom_col(width = 0.75, na.rm = TRUE) +
+      ggplot2::labs(x = x_label, 
+                    y = "", 
+                    title = base::paste("Top", collection, "Pathways"), 
+                    fill = "Direction") +
+      ggplot2::theme_classic() +
+      custom_theme +
+      ggplot2::theme(axis.text.y = ggplot2::element_text(size = y_text_size)) +
+      ggplot2::coord_cartesian(clip = "off") +
+      ggplot2::scale_x_continuous(limits = x_limits, expand = ggplot2::expansion(mult = c(0, 0.05))) +
+      ggplot2::scale_alpha_continuous(range = c(0.5, 1)) +
+      ggplot2::scale_fill_manual(values = plot_colors) +
+      guides(fill  = guide_legend(override.aes = list(shape = 22, size = 6)),
+             color = guide_legend(override.aes = list(shape = 22, size = 6)),
+             alpha = guide_legend(override.aes = list(shape = 22, size = 6))) +
+      ggplot2::geom_text(aes(label = .data[[size_col]]), x = 0, hjust = -0.5, size = 3, show.legend = FALSE)
+    
+    bar_plots[[collection]] <- bar_p
+    
+    # ---- 🟢 Generate Dot Plot ---- 
+    
+    #size_vals <- c(min(plot_df[[size_col]], na.rm = TRUE), max(plot_df[[size_col]], na.rm = TRUE))
+    size_vals <- plot_df$leading_edge_size[!base::is.na(plot_df$leading_edge_size)]
+    breaks <- as.vector(floor(stats::quantile(size_vals, na.rm = TRUE) / 10) * 10)
+    
+    dot_p <- ggplot2::ggplot(data = plot_df,
+                             mapping = aes(x     = .data[[x_axis]],
+                                           y     = stats::reorder(Description, .data[[x_axis]]),
+                                           fill  = .data[[color_col]],
+                                           alpha = -log10(.data[[alpha_col]]),
+                                           color = .data[[color_col]],
+                                           size  = .data[[size_col]])) +
+      ggplot2::geom_point(na.rm = TRUE) +
+      ggplot2::labs(x = x_label, 
+                    y = "", 
+                    title = paste("Top", collection, "Pathways"), 
+                    color = "Direction", 
+                    size = "Counts") +
+      ggplot2::theme_classic() +
+      custom_theme +
+      ggplot2::theme(axis.text.y = ggplot2::element_text(size = y_text_size)) +
+      ggplot2::coord_cartesian(clip = "off") + 
+      ggplot2::scale_x_continuous(limits = x_limits, expand = ggplot2::expansion(mult = c(0, 0.05))) +
+      ggplot2::scale_alpha_continuous(range = c(0.5, 1)) +
+      ggplot2::scale_color_manual(values = plot_colors) +
+      ggplot2::scale_fill_manual(values = plot_colors) +  # need for coloring the legend
+      ggplot2::scale_size(breaks = unique(breaks)) 
+    
+    dot_plots[[collection]] <- dot_p
+    
+    # ---- 🔥 ️ Generate Heatmap Multi-page PDF ----
+    
+    if (!is.null(expr_mat)) {
+      
+      heatmap_plots <- list()
+      pathways <- plot_df %>% 
+        dplyr::filter(!is.na(Direction)) %>% 
+        dplyr::pull(Description) %>% 
+        base::unique()
+      
+      for (pathway in pathways) {
+        
+        # Extract genes for this specific pathway from the long-format dataframe
+        plot_genes <- pathway_df %>%
+          dplyr::filter(Collection == collection, Description == pathway) %>%
+          tidyr::pivot_longer(cols = dplyr::matches("^(gene|Gene)[0-9]+$"), 
+                              values_to = "gene") %>%
+          dplyr::pull(gene) %>%
+          base::trimws() %>%
+          stats::na.omit() %>%
+          .[. != ""] %>%          # remove empty strings
+          base::unique() %>%
+          base::intersect(rownames(expr_mat))
+        
+        # Skip plotting if less than 2 genes
+        if (base::length(plot_genes) < 2) next
+        
+        plot_title <- stringr::str_wrap(string = pathway, width = 30)
+        
+        # Plot heatmap
+        ph <- plot_heatmap(expr_mat            = expr_mat[plot_genes, ,drop = FALSE], 
+                           label_genes         = NULL,
+                           filename            = NULL,
+                           output_dir          = NULL,
+                           metadata_col        = metadata, 
+                           metadata_row        = NULL,
+                           col_annotations     = proj.params$heatmap$col_annotations,
+                           row_annotations     = proj.params$heatmap$row_annotations,
+                           col_gap_by          = proj.params$heatmap$col_gap_by,
+                           row_gap_by          = proj.params$heatmap$row_gap_by,
+                           col_cluster_by      = proj.params$heatmap$col_cluster_by,
+                           row_cluster_by      = proj.params$heatmap$row_cluster_by,
+                           plot_title          = plot_title,
+                           heatmap_palette     = proj.params$heatmap$heatmap_palette,
+                           annotation_palette  = proj.params$heatmap$annotation_palette,
+                           border_color        = proj.params$heatmap$border_color,
+                           force_log           = proj.params$heatmap$force_log,
+                           show_expr_legend    = proj.params$heatmap$show_expr_legend,
+                           save_plot           = FALSE,
+                           save_matrix         = FALSE)
+        
+        heatmap_plots[[pathway]] <- ph$ph$gtable
+      }
+      
+      # Save stored heatmaps as pdf
+      if (length(heatmap_plots) > 0) {
+        
+        file_extension <- ".pdf"
+        file_name <- file.path(output_dir, paste0("Heatmap_", collection, "_", method, file_extension))
+        
+        # Open multi-page PDF
+        grDevices::cairo_pdf(filename = file_name, width = 8, height = 11.5, onefile = TRUE)  
+        
+        for (ht in heatmap_plots) {
+          grid::grid.newpage()
+          grid::grid.draw(ht)
+        }
+        grDevices::dev.off() 
+      }
+    }
+  } 
+  
+  # ---- 💾 Save Consolidated Summary Plots ----
+  
+  summary_plots <- base::list(Bar = bar_plots, Dot = dot_plots)
+  
+  for (type in names(summary_plots)) {
+    
+    file_extension <- ".pdf"
+    file_name <- file.path(output_dir, paste0(type, "_plot_pathways_", method, file_extension))
+    
+    ggplot2::ggsave(filename = file_name,
+                    plot     = cowplot::plot_grid(plotlist = summary_plots[[type]], ncol = 3, align = "hv"),
+                    device   = grDevices::cairo_pdf,
+                    width    = 3 * 6, 
+                    height   = ceiling(length(summary_plots[[type]]) / 3) * 6, 
+                    units    = "in",
+                    dpi      = 300,
+                    bg       = "white")
+  }
+  
+  # ---- 🪵 Log Output and Return ----
+  
+  log_info(sample = "", 
+           step   = "plot_pathway", 
+           msg    = glue::glue("Successfully generated {method} visualizations in {output_dir}"))
+  
+  return(invisible(NULL))
+}
+
+plot_pathway(pathway_df = top_ora, 
+             method     = "ORA",
+             expr_mat   = NULL, 
+             metadata   = NULL,
+             output_dir = "C:/Users/kailasamms/OneDrive - Cedars-Sinai Health System/Desktop")
+
+
+
+
 
 
 

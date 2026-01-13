@@ -51,7 +51,7 @@ BiocManager::install(pkgs = c("AnnotationHub", "ensembldb",
 
 ### 3. Functional Data Analysis Packages (Bioconductor)
 BiocManager::install(pkgs = c("fgsea", "clusterProfiler", "decoupleR", 
-                              "DESeq2", "sva", "GSVA", "glmGamPoi", 
+                              "DESeq2", "sva", "GSVA", "glmGamPoi", "tximport",
                               "ashr", "OmnipathR"),
                      force = FALSE,
                      INSTALL_opts = '--no-lock')
@@ -143,6 +143,7 @@ all_pkgs <- c(
   "sva",
   "GSVA",
   "glmGamPoi",
+  "tximport",
   "ashr",
   "OmnipathR",
   

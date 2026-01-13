@@ -1,5 +1,3 @@
-gmt_dir <- "C:/Users/kailasamms/OneDrive - Cedars-Sinai Health System/Documents/GitHub/R-Scripts/GSEA_genesets"
-
 # ---- 📦 LOAD PACKAGES ----
 
 # NOTE: survminer handles %++% while dplyr handles %>%
@@ -7,7 +5,7 @@ gmt_dir <- "C:/Users/kailasamms/OneDrive - Cedars-Sinai Health System/Documents/
 pkgs <- c(
   "BiocManager", "remotes", "AnnotationHub", "ensembldb", "org.Hs.eg.db",
   "org.Mm.eg.db", "fgsea", "clusterProfiler", "DESeq2", "sva", "GSVA", 
-  "RcisTarget", "glmGamPoi", "Seurat", "harmony", "hdf5r", "scCustomize", 
+  "RcisTarget", "glmGamPoi", "tximport", "Seurat", "harmony", "hdf5r", "scCustomize", 
   "reticulate", "ashr", "infercnv", "UCell", "scDblFinder", "DropletUtils", 
   "CellChat", "SeuratWrappers", "presto", "DoubletFinder", "SeuratData", 
   "oligo", "oligoData", "illuminaHumanv4.db", "hgu133plus2.db", "GEOquery", 
@@ -317,6 +315,7 @@ setup_project <- function(proj, species, contrasts,
   
   # Bulk RNA-seq Directories
   counts_dir    <- file.path(proj_dir, "counts")               # Directory containing count files
+  salmon_dir    <- file.path(proj_dir, "salmon")               # Directory containing salmon quant.sf files
   contrast_dir  <- file.path(proj_dir, contrasts)              # Directory to store results for each contrast
   pathway_dir   <- file.path(contrast_dir, "Pathway_Analysis") # Directory to store Pathway analysis results
   tf_dir        <- file.path(contrast_dir, "TF_Analysis")      # Directory to store TF analysis results
@@ -373,6 +372,7 @@ setup_project <- function(proj, species, contrasts,
       # Bulk RNA-seq directories
       proj_dir    = normalizePath(proj_dir,     mustWork = FALSE),
       counts_dir  = normalizePath(counts_dir,   mustWork = FALSE),
+      salmon_dir  = normalizePath(salmon_dir,   mustWork = FALSE),
       gmt_dir     = normalizePath(gmt_dir,      mustWork = FALSE),
       contrast_dir= normalizePath(contrast_dir, mustWork = FALSE),
       pathway_dir = normalizePath(pathway_dir,  mustWork = FALSE),
@@ -552,7 +552,85 @@ merge_counts <- function(counts_dir, filename = NULL, output_dir) {
   return(invisible(count_matrix))
 }
 
-prepare_deseq2_input <- function(expr_mat, metadata, design) {
+prep_txi <- function(salmon_dir, species, output_dir, 
+                     db_version = NULL, filename = NULL){
+  
+  # Connect to AnnotationHub 
+  hub <- AnnotationHub::AnnotationHub()
+  
+  # ---- 🔍 Query Database ----
+  
+  log_info(sample = species, 
+           step   = "prep_txi", 
+           msg    = "Fetching Ensembl Database...")
+  
+  hub_db <- AnnotationHub::query(x           = hub, 
+                                 pattern     = c("EnsDb", species), 
+                                 ignore.case = TRUE)
+  
+  # Glimpse of hub_db
+  print(hub_db %>%
+          mcols() %>%
+          as.data.frame() %>%
+          dplyr::select(title, species, genome, rdatadateadded, sourcetype))
+  
+  # Acquire the latest version available in the hub
+  latest_id <- hub_db %>%
+    mcols() %>%
+    as.data.frame() %>%
+    { 
+      if (!is.null(db_version)) {
+        filter(., grepl(db_version, .data$title))
+      } else {
+        .
+      }
+    } %>%
+    dplyr::arrange(desc(rdatadateadded)) %>%
+    head(n = 1) %>%
+    rownames()
+  
+  if (length(latest_id) == 0) {
+    log_error(sample = species, 
+              step   = "prep_txi", 
+              msg    = "Could not find a valid EnsDb in AnnotationHub.")
+  }
+  
+  # Download the appropriate Ensembldb database
+  ensdb <- hub_db[[latest_id]]
+
+  # Extract transcript and gene info
+  tx2gene <- GenomicFeatures::transcripts(x = ensdb) %>%
+    as.data.frame() %>%
+    dplyr::select("tx_id", "gene_id")
+  
+  # Get the salmon files
+  quant_files <- list.files(path       = salmon_dir, 
+                            pattern    = "quant.sf$", 
+                            recursive  = TRUE,
+                            full.names = TRUE)
+  
+  # Name the files using sample IDs
+  sample_names <- list.files(path       = salmon_dir, 
+                             pattern    = "quant.sf$", 
+                             recursive  = TRUE,
+                             full.names = FALSE)
+  sample_names <- gsub(pattern = "-quant.sf", replacement = "", x = sample_names)
+  names(quant_files) <- make.names(sample_names)
+  
+  txi <- tximport::tximport(files           = quant_files, 
+                            type            = "salmon", 
+                            tx2gene         = tx2gene,  
+                            ignoreTxVersion = TRUE)
+  
+  # txi is your tximport object
+  file_name <- paste("txi", filename, sep = "_")
+  file_extension <- ".rds"
+  saveRDS(txi, file = file.path(output_dir, paste0(file_name, file_extension)))
+
+  return(txi)
+}
+
+prepare_deseq2_input <- function(expr_mat, txi, metadata, design) {
   
   # ---- ⚙️ Validate Input Parameters ----
   
@@ -596,19 +674,22 @@ prepare_deseq2_input <- function(expr_mat, metadata, design) {
   
   # ⚠️ Detect potential gene ID column in expr_mat
   
-  # Compute column sums
-  col_sums <- colSums(expr_mat, na.rm = TRUE)
-  first_col_name <- colnames(expr_mat)[1]
-  first_col <- expr_mat[,1]
-  
-  # Heuristic checks
-  is_numeric_outlier <- is.numeric(first_col) && col_sums[1] > 10 * median(col_sums[-1])
-  is_name_not_in_meta <- !(first_col_name %in% make.names(metadata$Sample_ID))
-  
-  if (is_numeric_outlier || is_name_not_in_meta) {
-    log_error(sample = "",
-              step    = "prepare_deseq2_input",
-              msg     = glue::glue("First column '{first_col_name}' looks like gene IDs (Entrez or SYMBOL), not sample counts."))
+  if (!is.null(expr_mat)){
+    
+    # Compute column sums
+    col_sums <- colSums(expr_mat, na.rm = TRUE)
+    first_col_name <- colnames(expr_mat)[1]
+    first_col <- expr_mat[,1]
+    
+    # Heuristic checks
+    is_numeric_outlier <- is.numeric(first_col) && col_sums[1] > 10 * median(col_sums[-1])
+    is_name_not_in_meta <- !(first_col_name %in% make.names(metadata$Sample_ID))
+    
+    if (is_numeric_outlier || is_name_not_in_meta) {
+      log_error(sample = "",
+                step    = "prepare_deseq2_input",
+                msg     = glue::glue("First column '{first_col_name}' looks like gene IDs (Entrez or SYMBOL), not sample counts."))
+    }
   }
   
   # ---- 📝️ Metadata Preparation & Design Validation ----
@@ -664,53 +745,60 @@ prepare_deseq2_input <- function(expr_mat, metadata, design) {
   
   # ---- 🧮 Expression Matrix Cleaning & Filtering ----
   
-  # Convert column names to valid R names
-  colnames(expr_mat) <- make.names(colnames(expr_mat))
-  
-  # Retain ONLY samples in metadata for accurate zero count calculations
-  expr_mat <- expr_mat[, intersect(colnames(expr_mat), rownames(metadata)), drop = FALSE]
-  
-  # Remove rows with NA gene names
-  na_rows <- is.na(rownames(expr_mat))
-  expr_mat <- expr_mat[!na_rows, , drop = FALSE]
-  log_info(sample = "",
-           step   = "prepare_deseq2_input",
-           msg    = glue::glue("Removed {sum(na_rows)} rows with missing gene names."))
-  
-  # Replace missing counts with 0
-  expr_mat[is.na(expr_mat)] <- 0
-  
-  # Convert all columns to numeric safely
-  expr_mat <- matrix(as.numeric(as.matrix(expr_mat)),
-                     nrow = nrow(expr_mat),
-                     ncol = ncol(expr_mat),
-                     dimnames = dimnames(expr_mat))
-  
-  if (any(is.na(expr_mat))) {
-    log_error(sample = "",
-              step   = "plot_heatmap",
-              msg    = "`expr_mat` contains non-numeric values that could not be converted.")
-  }
-  
-  # Remove genes with zero counts across all samples
-  zero_genes   <- rownames(expr_mat)[which(rowSums(expr_mat) == 0)]
-  expr_mat <- expr_mat[rowSums(expr_mat) != 0, , drop = FALSE]
-  log_warn(sample = "",
-           step   = "prepare_deseq2_input",
-           msg    = glue::glue("Removed {length(zero_genes)} genes with zero counts across all samples."))
-  
-  # Remove samples with zero total reads
-  zero_samples <- colnames(expr_mat)[which(colSums(expr_mat) == 0)]
-  expr_mat <- expr_mat[, colSums(expr_mat) != 0, drop = FALSE]
-  log_warn(sample = "",
-           step   = "prepare_deseq2_input",
-           msg    = glue::glue("Removed {length(zero_samples)} samples with zero total counts."))
+  if (!is.null(expr_mat)){
+    
+    # Convert column names to valid R names
+    colnames(expr_mat) <- make.names(colnames(expr_mat))
+    
+    # Retain ONLY samples in metadata for accurate zero count calculations
+    expr_mat <- expr_mat[, intersect(colnames(expr_mat), rownames(metadata)), drop = FALSE]
+    
+    # Remove rows with NA gene names
+    na_rows <- is.na(rownames(expr_mat))
+    expr_mat <- expr_mat[!na_rows, , drop = FALSE]
+    log_info(sample = "",
+             step   = "prepare_deseq2_input",
+             msg    = glue::glue("Removed {sum(na_rows)} rows with missing gene names."))
+    
+    # Replace missing counts with 0
+    expr_mat[is.na(expr_mat)] <- 0
+    
+    # Convert all columns to numeric safely
+    expr_mat <- matrix(as.numeric(as.matrix(expr_mat)),
+                       nrow = nrow(expr_mat),
+                       ncol = ncol(expr_mat),
+                       dimnames = dimnames(expr_mat))
+    
+    if (any(is.na(expr_mat))) {
+      log_error(sample = "",
+                step   = "plot_heatmap",
+                msg    = "`expr_mat` contains non-numeric values that could not be converted.")
+    }
+    
+    # Remove genes with zero counts across all samples
+    zero_genes   <- rownames(expr_mat)[which(rowSums(expr_mat) == 0)]
+    expr_mat <- expr_mat[rowSums(expr_mat) != 0, , drop = FALSE]
+    log_warn(sample = "",
+             step   = "prepare_deseq2_input",
+             msg    = glue::glue("Removed {length(zero_genes)} genes with zero counts across all samples."))
+    
+    # Remove samples with zero total reads
+    zero_samples <- colnames(expr_mat)[which(colSums(expr_mat) == 0)]
+    expr_mat <- expr_mat[, colSums(expr_mat) != 0, drop = FALSE]
+    log_warn(sample = "",
+             step   = "prepare_deseq2_input",
+             msg    = glue::glue("Removed {length(zero_samples)} samples with zero total counts."))
+  } 
   
   # ---- 🧩 Final Data Structuring for DESeq2 ----
   
   # Synchronize samples between expr_mat and metadata
+  if (!is.null(expr_mat)){
   common_samples <- intersect(colnames(expr_mat), rownames(metadata))
   expr_mat <- expr_mat[              , common_samples, drop = FALSE]
+  } else{
+    common_samples <- intersect(colnames(txi$counts), rownames(metadata))
+  }
   metadata <- metadata[common_samples,               , drop = FALSE]
   
   if (length(common_samples) == 0) {
@@ -731,23 +819,32 @@ prepare_deseq2_input <- function(expr_mat, metadata, design) {
   
   # ---- 🪵 Log Output and Return Cleaned Data ----
   
+  if (!is.null(expr_mat)) {
+    n_genes   <- nrow(expr_mat)
+    n_samples <- ncol(expr_mat)
+    
+  } else if (!is.null(txi) && !is.null(txi$counts)) {
+    n_genes   <- nrow(txi$counts)
+    n_samples <- ncol(txi$counts)
+    
+  } else {
+    log_error(sample = "",
+              step   = "prepare_deseq2_input",
+              msg    = "Both expr_mat and txi$counts are NULL. Cannot determine genes or samples.")
+  }
+  
   log_info(sample = "", 
            step   = "prepare_deseq2_input", 
-           msg    = glue::glue("Successfully prepared DESeq2 input: {nrow(expr_mat)} genes and {ncol(expr_mat)} samples."))
+           msg    = glue::glue("Successfully prepared DESeq2 input: {n_genes} genes and {n_samples} samples."))
   
-  return(invisible(list(metadata = metadata, expr_mat = expr_mat)))
+  return(invisible(list(metadata = metadata, expr_mat = expr_mat, txi = txi)))
 }
 
-run_deseq2 <- function(expr_mat, metadata, design, contrast, output_dir, 
-                       lfc_cutoff = 0, 
-                       padj_cutoff = 0.1) {
-  
-  # For ashr
-  set.seed(1234)
+fit_deseq2_model <- function(expr_mat, txi, metadata, design) {
   
   # ---- ⚙️ Validate Input Parameters ----
   
-  validate_inputs(expr_mat = expr_mat, metadata = metadata, output_dir = output_dir)
+  validate_inputs(expr_mat = expr_mat, metadata = metadata)
   
   # ---- 🧪 DESeq2 Object Preparation & Filtering ----
   
@@ -772,15 +869,25 @@ run_deseq2 <- function(expr_mat, metadata, design, contrast, output_dir,
   }
   
   # Prepare DESeq2 object
-  dds <- DESeq2::DESeqDataSetFromMatrix(countData = expr_mat,
-                                        colData   = metadata,
-                                        design    = design_formula)
+  if (!is.null(expr_mat)){
+    dds <- DESeq2::DESeqDataSetFromMatrix(countData = expr_mat,
+                                          colData   = metadata,
+                                          design    = design_formula)
+  } else if (!is.null(txi)){
+    dds <- DESeq2::DESeqDataSetFromTximport(txi     = txi,
+                                            colData = metadata,
+                                            design  = design_formula)
+  }
   
   # Auto-detect for 'poscounts' if many zeros exist
-  is_scRNA <- all(rowSums(expr_mat == 0) > 0)
+  if (!is.null(expr_mat)){
+    is_scRNA <- all(rowSums(expr_mat == 0) > 0)
+  } else if (!is.null(txi$counts)){
+    is_scRNA <- all(rowSums(txi$counts == 0) > 0)
+  }
   
   if (is_scRNA) {
-    log_warn(sample = contrast,
+    log_warn(sample = "",
              step   = "run_deseq2",
              msg    = "scRNA-seq–like sparsity detected. Estimating size factors using 'poscounts'.")
     dds <- DESeq2::estimateSizeFactors(dds, type = "poscounts")
@@ -811,22 +918,37 @@ run_deseq2 <- function(expr_mat, metadata, design, contrast, output_dir,
   residual_local <- mcols(dds_local)$dispGeneEst - mcols(dds_local)$dispFit
   
   if (median(residual_para^2, na.rm = TRUE) <= median(residual_local^2, na.rm = TRUE)) {
-    log_info(sample = contrast, 
-             step   = "run_deseq2", 
-             msg    = "Selected 'Parametric' fit based on lower squared residuals.")
+    fit <- "Parametric"
     dds <- dds_para
   } else {
-    log_info(sample = contrast, 
-             step   = "run_deseq2", 
-             msg    = "Selected 'Local' fit based on lower squared residuals.")
+    fit <- "Local"
     dds <- dds_local
   }
+  
+  # ---- 🪵 Log Output and Return DESeq2 object ----
+  
+  log_info(sample = "", 
+           step   = "fit_deseq2_model", 
+           msg    = glue::glue("DESeq2 model built using '{fit}' fit."))
+  
+  return(invisible(dds))
+}
+  
+get_deseq2_results <- function(dds, contrast, output_dir, 
+                               lfc_cutoff = 0, padj_cutoff = 0.1){
+  
+  # For ashr
+  set.seed(1234)
+  
+  # ---- ⚙️ Validate Input Parameters ----
+  
+  validate_inputs(dds = dds, output_dir = output_dir)
   
   # ---- 🧮 Dynamic Contrast Parsing ----
   
   # Extract design variables (e.g., c("Condition", "Batch"))
   # all.vars is robust; it handles ~Condition + Batch and ~Condition*Batch
-  design_vars <- all.vars(design_formula)
+  design_vars <- all.vars(DESeq2::design(dds))
   
   # Extract the model matrix 
   # This is useful for downstream checking of rank deficiency
@@ -917,29 +1039,13 @@ run_deseq2 <- function(expr_mat, metadata, design, contrast, output_dir,
   
   save_xlsx(DEGs_df, file.path(output_dir, "DEGs.xlsx"), "DEGs", row_names = FALSE)
   
-  # Extract VST Counts (Non-blind) for downstream visualization
-  vsd <- DESeq2::vst(dds, blind = FALSE)
-  vst_counts <- SummarizedExperiment::assay(vsd) %>%
-    as.data.frame() %>%
-    tibble::rownames_to_column("ID") %>%
-    add_annotation() %>%
-    dplyr::filter(!is.na(SYMBOL)) %>%
-    dplyr::group_by(SYMBOL) %>%
-    dplyr::summarize(across(.cols = where(is.numeric), .fns = mean, na.rm = TRUE), .groups = "drop") %>%
-    tibble::remove_rownames() %>%
-    tibble::column_to_rownames("SYMBOL") %>%
-    dplyr::select(-dplyr::matches("ENSEMBL|ENTREZ|GENEID")) %>%
-    as.matrix()
-  
-  save_xlsx(vst_counts, file.path(output_dir, "VST_counts.xlsx"), "VST_Nonblind", row_names = TRUE)
-  
   # ---- 🪵 Log Output and Return DESeq2 Results ----
   
   log_info(sample = contrast, 
-           step   = "run_deseq2", 
+           step   = "get_deseq2_results", 
            msg    = glue::glue("DESeq2 complete. Total genes: {nrow(dds)}. Contrast: {contrast}"))
   
-  return(invisible(list(degs = DEGs_df, vst = vst_counts, dds = dds)))
+  return(invisible(list(degs = DEGs_df, dds = dds)))
 }
 
 plot_ma <- function(dds, output_dir, filename = NULL) {
@@ -1077,7 +1183,7 @@ plot_volcano <- function(res_df, output_dir, filename = NULL,
   
   # ---- 🧪 Setup Volcano Parameters ----
   
-  target <- stringr::str_split(string = contrast, pattern = "-")[[1]][1]
+  target    <- stringr::str_split(string = contrast, pattern = "-")[[1]][1]
   reference <- stringr::str_split(string = contrast, pattern = "-")[[1]][2]
   
   # ---- 🔄 Data Formatting & Relevance Scoring ----
@@ -1555,7 +1661,9 @@ plot_heatmap <- function(expr_mat,
   base_colors <- if (exists("custom_palette")) {
     custom_palette
   } else { 
-    RColorBrewer::brewer.pal(8, "Set2")
+   log_error(sample = "",
+             step   = "plot_heatmap", 
+             msg    = "`custom_palette` not defined. Needed for annotation of heatmaps.")
   }
   
   col_list <- base::lapply(X = as.list(col_annotation), FUN = function(x) { as.character(x) %>% unique})
@@ -1880,8 +1988,8 @@ plot_heatmap <- function(expr_mat,
   return(invisible(list(ph = ph, mat = ph_mat)))
 }
 
-analyze_pathway <- function(res_df, species, gmt_dir, output_dir, 
-                            minsize = 15, maxsize = 500) {
+analyze_pathway <- function(res_df = NULL, gene_list = NULL, gene_direction = "UP",
+                            species, gmt_dir, output_dir, minsize = 15, maxsize = 500) {
   
   # For fgsea
   set.seed(1234)
@@ -1912,27 +2020,50 @@ analyze_pathway <- function(res_df, species, gmt_dir, output_dir,
   ora_df_down      <- data.frame()
   concise_fgsea_df <- data.frame()
   
-  # Define input genes for GSEA (Ranked list)
-  # IMPORTANT: Rank genes from high LFC to low lFC, so +NES ~ up-regulated
-  ranked_df <- res_df %>%
-    dplyr::distinct(SYMBOL, .keep_all = TRUE) %>%
-    dplyr::filter(!is.na(padj), !is.na(SYMBOL)) %>%
-    dplyr::mutate(log2FoldChange = as.numeric(log2FoldChange),
-                  padj = as.numeric(padj)) %>%
-    dplyr::arrange(desc(log2FoldChange))  
+  if (!is.null(res_df)){
+    
+    # Define input genes for GSEA (Ranked list)
+    # IMPORTANT: Rank genes from high LFC to low lFC, so +NES ~ up-regulated
+    ranked_df <- res_df %>%
+      dplyr::distinct(SYMBOL, .keep_all = TRUE) %>%
+      dplyr::filter(!is.na(padj), !is.na(SYMBOL)) %>%
+      dplyr::mutate(log2FoldChange = as.numeric(log2FoldChange),
+                    padj = as.numeric(padj)) %>%
+      dplyr::arrange(desc(log2FoldChange))  
+    
+    ranked_list <- ranked_df$log2FoldChange
+    names(ranked_list) <- ranked_df$SYMBOL
+    
+    # Define input for ORA (Significant genes only)
+    sig_genes_up <-  ranked_df %>% 
+      dplyr::filter(padj <= 0.05, log2FoldChange > 0) %>% 
+      dplyr::pull(SYMBOL)
+    sig_genes_down <-  ranked_df %>% 
+      dplyr::filter(padj <= 0.05, log2FoldChange < 0) %>% 
+      dplyr::pull(SYMBOL)
+    universe_genes <- ranked_df$SYMBOL
   
-  ranked_list <- ranked_df$log2FoldChange
-  names(ranked_list) <- ranked_df$SYMBOL
+  } else if (!is.null(gene_list) & gene_direction == "UP"){
+    
+    ranked_df <- NULL
+    sig_genes_up <- gene_list
+    sig_genes_down <- NULL
+    universe_genes <- NULL
+ 
+  } else if (!is.null(gene_list) & gene_direction == "DOWN"){
+    
+    ranked_df <- NULL
+    sig_genes_up <- NULL
+    sig_genes_down <- gene_list
+    universe_genes <- NULL
   
-  # Define input for ORA (Significant genes only)
-  sig_genes_up <- res_df %>% 
-    dplyr::filter(padj <= 0.05, log2FoldChange > 0) %>% 
-    dplyr::pull(SYMBOL)
-  sig_genes_down <- res_df %>% 
-    dplyr::filter(padj <= 0.05, log2FoldChange < 0) %>% 
-    dplyr::pull(SYMBOL)
-  universe_genes <- unique(res_df$SYMBOL)
-  
+  } else {
+    
+    log_error(sample = "",
+              step   = "analyze_pathway",
+              msg    = "Provide either `res_df` or `gene_list` and `gene_direction (UP/DOWN)`")
+  }
+
   # ---- 🔄 Enrichment Loop ----
   
   gmt_files <- list.files(file.path(gmt_dir, species), full.names = TRUE)
@@ -1942,9 +2073,13 @@ analyze_pathway <- function(res_df, species, gmt_dir, output_dir,
     # gmt_name <- gsub(pattern = "^.*/|.v[0-9].*$", replacement = "", x = gmt_file)
     gmt_name <- gsub(pattern = "^.*/|", replacement = "", x = gmt_file)
     
-    # Format gene sets for fgsea and keep only genes present in ranked_list
+    # Format gene sets for fgsea
     gmt <- fgsea::gmtPathways(gmt_file)
-    gmt <- lapply(X = gmt, FUN = intersect, y = names(ranked_list))
+    
+    # Keep only genes present in ranked_df (i.e., GSEA is possible)
+    if (!is.null(ranked_df)) {
+      gmt <- lapply(X = gmt, FUN = intersect, y = ranked_df$SYMBOL)
+    }
     
     # Format gene sets for clusterProfiler and keep only genes present in ranked_list
     # pathway_gene_df <- data.frame(pathways = base::rep(x = names(gmt), times = base::unname(lengths(gmt))),
@@ -1953,6 +2088,8 @@ analyze_pathway <- function(res_df, species, gmt_dir, output_dir,
     colnames(pathway_gene_df) <- c("genes", "pathways")
     pathway_gene_df <- pathway_gene_df[, c("pathways", "genes")] # Reorder
     
+    if (!is.null(res_df)){
+      
     # Run fgseaMultilevel (GSEA)
     fgsea_res <- fgsea::fgseaMultilevel(pathways    = gmt,
                                         stats       = ranked_list,
@@ -1972,6 +2109,20 @@ analyze_pathway <- function(res_df, species, gmt_dir, output_dir,
                                       pAdjustMethod = "BH",
                                       verbose       = FALSE,
                                       by            = "fgsea")
+    
+    # Identify overlapping pathways and collapse into major pathways
+    concise_fgsea_res <- fgsea::collapsePathways(fgseaRes = fgsea_res,
+                                                 pathways = gmt,
+                                                 stats    = ranked_list)
+    concise_fgsea_res <- fgsea_res %>%
+      dplyr::filter(pathway %in% concise_fgsea_res$mainPathways)
+    
+    # Accumulate results
+    if (!is.null(fgsea_res))         { fgsea_df         <- dplyr::bind_rows(fgsea_df,         fgsea_res) }
+    if (!is.null(concise_fgsea_res)) { concise_fgsea_df <- dplyr::bind_rows(concise_fgsea_df, concise_fgsea_res) }
+    if (!is.null(gsea_res))          { gsea_df          <- dplyr::bind_rows(gsea_df,          gsea_res@result) }
+    
+    }
     
     # Run clusterProfiler ORA (enricher)
     # NOTE: Avoid using clusterProfiler::enrichGO() as it doesnt use proper 
@@ -1995,17 +2146,7 @@ analyze_pathway <- function(res_df, species, gmt_dir, output_dir,
                                               pAdjustMethod = "BH",
                                               qvalueCutoff  = 0.2)
     
-    # Identify overlapping pathways and collapse into major pathways
-    concise_fgsea_res <- fgsea::collapsePathways(fgseaRes = fgsea_res,
-                                                 pathways = gmt,
-                                                 stats    = ranked_list)
-    concise_fgsea_res <- fgsea_res %>%
-      dplyr::filter(pathway %in% concise_fgsea_res$mainPathways)
-    
     # Accumulate results
-    if (!is.null(fgsea_res))         { fgsea_df         <- dplyr::bind_rows(fgsea_df,         fgsea_res) }
-    if (!is.null(concise_fgsea_res)) { concise_fgsea_df <- dplyr::bind_rows(concise_fgsea_df, concise_fgsea_res) }
-    if (!is.null(gsea_res))          { gsea_df          <- dplyr::bind_rows(gsea_df,          gsea_res@result) }
     if (!is.null(ora_res_up))        { ora_df_up        <- dplyr::bind_rows(ora_df_up,        ora_res_up@result) }
     if (!is.null(ora_res_down))      { ora_df_down      <- dplyr::bind_rows(ora_df_down,      ora_res_down@result) }
     
@@ -2031,7 +2172,7 @@ analyze_pathway <- function(res_df, species, gmt_dir, output_dir,
     
     # Extract specific df
     df <- dfs[[df_name]]
-    if (nrow(df) == 0) return(df)  # skip empty data frames
+    if (nrow(df) == 0 || is.null(df)) return(df)  # skip empty data frames
     
     # Add Direction column
     if (df_name == "ora_df_up"){
@@ -2070,7 +2211,6 @@ analyze_pathway <- function(res_df, species, gmt_dir, output_dir,
     # IMPORTANT: gsea_df and ora_df store geneID as string "CXCL11/CCL2/..."
     # fgsea_df stores geneID as list of vectors which we convert to string "CXCL11/CCL2/..."
     df <- df %>%
-      dplyr::filter(padj <= 0.05) %>%
       tibble::remove_rownames() %>%
       tidyr::separate(col = pathway, into = c("Collection", "Description"), sep = "_", extra = "merge") %>%
       dplyr::mutate(Description = base::gsub(pattern = "_", replacement = " ", x = Description),
@@ -2079,7 +2219,8 @@ analyze_pathway <- function(res_df, species, gmt_dir, output_dir,
       dplyr::mutate(leading_edge_size = length(unlist(stringr::str_split(geneID, "/")))) %>%
       dplyr::ungroup() %>%
       as.data.frame() %>%
-      dplyr::select(Collection, Description, leading_edge_size, K, padj, NES, Direction, everything(), -geneID, geneID)
+      dplyr::select(Collection, Description, leading_edge_size, K, padj, NES, Direction, everything(), -geneID, geneID) %>%
+      dplyr::filter(padj <= 0.05)
     
     # Generate separate column for each gene in enriched pathways
     max_len <- max(df$leading_edge_size, na.rm = TRUE)
@@ -2105,7 +2246,6 @@ analyze_pathway <- function(res_df, species, gmt_dir, output_dir,
                                    gsea_df %>% dplyr::mutate(method = "GSEA"), 
                                    ora_df %>% dplyr::mutate(method = "ORA")) %>%
     dplyr::add_count(Collection, Description, Direction, name = "n_methods") %>%
-    dplyr::filter(n_methods > 1) %>%
     dplyr::mutate(Consensus = Direction) %>%
     dplyr::arrange(Collection, Description, desc(NES)) %>%
     dplyr::select(n_methods, method, Consensus, Collection, Description, 
@@ -2137,7 +2277,7 @@ analyze_pathway <- function(res_df, species, gmt_dir, output_dir,
   return(invisible(list(fgsea = fgsea_df, gsea = gsea_df, ora = ora_df, consensus = consensus_df)))
 }
 
-analyze_tf <- function(expr_mat, res_df, species, 
+analyze_tf <- function(expr_mat, res_df, species, output_dir,
                        stats = c("ulm", "mlm", "viper"), 
                        minsize = 5, top_n = 500) {
   
@@ -2236,58 +2376,68 @@ analyze_tf <- function(expr_mat, res_df, species,
   #                              statistics = "viper",
   #                              minsize    = minsize)
   
-  # ---- 🧹 Significance Filtering (BH Correction) ----
+  # ---- 🧹 Significance (BH Correction) ----
   
   # Function to calculate padj for each method i.e ulm/mlm/viper
   calc_padj <- function(df) {
     df %>%
       dplyr::group_by(statistic) %>%
       dplyr::mutate(padj = stats::p.adjust(p_value, method = "BH")) %>%
-      dplyr::ungroup() %>% 
-      dplyr::filter(padj <= 0.05)
+      dplyr::ungroup()
   }
   
-  pathway_sig_df <- calc_padj(pathway_df)
-  tf_sig_df <- calc_padj(tf_df)
+  pathway_df <- calc_padj(pathway_df)
+  tf_df <- calc_padj(tf_df)
+  
+  # ---- 💾 Save Outputs ----
+  
+  tf_results_list <- list(tf      = tf_df, 
+                          pathway = pathway_df) 
+                              
+  # Save as excel
+  file_name <- file.path(output_dir, "TF_results.xlsx")
+  wb <- openxlsx::createWorkbook()
+  for (i in seq_along(tf_results_list)) {
+    openxlsx::addWorksheet(wb, sheetName = names(tf_results_list)[i])
+    openxlsx::writeData(wb, sheet = names(tf_results_list)[i], x = tf_results_list[[i]], rowNames = FALSE)
+  }
+  openxlsx::saveWorkbook(wb, file_name, overwrite = TRUE)
   
   # ---- 🪵 Log Output and Return ----
   
   log_info(sample = "", 
            step   = "tf_analysis", 
-           msg    = glue::glue("TF Analysis complete. Significant hits: {nrow(tf_sig_df)} TFs, {nrow(pathway_sig_df)} Pathways."))
+           msg    = glue::glue("TF analysis results saved to '{file_name}'."))
   
-  return(invisible(list(pathway     = pathway_df,
-                        tf          = tf_df,
-                        pathway_sig = pathway_sig_df,
-                        tf_sig      = tf_sig_df)))
+  return(invisible(list(pathway = pathway_df,
+                        tf      = tf_df)))
+                       
 }
 
 plot_pathway <- function(pathway_df, expr_mat, metadata, method, output_dir){
   
-  set.seed(1234)
+ 
   # pathway_df$Collection, pathway_df$leading_edge_size,
   # pathway_df$Direction, pathway_df$padj, pathway_df$Description
   
   # ---- ⚙️ Validate Input Parameters ----
-    
-  validate_inputs(expr_mat = expr_mat, metadata = metadata, output_dir = output_dir)  
   
+  validate_inputs(expr_mat = expr_mat, metadata = metadata, output_dir = output_dir)  
+
   if (is.null(method) || !method %in% c("GSEA", "ORA")) {
     log_error(sample = "",
               step   = "plot_pathway",
-              msg    = "`method` '{method}' must be either 'GSEA' or 'ORA'.")
+              msg    = glue::glue("`method` '{method}' is invalid. Must be 'GSEA' or 'ORA'."))
   }
   
-  # Map method -> x-axis column
-  score_var_map <- c(ORA = "GeneRatio", GSEA = "NES") # ORA = "combined_score"
-  x_axis_map    <- c(ORA = "GeneRatio", GSEA = "NES")
-  x_label_map   <- c(ORA = "GeneRatio", GSEA = "Normalized Enrichment Score (NES)")
-  x_limits_map  <- list(ORA = c(0, NA), GSEA = c(pmin(0, floor(min(plot_df$NES, na.rm = TRUE))), NA))
+  # ---- 📊 Define Plotting Mapping Logic ----
   
-  score_var     <- score_var_map[[method]]
-  x_axis        <- x_axis_map[[method]]
-  x_label       <- x_label_map[[method]]
-  x_limits      <- x_limits_map[[method]]
+  # Map method -> plotting aesthetics
+  x_axis_map    <- c(ORA = "GeneRatio", GSEA = "NES")
+  x_label_map   <- c(ORA = "Gene Ratio", GSEA = "Normalized Enrichment Score (NES)")
+  
+  x_axis  <- x_axis_map[[method]]
+  x_label <- x_label_map[[method]]
   
   size_col      <- "leading_edge_size"
   color_col     <- "Direction"
@@ -2295,133 +2445,133 @@ plot_pathway <- function(pathway_df, expr_mat, metadata, method, output_dir){
   
   plot_colors <- c("Upregulated" = "#E69F00", "Downregulated" = "#56B4E9")
   
-  # str_wrap() wraps only between words, and it defines "words" based on spaces (" ").
-  # If all words are connected by "_", it wont split.
+  # Pre-process descriptions for better wrapping in plots
   pathway_df <- pathway_df %>%
-    dplyr::mutate(Description = gsub(pattern = "_", replacement = " ", x = Description),
+    dplyr::mutate(Description = base::gsub(pattern = "_", replacement = " ", x = Description),
                   Description = stringr::str_wrap(string = Description, width = 30))
   
-  # Identify collections from input df (KEGG, GOMF, etc..)
-  collections <- unique(pathway_df$Collection)
-  n_collections <- length(unique(pathway_df$Collection))
+  collections   <- unique(pathway_df$Collection)
+  dot_plots     <- list()
+  bar_plots     <- list()
   
-  # Save one dot/bar plot with all collections
-  dot_plot_list <- list()
-  bar_plot_list <- list()
+  # ---- 🔄 Iterate Through Pathway Collections ----
   
-  for (collection in collections){
+  for (collection in collections) {
     
-    # Subset pathways for specific collection and re-order (score_var highest to lowest)
+    # Subset and rank pathways based on score_var
     plot_df <- pathway_df %>% 
       dplyr::filter(Collection == collection) %>% 
-      dplyr::filter(!is.na(.data[[score_var]])) %>%
-      dplyr::arrange(dplyr::desc(.data[[score_var]]))
+      dplyr::filter(!is.na(.data[[x_axis]])) %>%
+      dplyr::arrange(dplyr::desc(.data[[x_axis]]))
     
-    # Pad with empty rows if fewer than 20 pathways 
+    if (nrow(plot_df) == 0) next
+    
+    # Pad with empty rows if fewer than 20 pathways for consistent plot scaling
     n_missing <- 20 - nrow(plot_df)
-    plot_df <- dplyr::bind_rows(plot_df, 
-                                data.frame(Description = as.character(seq_len(n_missing))))
+    if (n_missing > 0) {
+      plot_df <- dplyr::bind_rows(plot_df, 
+                                  data.frame(Description = as.character(base::seq_len(n_missing))))
+    }
     
-    # Adjust fontsize of pathway names based on their length
-    max_label_len <- max(nchar(plot_df$Description), na.rm = TRUE)
+    # Dynamic Y-axis text sizing
+    max_label_len <- base::max(base::nchar(plot_df$Description), na.rm = TRUE)
     y_text_size <- dplyr::case_when(max_label_len > 50 ~ 6,
                                     max_label_len > 35 ~ 7,
                                     max_label_len > 25 ~ 8,
                                     TRUE ~ 10)
     
-    # ---- Plot Bar plot ---- 
+    # Calculate limits dynamically per collection
+    x_min <- if (method == "GSEA") { base::pmin(0, floor(min(plot_df[[x_axis]], na.rm = TRUE))) } else  { 0 }
+    x_limits <- c(x_min, NA)
     
-    bar_p <- ggplot2::ggplot(data    = plot_df,
+    # ---- 📈 Generate Bar Plot ---- 
+    
+    bar_p <- ggplot2::ggplot(data = plot_df,
                              mapping = aes(x     = .data[[x_axis]],
-                                           y     = reorder(Description, .data[[x_axis]]),
+                                           y     = stats::reorder(Description, .data[[x_axis]]),
                                            fill  = .data[[color_col]],
                                            alpha = -log10(.data[[alpha_col]]))) +
       ggplot2::geom_col(width = 0.75, na.rm = TRUE) +
-      ggplot2::labs(x = x_label,
-                    y = "",
-                    title = paste("Top", collection, "Pathways"),
+      ggplot2::labs(x = x_label, 
+                    y = "", 
+                    title = base::paste("Top", collection, "Pathways"), 
                     fill = "Direction") +
       ggplot2::theme_classic() +
       custom_theme +
-      theme(axis.text.y = element_text(size = y_text_size)) +
-      coord_cartesian(clip = "off") +
-      scale_x_continuous(limits = x_limits, expand = expansion(mult = c(0, 0.05))) +
-      scale_alpha_continuous(range = c(0.5, 1)) +
-      scale_fill_manual(values = plot_colors) +
+      ggplot2::theme(axis.text.y = ggplot2::element_text(size = y_text_size)) +
+      ggplot2::coord_cartesian(clip = "off") +
+      ggplot2::scale_x_continuous(limits = x_limits, expand = ggplot2::expansion(mult = c(0, 0.05))) +
+      ggplot2::scale_alpha_continuous(range = c(0.5, 1)) +
+      ggplot2::scale_fill_manual(values = plot_colors) +
       guides(fill  = guide_legend(override.aes = list(shape = 22, size = 6)),
              color = guide_legend(override.aes = list(shape = 22, size = 6)),
              alpha = guide_legend(override.aes = list(shape = 22, size = 6))) +
       ggplot2::geom_text(aes(label = .data[[size_col]]), x = 0, hjust = -0.5, size = 3, show.legend = FALSE)
     
-    bar_plot_list[[collection]] <- bar_p
+    bar_plots[[collection]] <- bar_p
     
-    # ---- Plot Dot plot ---- 
+    # ---- 🟢 Generate Dot Plot ---- 
     
-    vals <- c(min(plot_df[[size_col]], na.rm = TRUE), max(plot_df[[size_col]], na.rm = TRUE))
-    breaks <- as.vector(floor(quantile(vals) / 10) * 10)
+    #size_vals <- c(min(plot_df[[size_col]], na.rm = TRUE), max(plot_df[[size_col]], na.rm = TRUE))
+    size_vals <- plot_df$leading_edge_size[!base::is.na(plot_df$leading_edge_size)]
+    breaks <- as.vector(floor(stats::quantile(size_vals, na.rm = TRUE) / 10) * 10)
     
-    dot_p <- ggplot2::ggplot(data    = plot_df,
+    dot_p <- ggplot2::ggplot(data = plot_df,
                              mapping = aes(x     = .data[[x_axis]],
-                                           y     = reorder(Description, .data[[x_axis]]),
+                                           y     = stats::reorder(Description, .data[[x_axis]]),
                                            fill  = .data[[color_col]],
                                            alpha = -log10(.data[[alpha_col]]),
                                            color = .data[[color_col]],
                                            size  = .data[[size_col]])) +
-      ggplot2::labs(x = x_label ,
-                    y = "",
-                    title = paste("Top", collection, "Pathways"),
-                    color = "Direction",
+      ggplot2::geom_point(na.rm = TRUE) +
+      ggplot2::labs(x = x_label, 
+                    y = "", 
+                    title = paste("Top", collection, "Pathways"), 
+                    color = "Direction", 
                     size = "Counts") +
-      ggplot2::geom_point() +
       ggplot2::theme_classic() +
       custom_theme +
-      theme(axis.text.y = element_text(size = y_text_size)) +
-      coord_cartesian(clip = "off") + 
-      scale_x_continuous(limits = x_limits, expand = expansion(mult = c(0, 0.05))) +
-      scale_alpha_continuous(range = c(0.5, 1)) +
-      scale_color_manual(values = plot_colors) +
-      scale_fill_manual(values = plot_colors) + # need for coloring the legend
-      guides(fill  = guide_legend(override.aes = list(shape = 22, size = 6)),
-             color = guide_legend(override.aes = list(shape = 22, size = 6)),
-             alpha = guide_legend(override.aes = list(shape = 15, size = 6))) +
-      ggplot2::scale_size(breaks = breaks) 
+      ggplot2::theme(axis.text.y = ggplot2::element_text(size = y_text_size)) +
+      ggplot2::coord_cartesian(clip = "off") + 
+      ggplot2::scale_x_continuous(limits = x_limits, expand = ggplot2::expansion(mult = c(0, 0.05))) +
+      ggplot2::scale_alpha_continuous(range = c(0.5, 1)) +
+      ggplot2::scale_color_manual(values = plot_colors) +
+      ggplot2::scale_fill_manual(values = plot_colors) +  # need for coloring the legend
+      ggplot2::scale_size(breaks = unique(breaks)) 
     
-    dot_plot_list[[collection]] <- dot_p
+    dot_plots[[collection]] <- dot_p
     
-    # ---- Plot Heatmap ----
+    # ---- 🔥 ️ Generate Heatmap Multi-page PDF ----
     
-    if (!is.null(expr_mat)){
+    if (!is.null(expr_mat)) {
       
-      # Generate one pdf per collection with heatmaps of all its pathways
       heatmap_plots <- list()
+      pathways <- plot_df %>% 
+        dplyr::filter(!is.na(Direction)) %>% 
+        dplyr::pull(Description) %>% 
+        base::unique()
       
-      pathways <- pathway_df %>% 
-        dplyr::filter(Collection == collection) %>%
-        dplyr::pull(Description) %>%
-        unique()
-      
-      # Store heatmaps in list
       for (pathway in pathways) {
         
-        # Identify genes to plot in heatmap
+        # Extract genes for this specific pathway from the long-format dataframe
         plot_genes <- pathway_df %>%
-          filter(Collection == collection, Description == pathway) %>%
-          tidyr::pivot_longer(cols = dplyr::matches("^(gene|Gene)[0-9]+$"),
+          dplyr::filter(Collection == collection, Description == pathway) %>%
+          tidyr::pivot_longer(cols = dplyr::matches("^(gene|Gene)[0-9]+$"), 
                               values_to = "gene") %>%
-          dplyr::pull(gene) %>%        # extract as vector
+          dplyr::pull(gene) %>%
           base::trimws() %>%
-          na.omit() %>%
-          .[. != ""] %>%              # remove empty strings
-          base::unique()
+          stats::na.omit() %>%
+          .[. != ""] %>%          # remove empty strings
+          base::unique() %>%
+          base::intersect(rownames(expr_mat))
         
         # Skip plotting if less than 2 genes
-        if (length(plot_genes) < 2) { next }
+        if (base::length(plot_genes) < 2) next
         
-        ht_mat <- expr_mat[plot_genes, ,drop = FALSE]
         plot_title <- stringr::str_wrap(string = pathway, width = 30)
         
         # Plot heatmap
-        ph <- plot_heatmap(expr_mat            = ht_mat, 
+        ph <- plot_heatmap(expr_mat            = expr_mat[plot_genes, ,drop = FALSE], 
                            label_genes         = NULL,
                            filename            = NULL,
                            output_dir          = NULL,
@@ -2445,7 +2595,7 @@ plot_pathway <- function(pathway_df, expr_mat, metadata, method, output_dir){
         heatmap_plots[[pathway]] <- ph$ph$gtable
       }
       
-      # Save stored heatmap as pdf
+      # Save stored heatmaps as pdf
       if (length(heatmap_plots) > 0) {
         
         file_extension <- ".pdf"
@@ -2458,134 +2608,208 @@ plot_pathway <- function(pathway_df, expr_mat, metadata, method, output_dir){
           grid::grid.newpage()
           grid::grid.draw(ht)
         }
-        
-        dev.off() 
+        grDevices::dev.off() 
       }
     }
+  } 
+  
+  # ---- 💾 Save Consolidated Summary Plots ----
+  
+  summary_plots <- base::list(Bar = bar_plots, Dot = dot_plots)
+  
+  for (type in names(summary_plots)) {
+    
+    file_extension <- ".pdf"
+    file_name <- file.path(output_dir, paste0(type, "_plot_pathways_", method, file_extension))
+    
+    ggplot2::ggsave(filename = file_name,
+                    plot     = cowplot::plot_grid(plotlist = summary_plots[[type]], ncol = 3, align = "hv"),
+                    device   = grDevices::cairo_pdf,
+                    width    = 3 * 6, 
+                    height   = ceiling(length(summary_plots[[type]]) / 3) * 6, 
+                    units    = "in",
+                    dpi      = 300,
+                    bg       = "white")
   }
   
-  # Save Bar plot
-  file_extension <- ".pdf"
-  file_name <- file.path(output_dir, paste0("Bar_plot_pathways_", method, file_extension))
-  bar_plots <- cowplot::plot_grid(plotlist = bar_plot_list, align = "hv", ncol = 3, nrow = 3)
-  ggplot2::ggsave(filename = file_name,
-                  plot     = bar_plots,
-                  device   = cairo_pdf,
-                  width    = 3 * 7,
-                  height   = 3 * 7,
-                  units    = "in",
-                  dpi      = 300,
-                  bg       = "white")
+  # ---- 🪵 Log Output and Return ----
   
-  # Save Dot plot
-  file_extension <- ".pdf"
-  file_name <- file.path(output_dir, paste0("Dot_plot_pathways_", method, file_extension))
-  dot_plots <- cowplot::plot_grid(plotlist = dot_plot_list, align = "hv", ncol = 3, nrow = 3)
-  ggplot2::ggsave(filename = file_name,
-                  plot     = dot_plots,
-                  device   = cairo_pdf,
-                  width    = 3 * 7,
-                  height   = 3 * 7,
-                  units    = "in",
-                  dpi      = 300,
-                  bg       = "white")
+  log_info(sample = "", 
+           step   = "plot_pathway", 
+           msg    = glue::glue("Successfully generated {method} visualizations in {output_dir}"))
+  
+  return(invisible(NULL))
 }
 
-plot_tf <- function(tf_df, contrast, metadata, samples, output_dir, n_tfs = 20){
+plot_tf <- function(tf_df, metadata, output_dir, 
+                    contrast = "Target-Reference", 
+                    top_n    = 20) {
   
   set.seed(1234)
   
-  # NOTE: wsum returns wsum, norm_wsum and corr_wsum.
-  # wsum (DONT USE): Biased toward larger gene sets (more genes → bigger sum)
-  # norm_wsum (DONT USE): Adjusts for pathway length so small and large gene sets are comparable
-  # corr_sum (DONT USE): corrects for high correlation as it can make enrichment appear stronger
+  # ---- ⚙️ Validate Input Parameters ----
   
-  target <- stringr::str_split(string = contrast, pattern = "-")[[1]][1]
-  ref    <- stringr::str_split(string = contrast, pattern = "-")[[1]][2]
-  stats <- unique(tf_df$statistic)   c("consensus", "ulm", "mlm", "viper") #
-  bar_plots     <- list()
+  validate_inputs(metadata = metadata, output_dir = output_dir)
+  
+  # ---- 🧪 Setup Parameters ----
+  
+  target    <- stringr::str_split(string = contrast, pattern = "-")[[1]][1]
+  reference <- stringr::str_split(string = contrast, pattern = "-")[[1]][2]
+  
+  # Determine plot type based on the 'condition' column
+  # Single condition (usually "t") implies DE results -> Bar Plot
+  # Multiple conditions imply sample-level scores -> Heatmap
+  plot_type <- if (length(unique(tf_df[["condition"]])) == 1) { "bar" } else { "heatmap" }
+  
+  log_info(sample = "", 
+           step   = "plot_tf", 
+           msg    = glue::glue("Detected plot mode: '{plot_type}' based on `condition` column in `tf_df`."))
+  
+  bar_plots     <- list()    
   heatmap_plots <- list()
   
-  for (stat in stats) {
+  # NOTE: wsum returns wsum, norm_wsum and corr_wsum.
+  # wsum      (DONT USE) : Biased toward larger gene sets (more genes → bigger sum)
+  # norm_wsum (DONT USE) : Adjusts for pathway length so small and large gene sets are comparable
+  # corr_sum  (DONT USE) : corrects for high correlation as it can make enrichment appear stronger
+  
+  # ---- 🖼️ Generate Plots ----
+  
+  # tf_df structure:
+  # `statistic` column : has method used like ulm, mlm, viper, etc
+  # `source`    column : has transcription factors
+  # `condition` column : has samples names or test-statistic used  like "t"
+  # `score`     column : has TF activity score
+  
+  # ---- 🖼️ Generate Plots per Statistic Method ----
+  
+  for (stat in unique(tf_df$statistic)) {
     
-    # TF activity from DEGs (condition column contains "t")
-    if (length(unique(tf_df[["condition"]])) == 1){
+    # CASE A: BAR PLOT (DE-based activity)
+    if (plot_type == "bar") {
+      
+      # Select top_n TFs for both directions (Upregulated and Downregulated)
       top_tf <- tf_df %>%
+        dplyr::filter(statistic == stat) %>%
         dplyr::mutate(Direction = dplyr::case_when(score < 0 ~ "Downregulated",
                                                    score > 0 ~ "Upregulated",
-                                                   TRUE ~ "No change")) %>%
-        dplyr::group_by(statistic, Direction) %>%
-        dplyr::slice_max(order_by = abs(score), n = n_tfs, with_ties = FALSE) %>%
-        dplyr::ungroup() %>%
-        dplyr::filter(statistic == stat)
+                                                   TRUE      ~ "No change")) %>%
+        dplyr::group_by(Direction) %>%
+        dplyr::slice_max(order_by = abs(score), n = top_n, with_ties = FALSE) %>%
+        dplyr::ungroup()
       
-      p <- ggplot(data = top_tf, aes(x = reorder(source, score), y = score, fill = score)) +
-        geom_col(width = 0.75, na.rm = TRUE) +
-        scale_fill_gradient2(low = "darkblue", high = "indianred", mid = "whitesmoke", midpoint = 0) +
-        labs(x = "", y = "Score", title = paste0("Top TFs (", stat, " method)"), fill = "Score") +
+      bar_p <- ggplot2::ggplot(data    = top_tf, 
+                               mapping = aes(x = stats::reorder(source, score),
+                                             y = score, 
+                                             fill = score)) +
+        ggplot2::geom_col(width = 0.75, na.rm = TRUE) +
+        ggplot2::scale_fill_gradient2(low = "darkblue", high = "indianred", mid = "whitesmoke", midpoint = 0) +
+        ggplot2::labs(x = "", 
+                      y = "Activity Score", 
+                      title = paste0("Top TFs (", stat, " method)"), 
+                      fill = "Score") +
         custom_theme +
-        coord_cartesian(clip = "off") +
-        geom_text(label = paste0("Activated in ", target),
-                  x = top_tf$source[which.max(top_tf$score)],
-                  y = ceiling(max(top_tf$score)) + 1, hjust = 1, color = "indianred", fontface = "bold") +
-        geom_text(label = paste0("Activated in ", ref),
-                  x = top_tf$source[which.min(top_tf$score)],
-                  y = ceiling(max(top_tf$score)) + 1, hjust = 0, color = "darkblue", fontface = "bold")
+        ggplot2::coord_cartesian(clip = "off") +
+        # Add dynamic labels for biological groups
+        ggplot2::geom_text(label = paste0("Activated in ", target),
+                           x = top_tf$source[which.max(top_tf$score)],
+                           y = ceiling(max(top_tf$score)) + 0.5, 
+                           hjust = 1, color = "indianred", fontface = "bold", size = 3) +
+        ggplot2::geom_text(label = paste0("Activated in ", reference),
+                           x = top_tf$source[which.min(top_tf$score)],
+                           y = floor(min(top_tf$score)) - 0.5, 
+                           hjust = 0, color = "darkblue", fontface = "bold", size = 3)
       
-      bar_plot_list <- c(bar_plot_list, list(p))
+      bar_plots[[stat]] <- bar_p
     }
-    
-    # TF activity from expr_mat 
-    # `condition` column contains sample names
-    # `source` column has TF
-    else{
-      top_tf <- tf_df %>%
+  
+    # CASE B: HEATMAP (Sample-based activity)
+    if (plot_type == "heatmap") {
+      
+      # Select TFs with the highest variance (standard deviation) across samples
+      top_tf_names <- tf_df %>%
         dplyr::filter(statistic == stat) %>%
         dplyr::group_by(source) %>%
-        dplyr::summarise(std = sd(score, na.rm = TRUE), .groups = "drop") %>%
-        dplyr::slice_max(order_by = abs(std), n = n_tfs, with_ties = FALSE) %>%
+        dplyr::summarise(std = stats::sd(score, na.rm = TRUE), .groups = "drop") %>%
+        dplyr::slice_max(order_by = abs(std), n = top_n, with_ties = FALSE) %>%
         dplyr::pull(source)
       
+      # Pivot data to matrix format: TFs (Rows) x Samples (Columns)
       tf_mat <- tf_df %>%
-        dplyr::filter(statistic == stat) %>%
+        dplyr::filter(statistic == stat, source %in% top_tf_names) %>%
         tidyr::pivot_wider(id_cols = "condition", names_from = "source", values_from = "score") %>%
         tibble::column_to_rownames("condition") %>%
         as.matrix() %>%
         t()
       
-      norm_counts <- tf_mat[top_tf, samples, drop = FALSE]
       plot_title <- paste0("Top TFs (", stat, ") method")
       
-      ph <- plot_heatmap(norm_counts, proj.params, metadata_col, metadata_row, disp_genes)
-      heatmap_plots[[length(heatmap_plots) + 1]] <- ph$ph$gtable
+      # Plot heatmap
+      ph <- plot_heatmap(expr_mat            = tf_mat, 
+                         label_genes         = NULL,
+                         filename            = NULL,
+                         output_dir          = NULL,
+                         metadata_col        = metadata, 
+                         metadata_row        = NULL,
+                         col_annotations     = proj.params$heatmap$col_annotations,
+                         row_annotations     = proj.params$heatmap$row_annotations,
+                         col_gap_by          = proj.params$heatmap$col_gap_by,
+                         row_gap_by          = proj.params$heatmap$row_gap_by,
+                         col_cluster_by      = proj.params$heatmap$col_cluster_by,
+                         row_cluster_by      = proj.params$heatmap$row_cluster_by,
+                         plot_title          = plot_title,
+                         heatmap_palette     = proj.params$heatmap$heatmap_palette,
+                         annotation_palette  = proj.params$heatmap$annotation_palette,
+                         border_color        = proj.params$heatmap$border_color,
+                         force_log           = proj.params$heatmap$force_log,
+                         show_expr_legend    = proj.params$heatmap$show_expr_legend,
+                         save_plot           = FALSE,
+                         save_matrix         = FALSE)
+      
+      heatmap_plots[[stat]] <- ph$ph$gtable
     }
   }
   
-  # Save combined heatmaps
+  # ---- 💾 Save and Export Results ----
+  
+  # Export Heatmaps
   if (length(heatmap_plots) > 0) {
-    pdf(file.path(output_dir, "Heatmap_TFs.pdf"),
-        width = 10, height = 8)
+    
+    file_extension <- ".pdf"
+    file_name <- file.path(output_dir, paste0("Heatmap_TF_Activity_", contrast, file_extension))
+    
+    # Open multi-page PDF
+    grDevices::cairo_pdf(filename = file_name, width = 8, height = 11.5, onefile = TRUE) 
+    
     for (ht in heatmap_plots) {
       grid::grid.newpage()
       grid::grid.draw(ht)
     }
-    dev.off()
+    grDevices::dev.off() 
   }
   
-  # Save combined barplots
-  if (length(bar_plot_list) > 0) {
-    bar_plots <- cowplot::plot_grid(plotlist = bar_plot_list, ncol = 1, nrow = length(bar_plot_list))
-    ggplot2::ggsave(filename = file.path(output_dir, "Bar_plot_TFs.tiff"),
-                    plot = bar_plots,
-                    device = "jpeg",
-                    width = 10,
-                    height = 4 * 3,
-                    units = "in",
-                    dpi = 300,
-                    bg = "white")
+  # Export Bar Plots
+  if (length(bar_plots) > 0) {
+    
+    file_extension <- ".pdf"
+    file_name <- file.path(output_dir, paste0("Bar_plot_TF_Activity", contrast, file_extension))
+    ggplot2::ggsave(filename = file_name,
+                    plot     = cowplot::plot_grid(plotlist = bar_plots, align = "hv", ncol = 1),
+                    device   = grDevices::cairo_pdf,
+                    width    = 8.5,
+                    height   = 4 * length(bar_plots),
+                    units    = "in",
+                    dpi      = 300,
+                    bg       = "white")
   }
   
-  return(invisible(list(barplots = bar_plot_list, heatmaps = heatmap_plots)))
+  # ---- 🪵 Log Output and Return ----
+  
+  log_info(sample = "", 
+           step   = "plot_tf", 
+           msg    = glue::glue("TF Activity plotting for {contrast} completed successfully."))
+  
+  return(invisible(NULL))
 }
 
 get_annotations <- function() {
@@ -2594,38 +2818,42 @@ get_annotations <- function() {
   
   species_list <- c("Homo sapiens", "Mus musculus")
   annotations_list <- list()
-  
-  log_info(sample = "", step = "get_annotations", msg ="Connecting to AnnotationHub...")
-  
+
   # Connect to AnnotationHub 
-  ah <- AnnotationHub::AnnotationHub()
+  hub <- AnnotationHub::AnnotationHub()
   
   for (species in species_list) {
     
     # ---- 🔍 Query Database ----
-    log_info(sample = species, step = "get_annotations", msg ="Fetching Ensembl Database...")
     
-    ah_db <- AnnotationHub::query(x = ah, 
-                                  pattern = c(species, "EnsDb"), 
-                                  ignore.case = TRUE)
+    log_info(sample = species, 
+             step   = "get_annotations", 
+             msg    = glue::glue("Fetching Ensembl Database for '{species}'"))
+    
+    hub_db <- AnnotationHub::query(x           = hub, 
+                                   pattern     = c(species, "EnsDb"), 
+                                   ignore.case = TRUE)
     
     # Acquire the latest version available in the hub
-    latest_id <- ah_db %>%
+    latest_id <- hub_db %>%
       mcols() %>%
-      rownames() %>%
-      tail(n = 1)
+      as.data.frame() %>%
+      dplyr::arrange(desc(rdatadateadded)) %>%
+      head(n = 1) %>%
+      rownames()
     
     if (length(latest_id) == 0) {
-      log_error(sample = species, step = "get_annotations", 
-                msg ="Could not find a valid EnsDb in AnnotationHub.")
+      log_error(sample = species, 
+                step   = "get_annotations", 
+                msg    = "Could not find a valid EnsDb in AnnotationHub.")
     }
     
     # Download the appropriate Ensembldb database
-    edb <- ah[[latest_id]]
+    ensdb <- hub_db[[latest_id]]
     
     # ---- 🧬 Extract ENSEMBL Annotations ----
     
-    ensembl <- ensembldb::genes(x = edb, 
+    ensembl <- ensembldb::genes(x = ensdb, 
                                 return.type = "data.frame") %>%
       dplyr::rename(ENSEMBL_ID         = gene_id,
                     ENSEMBL_SYMBOL     = gene_name,
@@ -2643,8 +2871,9 @@ get_annotations <- function() {
     
     # ---- 🔢 Extract ENTREZ Annotations ----
     
-    log_info(sample = species, step = "get_annotations", 
-             msg ="Fetching OrgDb mappings...")
+    log_info(sample = species, 
+             step   = "get_annotations", 
+             msg    = "Fetching OrgDb mappings...")
     
     org_db <- if (species == "Homo sapiens") {
       requireNamespace("org.Hs.eg.db", quietly = TRUE)
@@ -2673,8 +2902,9 @@ get_annotations <- function() {
     # Store Output 
     annotations_list[[species]] <- annotations
     
-    log_info(sample = species, step = "get_annotations", 
-             msg =glue::glue("Successfully retrieved {nrow(annotations)} gene annotations."))
+    log_info(sample = species, 
+             step   = "get_annotations", 
+             msg    = glue::glue("Successfully retrieved {nrow(annotations)} gene annotations."))
   }
   
   # ---- 🪵 Log Output and Return ----
@@ -2686,47 +2916,41 @@ get_annotations <- function() {
   return(invisible(annotations_list))
 }
 
-add_annotation <- function(normalized_counts) {
+add_annotation <- function(df, ann_list = NULL, remove_ann_col = TRUE) {
   
   # ---- ⚙️ Retrieve & Flatten Annotations ----
   
-  annotations <- get_annotations()
+  # Retrieve the list of dataframes
+  if (is.null(ann_list)) {
+    log_info(sample = "", 
+             step = "add_annotation", 
+             msg = "No annotation list provided. Fetching now...")
+    ann_list <- get_annotations()
+  }
   
-  # Flatten all annotation data into one named list 
-  named_lists <- list(ensembl_id_human     = annotations$`Homo sapiens`$ENSEMBL_ID,
-                      entrez_id_human      = annotations$`Homo sapiens`$ENTREZ_ID,
-                      ensembl_symbol_human = annotations$`Homo sapiens`$ENSEMBL_SYMBOL,
-                      entrez_symbol_human  = annotations$`Homo sapiens`$ENTREZ_SYMBOL,
-                      ensembl_id_mouse     = annotations$`Mus musculus`$ENSEMBL_ID,
-                      entrez_id_mouse      = annotations$`Mus musculus`$ENTREZ_ID,
-                      ensembl_symbol_mouse = annotations$`Mus musculus`$ENSEMBL_SYMBOL,
-                      entrez_symbol_mouse  = annotations$`Mus musculus`$ENTREZ_SYMBOL)
+  # Flatten all annotation data into one named list
+  named_lists <- list(ensembl_id_human     = ann_list$`Homo sapiens`$ENSEMBL_ID,
+                      entrez_id_human      = ann_list$`Homo sapiens`$ENTREZ_ID,
+                      ensembl_symbol_human = ann_list$`Homo sapiens`$ENSEMBL_SYMBOL,
+                      entrez_symbol_human  = ann_list$`Homo sapiens`$ENTREZ_SYMBOL,
+                      ensembl_id_mouse     = ann_list$`Mus musculus`$ENSEMBL_ID,
+                      entrez_id_mouse      = ann_list$`Mus musculus`$ENTREZ_ID,
+                      ensembl_symbol_mouse = ann_list$`Mus musculus`$ENSEMBL_SYMBOL,
+                      entrez_symbol_mouse  = ann_list$`Mus musculus`$ENTREZ_SYMBOL)
   
   # ---- 🔍 Identify ID Type & Species ----
   
   # Compute intersection counts to find the best match for the 'ID' column
   overlap_counts <- sapply(X = named_lists, 
-                           FUN = function(x) { length(intersect(x, normalized_counts$ID)) })
+                           FUN = function(x) { length(intersect(x, df$ID)) })
   
   best_match <- names(which.max(overlap_counts))
   
-  log_info(
-    sample = "",
-    step   = "add_annotation",
-    msg =glue::glue("Auto-detected ID format: {best_match}\n",
-                    "Overlap counts:\n",
-                    "{paste(names(overlap_counts), overlap_counts, sep = ' \\t: ', collapse = '\\n')}")
-  )
-  
-  # Determine Species
-  if (grepl(pattern = "human", x = best_match)) {
-    ann <- annotations$`Homo sapiens`
-  } else if (grepl(pattern = "mouse", x = best_match)) {
-    ann <- annotations$`Mus musculus`
-  } else {
-    log_error(sample = "", step = "add_annotation", 
-              msg ="Unable to determine organism (human/mouse) from ID column.")
-  }
+  log_info(sample = "",
+           step   = "add_annotation",
+           msg    = glue::glue("Auto-detected ID format: {best_match}\n",
+                               "Overlap counts:\n",
+                               "{paste(names(overlap_counts), overlap_counts, sep = ' \\t: ', collapse = '\\n')}"))
   
   # Determine ID Type (Ensembl vs Entrez)
   if (grepl(pattern = "ensembl", x = best_match)) {
@@ -2735,93 +2959,93 @@ add_annotation <- function(normalized_counts) {
   } else if (grepl(pattern ="entrez", x = best_match)) {
     id_col     <- "ENTREZ_ID"
     symbol_col <- "ENTREZ_SYMBOL"
-  } else {
-    log_error(sample = "", step = "add_annotation", 
-              msg ="Unable to determine ID type (Ensembl/Entrez) from ID column.")
   }
+  
+  # Determine Species and Key Columns
+  species <- if (grepl(pattern = "human", x = best_match)) "Homo sapiens" else "Mus musculus"
+  ann_df      <- ann_list[[species]]
   
   # ---- 🤝 Join & Finalize Columns ----
   
-  # Finalize Columns
-  keep_ids <- c(id_col, symbol_col)
-  drop_ids <- setdiff(colnames(ann), keep_ids)
+  # Clean the annotation source FIRST
+  # NOTE: If id_col is "ENTREZ_ID", then it could map to multiple "ENSEMBL_ID".
+  # Since we used multiple = "all" in past to retain most info, duplicates occured after left_join().
+  # So, now we first remove duplicates from ann_df based on id_col and then join.
+  # This way final annotated df will be free from duplicates.
+  ann_df_clean <- ann_df %>%
+    # STRICT PRIORITY: symbol_col > Ensembl > Entrez > ID
+    # If id_col = ENTREZ_ID, then 647042 and 643707 map to same ENSEMBL_SYMBOL "GOLGA6L10".
+    # By prioritizing, symbol_col = ENTREZ_SYMBOL, they map to "GOLGA6L10" and "GOLGA6L4".
+    dplyr::mutate(priority = dplyr::case_when(!is.na(.data[[symbol_col]]) & nzchar(.data[[symbol_col]]) ~ 0, # Top Priority
+                                              !is.na(ENSEMBL_SYMBOL) & nzchar(ENSEMBL_SYMBOL)           ~ 1,
+                                              !is.na(ENTREZ_SYMBOL)  & nzchar(ENTREZ_SYMBOL)            ~ 2,
+                                              TRUE                                                      ~ 3)) %>%
+    dplyr::group_by(.data[[id_col]]) %>%
+    dplyr::slice_min(order_by = priority, n = 1, with_ties = FALSE) %>%
+    dplyr::ungroup() %>%
+    dplyr::select(ENSEMBL_SYMBOL, ENTREZ_SYMBOL, all_of(id_col))
   
-  # Join annotations and handle missing symbols by falling back to IDs
-  normalized_counts <- ann %>%
-    dplyr::right_join(normalized_counts, by = stats::setNames("ID", id_col), multiple = "all") %>%
-    dplyr::mutate(SYMBOL = dplyr::case_when(!is.na(ENSEMBL_SYMBOL) ~ ENSEMBL_SYMBOL,
-                                            !is.na(ENSEMBL_ID)     ~ ENSEMBL_ID,
-                                            !is.na(ENTREZ_ID)      ~ ENTREZ_ID,
-                                            TRUE                   ~ NA_character_)) %>%
-    dplyr::select(SYMBOL, all_of(keep_ids), dplyr::everything(), -all_of(drop_ids)) %>%
-    dplyr::distinct(.data[[id_col]], .keep_all = TRUE)
+  # Join with input
+  annotated_df <- df %>%
+    dplyr::mutate(ID = as.character(ID)) %>%
+    dplyr::left_join(ann_df_clean, by = stats::setNames(id_col, "ID"), multiple = "all") %>%
+    dplyr::mutate(SYMBOL = dplyr::case_when(!is.na(.data[[symbol_col]]) & nzchar(.data[[symbol_col]]) ~ .data[[symbol_col]],
+                                            !is.na(ENSEMBL_SYMBOL) & nzchar(ENSEMBL_SYMBOL)           ~ ENSEMBL_SYMBOL,
+                                            !is.na(ENTREZ_SYMBOL)  & nzchar(ENTREZ_SYMBOL)            ~ ENTREZ_SYMBOL,
+                                            TRUE                                                      ~ ID)) 
+  
+  # ---- 🧹 Cleanup & Organization ----
+  
+  if (remove_ann_col) {
+    # Keep SYMBOL and your original numeric sample columns.
+    # We drop ID and the helper symbol columns from the join.
+    annotated_df <- annotated_df %>% 
+      dplyr::select(SYMBOL, dplyr::everything(), -dplyr::any_of(c("ID", colnames(ann_df_clean))))
+  } else {
+    # Full mode: Put Symbol first, but keep everything else
+    annotated_df <- annotated_df %>% 
+      dplyr::select(SYMBOL, dplyr::everything())
+  }
+  
+  # ---- 📊 Identify Ambiguous Mappings (Collapse Check) ----
+  
+  collapse_stats <- annotated_df %>%
+    dplyr::count(SYMBOL) %>%
+    dplyr::filter(n > 1)
+  
+  if (nrow(collapse_stats) > 0) {
+    num_symbols <- nrow(collapse_stats)
+    total_ids   <- sum(collapse_stats$n)
+    
+    log_warn(sample = "", 
+             step   = "add_annotation", 
+             msg    = glue::glue("Ambiguity Check: {total_ids} IDs collapsed into {num_symbols} unique Symbols. ",
+                                 "Use their mean or sum in downstream analysis."))
+  }
   
   # ---- 🪵 Log Output and Return ----
   
-  log_info(sample = "", step = "add_annotation", 
-           msg =glue::glue("Annotations added. Best match overlap: {max(overlap_counts)} genes."))
+  log_info(sample = "", 
+           step   = "add_annotation", 
+           msg    = glue::glue("Annotations added. ID '{id_col}' converted to SYMBOL."))
   
-  return(normalized_counts)
+  return(annotated_df)
 }
 
 
 norm_counts_DESeq2 <- function(metadata, read_data, proj.params) {
   
-  set.seed(1234)
-  
-  # Create DESeq2 Dataset 
-  dds <- DESeq2::DESeqDataSetFromMatrix(countData = read_data,
-                                        colData = metadata,
-                                        design = ~1)
-  dds <- DESeq2::estimateSizeFactors(object = dds)
-  
-  # Normalized Counts 
-  normalized_counts <- DESeq2::counts(dds, normalized = TRUE)
-  
-  # VST-Transformed Counts 
-  vsd <- DESeq2::vst(dds, blind = TRUE)
-  vst_counts <- SummarizedExperiment::assay(vsd)
-  
   # Batch Correction (if applicable) 
   if ("Batch" %in% colnames(metadata) && length(unique(metadata$Batch)) > 1) {
     normalized_counts_batch <- limma::removeBatchEffect(x = log2(normalized_counts + 1),
                                                         batch = dds$Batch)
-  } else {
-    normalized_counts_batch <- normalized_counts
-    message("No batch correction performed")
   }
-  
-  # Convert to Data Frames 
-  normalized_counts_df <- normalized_counts %>%
-    as.data.frame() %>%
-    tibble::rownames_to_column("ID") %>%
-    add_annotation()
   
   normalized_counts_batch_df <- normalized_counts_batch %>%
     as.data.frame() %>%
     tibble::rownames_to_column("ID") %>%
     add_annotation()
-  
-  vst_counts_df <- vst_counts %>%
-    as.data.frame() %>%
-    tibble::rownames_to_column("ID") %>%
-    add_annotation()
-  
-  # Write to Excel 
-  wb <- openxlsx::createWorkbook()
-  openxlsx::addWorksheet(wb, sheetName = "VST_counts(blind=TRUE)")
-  openxlsx::writeData(wb, sheet = "VST_counts(blind=TRUE)", x = vst_counts_df, rowNames = FALSE)
-  
-  openxlsx::addWorksheet(wb, sheetName = "Norm_counts")
-  openxlsx::writeData(wb, sheet = "Norm_counts", x = normalized_counts_df, rowNames = FALSE)
-  
-  openxlsx::addWorksheet(wb, sheetName = "Norm_counts_batch_corrected")
-  openxlsx::writeData(wb, sheet = "Norm_counts_batch_corrected", x = normalized_counts_batch_df, rowNames = FALSE)
-  
-  openxlsx::saveWorkbook(wb, file = file.path(proj.params$dir, proj.params$proj, "Normalized.counts.DESeq2.xlsx"), overwrite = TRUE)
-  
-  
-  return(invisible(NULL))
+
 }
 
 add_major_pathway <- function(df){
@@ -6190,22 +6414,22 @@ plot_gold_standard_markers <- function(integrated_seurat, reduction = "Harmony",
   # ---- 🔄 Check and Update Reduction Name ----
   
   if (!(reduction %in% names(integrated_seurat@reductions))) {
-    log_warn(sample = "",
-             step = "plot_gold_standard_markers",
-             msg =glue::glue("Reduction '{reduction}' is NOT present in Seurat object."))
+    log_warn(sample = "", 
+             step   = "plot_gold_standard_markers",
+             msg    = glue::glue("Reduction '{reduction}' is NOT present in Seurat object."))
     
     # Check alternative reduction name
-    alt_reduction <- paste0("umap_", tolower(reduction))
+    alt_reduction <- base::paste0("umap_", base::tolower(reduction))
     
     if (alt_reduction %in% names(integrated_seurat@reductions)) {
-      log_info(sample = "",
-               step = "plot_gold_standard_markers",
-               msg =glue::glue("Using alternative reduction : '{alt_reduction}'."))
+      log_info(sample = "", 
+               step   = "plot_gold_standard_markers",
+               msg    = glue::glue("Using alternative reduction: '{alt_reduction}'."))
       reduction <- alt_reduction
     } else {
-      log_error(sample = "",
-                step = "plot_gold_standard_markers",
-                msg =glue::glue("Alternative reduction '{alt_reduction}' is NOT present."))
+      log_error(sample = "", 
+                step   = "plot_gold_standard_markers",
+                msg    = glue::glue("Alternative reduction '{alt_reduction}' is NOT present."))
     }
   }
   
@@ -6219,81 +6443,92 @@ plot_gold_standard_markers <- function(integrated_seurat, reduction = "Harmony",
     active_assay <- "RNA"
   } else if (length(all_assays) > 0) {
     active_assay <- all_assays[1]
-    log_info(sample = "",
-             step = "plot_gold_standard_markers",
-             msg =glue::glue("No SCT/RNA assay found. Using assay : '{active_assay}'."))
+    log_info(sample = "", 
+             step   = "plot_gold_standard_markers",
+             msg    = glue::glue("No SCT/RNA assay found. Using assay: '{active_assay}'."))
   } else {
-    log_error(sample = "",
-              step = "plot_gold_standard_markers",
-              msg ="No assays found in Seurat object for DE analysis.")
+    log_error(sample = "", 
+              step   = "plot_gold_standard_markers",
+              msg    = "No assays found in Seurat object.")
   }
   
   # Set active assay
-  DefaultAssay(integrated_seurat) <- active_assay
-  
-  if (active_assay != "SCT"){
-    log_warn(sample = "",
-             step = "plot_gold_standard_markers",
-             msg =glue::glue("Currently using assay : '{active_assay}'."))
-  }
+  Seurat::DefaultAssay(integrated_seurat) <- active_assay
   
   # ---- 📥 Create Feature List from Marker file ----
   
   # Load marker file
   marker_df <- tryCatch({
     openxlsx::read.xlsx(xlsxFile = marker_file)
-  }, error = function(e){
-    log_error(sample = "",
-              step = "plot_gold_standard_markers",
-              msg =glue::glue("Failed to read marker file : '{e$message}'."))
+  }, error = function(e) {
+    log_error(sample = "", 
+              step   = "plot_gold_standard_markers",
+              msg    = glue::glue("Failed to read marker file: '{e$message}'."))
   })
   
   # Initialize an empty list to store all cell type signatures
   signatures_list <- list()
   
   # Iterate through each column (cell type) in the marker dataframe
-  for (i in base::seq_len(ncol(marker_df))){
+  for (i in base::seq_len(base::ncol(marker_df))) {
     
     # Define name of modules
-    module_name <- make.names(colnames(marker_df)[i])
+    module_name <- base::make.names(colnames(marker_df)[i])
     
     # Determine features from the marker_df
     xlsx_features <- marker_df[[i]] %>%
       stats::na.omit() %>%
-      as.vector()
+      base::as.vector()
     
     # Determine features present in data set
-    present_features <- rownames(SeuratObject::GetAssayData(object = integrated_seurat, 
-                                                            assay = active_assay, 
-                                                            layer = "data"))
+    present_features <- base::rownames(SeuratObject::GetAssayData(object = integrated_seurat, 
+                                                                  assay = active_assay, 
+                                                                  layer = "data"))
     
-    # Match features (case-insensitive) and filter to only genes present in the data
+    # Match features (case-insensitive)
     features <- present_features[base::tolower(present_features) %in% base::tolower(xlsx_features)]
     
-    # Only add the validated and sorted feature vector to the master list if it contains 2 or more genes
+    # Filter to unique and sorted features
     if (length(features) >= 2) {
-      signatures_list[[module_name]] <- sort(features)
+      signatures_list[[module_name]] <- sort(unique(features))
     } else {
-      log_warn(sample = "",
-               step = "plot_gold_standard_markers",
-               msg =glue::glue("Skipping module '{module_name}'. Fewer than 2 matching markers found."))
+      log_warn(sample = "", 
+               step   = "plot_gold_standard_markers",
+               msg    = glue::glue("Skipping module '{module_name}'. Fewer than 2 matching markers found."))
     }
   }
   
-  # ---- Plot UMAPs for each gene ----
+  # ---- 🖼️ Plot UMAPs for each module ----
   
-  for (module_name in names(signatures_list)){
+  for (module_name in names(signatures_list)) {
     
-    plot_seurat(integrated_seurat, reduction = reduction, 
-                features = signatures_list[[module_name]], raster = FALSE,
-                filename = paste("Module_plot_Seurat", proj, module_name, sep = "_"), 
-                output_dir = output_dir, split_col = NULL)
+    # Log progress
+    log_info(sample = "", 
+             step   = "plot_gold_standard_markers",
+             msg    = glue::glue("Plotting genes for module: {module_name}"))
+    
+    # Call the core plotting utility
+    plot_seurat(integrated_seurat, 
+                reduction  = reduction, 
+                features   = signatures_list[[module_name]], 
+                raster     = FALSE,
+                filename   = paste("Module_plot_Seurat", proj, module_name, sep = "_"),  
+                output_dir = output_dir, 
+                split_col  = NULL)
   }
   
+  # ---- 🪵 Log Output and Return ----
   
+  log_info(sample = "", 
+           step   = "plot_gold_standard_markers", 
+           msg    = "Gold standard marker plotting completed successfully.")
   
-  
+  return(invisible(integrated_seurat))
 }
+
+
+
+
 ### Annotate based on clusters variable defined by user
 # clusters <- list("Hepatocytes"         = c(),
 #                  "Pancreatic.Acinar"   = c(),
@@ -8797,7 +9032,7 @@ plot_upset <- function(listInput = NULL, selected_sets = NULL,
 # hasn't been coded to work with other types of data. metadata MUST have column
 # "Sample_ID"
 
-plot_pca <- function(expr_mat, metadata, filename, output_dir,
+plot_pca <- function(expr_mat, txi, metadata, filename, output_dir,
                      perform_vst = TRUE, top_n_genes = 500, skip_plot = FALSE){
   # For ggrepel
   set.seed(1234)
@@ -8830,12 +9065,20 @@ plot_pca <- function(expr_mat, metadata, filename, output_dir,
     
     # Reformat raw_counts_mat and metadata for DESeq2
     deseq2_data <- prepare_deseq2_input(metadata = metadata,
+                                        txi      = txi,
                                         expr_mat = expr_mat,
                                         design   = 1)
-    
-    dds <- DESeq2::DESeqDataSetFromMatrix(countData = deseq2_data$expr_mat,
-                                          colData   = deseq2_data$metadata,
-                                          design    = ~1)
+    # Prepare DESeq2 object
+    if (!is.null(deseq2_data$expr_mat)){
+      dds <- DESeq2::DESeqDataSetFromMatrix(countData = deseq2_data$expr_mat,
+                                            colData   = deseq2_data$metadata,
+                                            design    = ~1)
+    } else if (!is.null(deseq2_data$txi)){
+      dds <- DESeq2::DESeqDataSetFromTximport(txi     = deseq2_data$txi,
+                                              colData = deseq2_data$metadata,
+                                              design  = ~1)
+    }
+
     dds <- DESeq2::estimateSizeFactors(dds)
     vsd <- DESeq2::vst(dds, blind = TRUE)
     expr_mat <- SummarizedExperiment::assay(vsd)
