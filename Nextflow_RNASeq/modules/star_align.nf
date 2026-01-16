@@ -27,25 +27,27 @@
 		&& echo "✅ BAI index generation completed successfully." \\
 		|| { echo "❌ BAI index generation failed."; exit 1; }
 	
-	# 3. Calculate read distribution using RSeQC modules
-	read_distribution.py \
-		--input-file "${sample_id}.Aligned.sortedByCoord.out.bam" \
-		--refgene "${params.rseqc_bed}" > "${sample_id}.RSeQC.txt" \\
-		&& echo "✅ RSeQC completed successfully." \\
-		|| { echo "❌ RSeQC failed."; exit 1; }
-
 	"""
 	
 	output:
-    // 1. A tuple of the BAM and BAI (good for downstream tools)
-    tuple val(sample_id), path("${sample_id}.Aligned.sortedByCoord.out.bam"), path("${sample_id}.Aligned.sortedByCoord.out.bam.bai"), emit: bam_indexed
+    // BAM and Index
+    tuple val(sample_id), \
+        path("${sample_id}.Aligned.sortedByCoord.out.bam"), \
+        path("${sample_id}.Aligned.sortedByCoord.out.bam.bai"), \
+        emit: bam_indexed 
 
-    // 2. Your custom error log
-    path "${sample_id}.STAR.error.log", emit: star_error_log
-
-    // 3. The RSeQC results
-    path "${sample_id}.RSeQC.txt", emit: rseqc_dist
-
+    // MultiQC Inputs
+    path "${sample_id}.Log.final.out", \
+        emit: star_log
+    path "${sample_id}.SJ.out.tab", \
+        emit: sj_tab
+    path "${sample_id}.ReadsPerGene.out.tab", \
+        emit: gene_counts
+    
+    // Troubleshooting
+    path "${sample_id}.STAR.error.log", \
+        emit: star_error_log
+    
 }
 
 /*	

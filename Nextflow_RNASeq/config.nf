@@ -15,6 +15,12 @@
 
 params {
 	
+	project 	= "test"
+	expt 		= "RNASeq"
+	proj_dir	= "${System.getenv('HOME')}/scratch/${expt}/${project}/"	
+	assay		= "RNA"						// Required by Rscripts
+	require_bam	= "false"					// Required by 02a_cellranger_count.sh
+	
 	// ==============================================================================
 	// ⚙️ Define Project Specific Parameters 
 	// ==============================================================================
@@ -59,11 +65,6 @@ params {
 	} else {
 		error "❌ Undefined species: ${species}"
 	}
-	
-	expt 		= "RNASeq"
-	proj_dir	= "${System.getenv('HOME')}/scratch/${expt}/${project}/"	
-	assay		= "RNA"						// Required by Rscripts
-	require_bam	= "false"					// Required by 02a_cellranger_count.sh
 
 	// ==============================================================================
 	// ⚙️ Define Global Project Parameters
@@ -75,7 +76,7 @@ params {
 	STAR_ARGS = [
 		"--runMode", "alignReads",
 		"--twopassMode", "Basic",
-		"--quantMode", "TranscriptomeSAM", "GeneCounts",
+		"--quantMode", "GeneCounts",
 		"--sjdbOverhang", "100",
 		"--readFilesCommand", "zcat",
 		"--outFilterMultimapNmax", "10",
@@ -106,8 +107,7 @@ params {
 	star_index_dir		= "${System.getenv('HOME')}/NGSTools/Reference_Genomes_STAR/${species}"			// directory with STAR indexed genome
 	salmon_index_dir	= "${System.getenv('HOME')}/NGSTools/Reference_Genomes_SALMON/${species}"		// directory with SALMON indexed genome
 	rseqc_index_dir		= "${System.getenv('HOME')}/NGSTools/Reference_Genomes_RSEQC/${species}"		// directory with RSEQC genome BED
-	rsem_index_dir		= "${System.getenv('HOME')}/NGSTools/Reference_Genomes_RSEM/${species}"			// directory with RSEM indexed genome
-
+	
 	// --- Reference files ---
 	// Grab the first FASTA file
 	def refFastaFiles = file("${ref_dir}").listFiles().findAll { it.name.endsWith('.fa') }
@@ -146,47 +146,38 @@ params {
 	deseq2_dir			= "${proj_dir}/07.DESeq2/"
 	multiqc_dir			= "${proj_dir}/08.MultiQC/"
 	
+	multiqc_titlename	= "${params.project} MultiQC Report"
+	multiqc_filename    = "${params.project}_MultiQC_Report"
+	
 }
 
 // 2. Define the process configuration second (The "Instructions")
 process {
     
 	// Default settings for all processes
-    cpus = 1
-    memory = '2 GB'
-
-    // STAR settings
-    withName: 'STAR_ALIGN' {
+	// Only retry if it's a memory-related exit code (137, 139, 140, etc.)	
+	errorStrategy 	= { task.exitStatus in [137, 139, 140, 143] ? 'retry' : 'terminate' }
+    maxRetries    	= 3
+	conda 		  	= "${params.my_env}"
 	
-		// Only retry if it's a memory-related exit code (137, 139, 140, etc.)
-        errorStrategy = { task.exitStatus in [137, 139, 140, 143] ? 'retry' : 'terminate' }        
-        maxRetries    = 3
-        memory        = { 40.GB * task.attempt }
-        cpus 		  = 8      
-		conda 		  = "${params.my_env}"		
-		
-        // Save BAMs, RSeQC reports, error logs
-		publishDir = [
-            [ path: { "${params.star_dir}" },  mode: 'copy', pattern: "*.bam" ],
-			[ path: { "${params.star_dir}" },  mode: 'copy', pattern: "*.bai" ],
-			[ path: { "${params.star_dir}" },  mode: 'copy', pattern: "*.ReadsPerGene.out.tab" ],
-			[ path: { "${params.star_dir}" },  mode: 'copy', pattern: "*.Log.final.out" ],
-            [ path: { "${params.rseqc_dir}" }, mode: 'copy', pattern: "*.RSeQC.txt" ],
-            [ path: { "${params.log_dir}" },   mode: 'copy', pattern: "*.STAR.error.log" ]
-		]     
+	// Resource buckets
+	withLabel: 'process_high' {
+        cpus   = 8
+        memory = { 48.GB * task.attempt }
+    }
+
+    withLabel: 'process_medium' {
+        cpus   = 4
+        memory = { 12.GB * task.attempt }
+    }
+	
+	withLabel: 'process_low' {
+        cpus   = 1
+        memory = { 2.GB * task.attempt }
     }
 	
 	// SALMON settings
-	withName: 'SALMON_QUANT' {
-	
-		// Only retry if it's a memory-related exit code (137, 139, 140, etc.)
-        errorStrategy = { task.exitStatus in [137, 139, 140, 143] ? 'retry' : 'terminate' }        
-        maxRetries    = 3
-        memory        = { 40.GB * task.attempt }
-        cpus 		  = 8      
-		conda 		  = "${params.my_env}"
-		
-		// Save salmon directories, error logs
+	withName: 'SALMON_QUANT' {		
 		publishDir = [
             [ path: { "${params.salmon_dir}" },  			mode: 'copy' ], 
 			[ path: { "${params.log_dir}" },     			mode: 'copy', pattern: "*.SALMON.error.log" ],		
@@ -197,6 +188,37 @@ process {
 			  return "${sample}.quant.sf" } ]
 		]
 	}	
+
+    // STAR settings
+    withName: 'STAR_ALIGN' {        
+		publishDir = [
+            [ path: { "${params.star_dir}" },  	mode: 'copy', 	pattern: "*.bam" ],
+			[ path: { "${params.star_dir}" },  	mode: 'copy', 	pattern: "*.bai" ],
+			[ path: { "${params.star_dir}" },  	mode: 'copy', 	pattern: "*.ReadsPerGene.out.tab" ],
+			[ path: { "${params.star_dir}" },  	mode: 'copy', 	pattern: "*.Log.final.out" ],            
+            [ path: { "${params.log_dir}" },   	mode: 'copy', 	pattern: "*.STAR.error.log" ]
+		]     
+    }
+	
+	// RSEQC settings
+	withName: 'RSEQC' {    
+		publishDir = [            
+            [ path: params.rseqc_dir, 	mode: 'copy', 	pattern: "*.{pdf,jpeg,png,tiff}" ],
+			[ path: params.rseqc_dir, 	mode: 'copy', 	pattern: "*.{txt,log,r}" ],
+            [ path: params.log_dir,   	mode: 'copy', 	pattern: "*.RSEQC.error.log" ]
+		]     
+    }
+	
+	// MULTIQC settings
+	withName: 'MULTIQC' {    
+		publishDir = [            
+            [ path: params.multiqc_dir,		mode: 'copy', 	pattern: "${params.multiqc_filename}.html" ],
+			[ path: params.multiqc_dir,		mode: 'copy', 	pattern: "${params.multiqc_filename}_data" ],
+            [ path: params.log_dir,			mode: 'copy', 	pattern: "MULTIQC.error.log" ]
+		]     
+    }
+	
+	
 }
 
 /*

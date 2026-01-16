@@ -27,9 +27,9 @@
 	"""
 	
 	output:
-	// 1. Salmon results directory
+	// DESeq2 and MultiQC Inputs
     tuple val(sample_id), path("${sample_id}"), emit: salmon_quant
 	
-    // 2. Your custom error log
-    path "${sample_id}.SALMON.error.log", emit: salmon_error_log
+	// Troubleshooting
+    path "${sample_id}.SALMON.error.log", 		emit: salmon_error_log
 }

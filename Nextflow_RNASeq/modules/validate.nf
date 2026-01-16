@@ -1,4 +1,6 @@
-﻿workflow VALIDATE_INPUT {
+﻿process VALIDATE_INPUT {
+
+	tag "Checking parameters and file paths"
     
 	main:
 
@@ -275,4 +277,4 @@
 		fastq_ch   = Channel.fromList(valid_files)		
 		tumor_ch   = Channel.fromList(tumor_files)
 		normal_ch  = Channel.fromList(normal_files)
-		samples_ch = grouped_samples_ch 
+		samples = grouped_samples

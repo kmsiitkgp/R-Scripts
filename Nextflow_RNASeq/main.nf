@@ -1,42 +1,50 @@
 ﻿#!/usr/bin/env nextflow
 nextflow.enable.dsl=2 
 
-include { VALIDATE_INPUT } from './modules/validate.nf'
-include { FASTQC } from './modules/fastqc.nf'
-include { STAR_ALIGN } from './modules/star_align.nf'
-include { SALMON_QUANT } from './modules/salmon_quant.nf'
+include { VALIDATE_INPUT } 	from './modules/validate.nf'
+include { FASTQC } 			from './modules/fastqc.nf'
+include { PREP_REFERENCE } 	from './modules/prep_reference.nf'
+include { SALMON_QUANT } 	from './modules/salmon_quant.nf'
+include { STAR_ALIGN } 		from './modules/star_align.nf'
+include { RSEQC } 			from './modules/rseqc.nf'
+include { MULTIQC } 		from './modules/multiqc.nf'
 
 workflow {
-	
-	// 1. Run the validation
-    VALIDATE_INPUT()
-	
 	
 	//FASTERQ_DUMP()
 	//RENAME FASTQS()
 	
+	// Validate fastq filenames
+    VALIDATE_INPUT()
+	mode = VALIDATE_INPUT.out.mode
+	samples_ch = VALIDATE_INPUT.out.samples	
+	
 	// QC raw reads
-	FASTQC(fastq_files)	
-	
-	// Trim reads
-	FASTP(VALIDATE_INPUT.out.samples_ch)
-	
-	// QC trimmed reads
-	FASTQC(trimmed_fastq_files)
+	FASTQC(samples_ch)		
 	
 	// Index reference
 	//PREP_REFERENCE()
 	
-	// Align reads using STAR and determine read distribution using RSEQC
-	STAR_ALIGN(VALIDATE_INPUT.out.samples_ch)
-	
 	// Quantify reads using SALMON
-	SALMON_QUANT(VALIDATE_INPUT.out.samples_ch)
+	SALMON_QUANT(samples_ch)
 	
-	//
-	//MULTIQC()
+	// Align reads using STAR
+	STAR_ALIGN(samples_ch)
+	bam_indexed_ch = STAR_ALIGN.out.bam_indexed
 	
-	//MERGE_LOGS(logs)
+	// QC STAR alignments	
+	RSEQC(bam_indexed_ch, mode)	
+	
+	// Combine reports using MultiQC
+	multiqc_ch = Channel.empty()
+		.mix(FASTQC.out.fastqc_zip)             			// MultiQC parses the ZIPs
+		.mix(STAR_ALIGN.out.star_log)           			// Log.final.out
+		.mix(STAR_ALIGN.out.sj_tab)             			// SJ.out.tab
+		.mix(STAR_ALIGN.out.gene_counts)        			// ReadsPerGene.out.tab
+		.mix(SALMON_QUANT.out.salmon_quant.map { it[1] }) 	// The folder
+		.mix(RSEQC.out.rseqc_logs)              			// The *.txt, *.log, *.r files
+		.collect()	
+	MULTIQC(multiqc_ch)
 	
 }
 
