@@ -1,32 +1,28 @@
 ﻿process FASTQC {
-
+	
+	def LOG = "${sample_id}.${read_type}.FASTQC.error.log"
+	
 	input:
-	tuple val(sample_id), path(fastq_files)
-		
-	script:
-	
-	"""
-	# 1. Run FastQC to assess quality
-	fastqc \\
-		--threads "${task.cpus}" \\
-		--quiet \\
-		${fastq_files.join(' ')} \\
-		1>> "${sample_id}.FASTQC.error.log" 2>&1 \\
-		&& echo "✅ FastQC completed successfully." \\
-		|| { echo "❌ FastQC failed. Check ${sample_id}.FASTQC.error.log"; exit 1; }	
-	
-	
-	"""
+	tuple val(sample_id), path(fastq_files), val(read_type)
 	
 	output:
-	// MultiQC Inputs
-	path "*fastqc.zip", \
-		emit: fastqc_zip
-	path "*fastqc.html", \
-		emit: fastqc_html
+	path("*_fastqc.zip"),	emit: fastqc_zip
+	path("*_fastqc.html"),	emit: fastqc_html
+	path("${LOG}"),			emit: fastqc_error_log
 	
-	// Troubleshooting
-	path "${sample_id}.FASTQC.error.log", \
-		emit: fastqc_error_log
-
+	script:
+		
+	"""
+	
+	# Run FastQC to assess quality
+	fastqc \
+		--threads "${task.cpus}" \
+		--quiet \
+		${fastq_files.join(' ')} \
+		1>> "${LOG}" 2>&1 \
+		|| { echo "❌ ERROR: FastQC failed for ${sample_id}" | tee -a "${LOG}" >&2; exit 1; }	
+	
+	echo "✅ SUCCESS: FastQC completed for ${sample_id}" >> "${LOG}"
+	
+	"""
 }

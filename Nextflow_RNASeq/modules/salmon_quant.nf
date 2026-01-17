@@ -1,35 +1,36 @@
 ﻿process SALMON_QUANT {
-
+	
+	def LOG = "${sample_id}.SALMON_QUANT.error.log"
+	
 	input:
 	tuple val(sample_id), path(fastq_files)
+	path(salmon_index_dir)
+	
+	output:
+    tuple val(sample_id), path("${sample_id}"), 	emit: salmon_quant		
+    path("${LOG}"), 								emit: salmon_error_log
 	
 	script:	
 	
 	// Determine if paired-end or single-end (Groovy, outside bash)
 	def MATES_ARGS = fastq_files.size() == 2 ?
 		"--mates1 ${fastq_files[0]} --mates2 ${fastq_files[1]}" :
-		"--mates1 ${fastq_files[0]}"
-	
-	"""
-	# 1. Salmon quantification
-	salmon quant \\
-		--validateMappings \\
-		--index "${params.salmon_index_dir}" \\
-		${MATES_ARGS} \\
-		${params.SALMON_ARGS.join(' ')} \\
-		--threads "${task.cpus}" \\
-		--output "${sample_id}" \\
-		1>> "${sample_id}.SALMON.error.log" 2>&1 \\
-		&& echo "✅ Salmon quantification completed successfully." \\
-		|| { echo "❌ Salmon quantification failed. Check ${sample_id}.SALMON.error.log"; exit 1; }
-	
+		"--unmatedReads ${fastq_files[0]}"	
 	
 	"""
 	
-	output:
-	// DESeq2 and MultiQC Inputs
-    tuple val(sample_id), path("${sample_id}"), emit: salmon_quant
-	
-	// Troubleshooting
-    path "${sample_id}.SALMON.error.log", 		emit: salmon_error_log
+	# Salmon quantification
+	salmon quant \
+		--validateMappings \
+		--index "${salmon_index_dir}" \
+		${MATES_ARGS} \
+		${params.SALMON_ARGS.join(' ')} \
+		--threads "${task.cpus}" \
+		--output "${sample_id}" \
+		1>> "${LOG}" 2>&1 \
+		|| { echo "❌ ERROR: Salmon quantification failed for ${sample_id}" | tee -a "${LOG}" >&2; exit 1; }
+		
+	echo "✅ SUCCESS: Salmon quantification completed for ${sample_id}" >> "${LOG}"
+		
+	"""	
 }

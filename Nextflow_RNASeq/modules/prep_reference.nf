@@ -47,17 +47,13 @@
 		--index salmon_index_dir \\
 		1>> "SALMON.error.log" 2>&1 \\
 		&& echo "✅ SALMON index generation completed successfully." \\
-		|| { echo "❌ SALMON index generation failed. Check SALMON.error.log"; exit 1; }
-	
-	
-	
-	
+		|| { echo "❌ SALMON index generation failed. Check SALMON.error.log"; exit 1; }	
 	
 	"""
 	
 	output:
 	path("star_index_dir"), 	emit: star_index_dir
-	path("rseqc_bed"), 			emit: rseqc_bed
 	path("salmon_index_dir"), 	emit: salmon_index_dir
+	path("rseqc_bed"), 			emit: rseqc_bed	
 	
 }

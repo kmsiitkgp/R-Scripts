@@ -1,0 +1,479 @@
+﻿================================================================================================================================
+                                     COMPLETE NEXTFLOW & GROOVY MASTER REFERENCE (2026)
+================================================================================================================================
+
+--------------------------------------------------------------------------------------------------------------------------------
+I. NEXTFLOW TOOLBOX (Infrastructure & Dataflow)
+--------------------------------------------------------------------------------------------------------------------------------
+CATEGORY             | COMMAND / KEYWORD                                  | DESCRIPTION
+---------------------|----------------------------------------------------|-----------------------------------------------------
+CLI Commands         | nextflow run <script>                              | Start a pipeline. Use -resume to use cache.
+                     | nextflow log                                       | Show a list of past runs and their statuses.
+                     | nextflow clean -f                                  | Delete work/ folders (Requires -f to force).
+                     | nextflow drop <name>                               | Remove a specific pipeline from local cache.
+                     | nextflow info <name>                               | Show pipeline details (author, version, etc.).
+                     | nextflow pull <repo>                               | Download a pipeline without running it.
+                     | nextflow config                                    | Print the final configuration used by Nextflow.
+                     | nextflow resume                                    | Shortcut logic to restart failed runs.
+---------------------|----------------------------------------------------|-----------------------------------------------------
+Channel Factories    | Channel.fromPath("*.fastq")                        | Stream of files (Lazy/Dataflow).
+                     | Channel.fromFilePairs("*{1,2}.fq")                 | Automatically pair R1/R2 files into Tuples.
+                     | Channel.of(1,2,3)                                  | Create a stream of literal values.
+                     | Channel.fromList(my_list)                          | Convert a Groovy list to a channel pipe.
+                     | Channel.value("ref.fa")                            | Constant channel (emits infinite times).
+                     | Channel.empty()                                    | Create an empty placeholder channel.
+                     | files("*.fastq")                                   | **GROOVY:** Immediate List of files (Eager).
+                     | Channel.fromFileTree("dir")                        | Recursively create a channel of files.
+---------------------|----------------------------------------------------|-----------------------------------------------------
+Channel Operators    | .filter { ... }                                    | Pass items that satisfy a condition.
+                     | .unique()                                          | Remove duplicate items from the stream.
+                     | .take(n)                                           | Take only the first 'n' items.
+                     | .map { ... }                                       | Transform each item (e.g., [id, file]).
+                     | .collect()                                         | **LAZY:** Wait for ALL items, then emit 1 List.
+                     | .flatten()                                         | Break a List [1,2] into separate items 1, 2.
+                     | .join(other_ch)                                    | Match items from two channels by a Key.
+                     | .combine(other_ch)                                 | Cartesian product: Every A with Every B.
+                     | .mix(other_ch)                                     | Merge two channels into one stream.
+                     | .groupTuple()                                      | Group multiple values by key (e.g., by Sample).
+                     | .view()                                            | Debug: Print items as they flow through.
+                     | .dump()                                            | Debug: Show technical metadata of items.
+                     | .count()                                           | Emit the final number of items seen.
+---------------------|----------------------------------------------------|-----------------------------------------------------
+Process Keywords     | input:                                             | Define data entering the process.
+                     | output:                                            | Define files/values produced.
+                     | script:                                            | Bash/Python code to execute.
+                     | when:                                              | Process only runs if this is true.
+                     | stub:                                              | Fake version for dry-run testing.
+                     | publishDir                                         | Copy results from work/ to a final folder.
+                     | container                                          | Specify Docker/Singularity image.
+                     | errorStrategy                                      | 'retry', 'ignore', or 'terminate'.
+                     | cpulimit / memory                                  | Resource requests for the scheduler.
+
+--------------------------------------------------------------------------------------------------------------------------------
+II. GROOVY TOOLBOX (Setup, Logic, & Validation)
+--------------------------------------------------------------------------------------------------------------------------------
+CATEGORY             | COMMAND / METHOD                                   | DESCRIPTION
+---------------------|----------------------------------------------------|-----------------------------------------------------
+Variables            | def x = 1                                          | Declare local variable.
+                     | params.x = "val"                                   | Global pipeline parameter.
+                     | final y = 10                                       | Constant (cannot be changed).
+---------------------|----------------------------------------------------|-----------------------------------------------------
+Collections (Lists)  | [1, 2, 3]                                          | List literal (The "Bucket").
+                     | list.size()                                        | **LIST ONLY:** Count items in the bucket.
+                     | list.isEmpty()                                     | Check if list has zero items.
+                     | list.sort()                                        | Sort a list alphabetically/numerically.
+                     | list.unique()                                      | **LIST ONLY:** Remove duplicates from bucket.
+---------------------|----------------------------------------------------|-----------------------------------------------------
+Logic & Loops        | list.each { ... }                                  | Run code for every item in a list.
+                     | list.collect { it * 2 }                            | **TRANSFORM:** Create a new modified list.
+                     | list.findAll { it > 2 }                            | **FILTER:** Create a list of matches.
+                     | if (x in list)                                     | Check if item exists in a collection.
+                     | it                                                 | Default name for the "current item".
+---------------------|----------------------------------------------------|-----------------------------------------------------
+Strings & Regex      | "hello ${var}"                                     | Variable interpolation.
+                     | str =~ /regex/                                     | Regex match check.
+                     | str.tokenize("/")                                  | Split string into a list by character.
+---------------------|----------------------------------------------------|-----------------------------------------------------
+Files (Immediate)    | new File("f.txt").text                             | Read a file's content into a string.
+                     | file("path").exists()                              | Check if a file exists on disk right now.
+                     | files("*.fq").collect()                            | **VITAL:** Create a List for validation.
+================================================================================================================================
+
+
+
+|                       | `nextflow run <script> -with-dag flowchart.png`  | Generate a DAG/flowchart of the pipeline.                                                        |
+|                       | `nextflow run <script> -with-report report.html` | Generate an HTML report of execution.                                                            |
+|                       | `-profile <profile>`                             | Use a specific config profile (docker, singularity, cluster, etc.).                              |
+|                       | `-params-file <file>`                            | Load parameters from a JSON/YAML file.                                                           |
+|                       | `-ansi-log` / `-plain-log`                       | Control colored vs plain log output.                                                             |
+|                       | `Channel.fromIterator(iterator)`                 | Create a channel from a custom iterator.                                                         |
+|                       | `Channel.fromMap(map)`                           | Convert a map into a key/value channel.                                                          |
+|                       | `.subscribe { it -> ... }`                       | React to each emitted item without creating a process.                                           |
+|                       | `.broadcast()`                                   | Make a channel reusable by multiple consumers.                                                   |
+|                       | `.split()`                                       | Split channel of lists into individual items.                                                    |
+|                       | `.groupBy { ... }`                               | Group items by a computed key.                                                                   |
+|                       | `.set()`                                         | Emit unique items immediately.                                                                   |
+|                       | `.concat(other_ch)`                              | Append another channel sequentially.                                                             |
+|                       | `.first()` / `.last()`                           | Emit first/last item.                                                                           |
+
+|                       | `tag:`                                           | Assign a tag for logging/tracing.                                                                |
+|                       | `cache:`                                         | Fine-tune caching behavior per process.                                                          |
+|                       | `stageInMode:`                                   | Control how input files are staged (copy, symlink, etc.).                                        |
+|                       | `scratch:`                                       | Run process in scratch directory for large I/O.                                                  |
+|                       | `maxRetries:` / `maxForks:`                      | Control retries and concurrency.                                                                 |
+
+| ------------------------------ | ----------------------------------------------------- | ------------------------------------------------------------------------ |
+| **Collections**                | `[1, 2, 3]`                                           | List literal.                                                            |
+|                                | `[key1: "val1", key2: "val2"]`                        | Map literal.                                                             |
+|                                | `[1, 2, 3] as Set`                                    | Set literal.                                                             ||                                
+|                                | `list.reverse()`                                      | Reverse order of elements.                                               ||                                
+|                                | `list.min()` / `list.max()`                           | Minimum / maximum value.                                                 |
+| ------------------------------ | ----------------------------------------------------- | ------------------------------------------------------------------------ |
+| **Looping / Iteration**        | `list.each { println it }`                            | Iterate over a list.                                                     |
+|                                | `list.collect { it * 2 }`                             | Map / transform elements.                                                |
+|                                | `list.findAll { it > 2 }`                             | Filter items based on condition.                                         |
+|                                | `for (i in 1..5) { println i }`                       | Classic for loop.                                                        |
+|                                | `list.take(n)`                                        | Take first `n` elements.                                                 |
+|                                | `list.unique()`                                       | Remove duplicates.                                                       |
+| ------------------------------ | ----------------------------------------------------- | ------------------------------------------------------------------------ |
+| **Closures / Lambdas**         | `{ it * 2 }`                                          | Closure literal.                                                         |
+| ------------------------------ | ----------------------------------------------------- | ------------------------------------------------------------------------ |
+| **Strings / Regex**             | `str.replaceAll("a", "b")`                            | Replace globally.                                                        |
+|                                | `str.split(",")`                                      | Split string into list.                                                  |
+| ------------------------------ | ----------------------------------------------------- | ------------------------------------------------------------------------ |
+| **Files / I/O**                | `new File("file.txt").text`                           | Read entire file as string.                                              |
+|                                | `new File("file.txt").eachLine { line -> ... }`       | Read file line by line.                                                  |
+|                                | `File dir = new File("folder")`                       | Reference a directory.                                                   |
+|                                | `dir.listFiles()`                                     | Return array of files in directory.                                      |
+|                                | `dir.eachFile { println it.name }`                    | Iterate files in a directory.                                            |
+|                                | `dir.eachFileMatch(~/.+\.fastq/) { println it }`      | Iterate files matching regex.                                            |
+|                                | `files("${dir}/*.fastq")`                             | Nextflow `files()` factory: lazy channel of files matching glob pattern. |
+|                                | `files("${dir}/*.fastq").collect()`                   | Collect files into a list immediately (eager evaluation).                |
+| ------------------------------ | ----------------------------------------------------- | ------------------------------------------------------------------------ |
+| **Operators / Logic**          | `?.`                                                  | Safe navigation (null-safe).                                             |
+|                                | `?:`                                                  | Elvis operator (default if null).                                        |
+|                                | `in`                                                  | Check membership: `if (x in list)`                                       |
+|                                | `==`, `!=`, `<`, `>`, `<=`, `>=`                      | Comparison operators.                                                    |
+| ------------------------------ | ----------------------------------------------------- | ------------------------------------------------------------------------ |
+| **Timing / Debug**             | `System.currentTimeMillis()`                          | Current timestamp in milliseconds.                                       |
+|                                | `new Date()`                                          | Current date/time.                                                       |
+| ------------------------------ | ----------------------------------------------------- | ------------------------------------------------------------------------ |
+| **Type Conversion / Coercion** | `list as Set`                                         | Convert list to set.                                                     |
+|                                | `list as String`                                      | Convert list to string.                                                  |
+|                                | `Integer.parseInt("42")`                              | String → integer conversion.                                             |
+| ------------------------------ | ----------------------------------------------------- | ------------------------------------------------------------------------ |
+| **Math / Ranges**              | `(1..5).toList()`                                     | Inclusive range.                                                         |
+|                                | `(1..<5).toList()`                                    | Exclusive range (1..4).                                                  |
+|                                | `Math.round(3.14)`                                    | Round number.                                                            |
+|                                | `Math.ceil(3.14)`                                     | Ceiling function.                                                        |
+| ------------------------------ | ----------------------------------------------------- | ------------------------------------------------------------------------ |
+| **Debugging / Logging**        | `println x`                                           | Print variable or message.                                               |
+|                                | `log.info("message")`                                 | Use logger if defined.                                                   |
+|                                | ------------------------------ | ----------------------------------------------------- | ------------------------------------------------------------------------ |
+
+
+================================================================================
+                    GROOVY SCOPING: def vs. No def
+================================================================================
+
+1. Using 'def' (Local Scope)
+--------------------------------------------------------------------------------
+COMMAND:  def fastq_files = files("*.fq")
+BEHAVIOR: This creates a "Local Variable." 
+SCOPE:    It is ONLY visible inside the block where it was created.
+USE CASE: Use this inside 'workflow' blocks or 'functions'.
+WHY:      It is safer. It prevents this variable from accidentally 
+          clashing with other variables in different parts of the script.
+
+2. No 'def' (Global/Binding Scope)
+--------------------------------------------------------------------------------
+COMMAND:  fastq_files = files("*.fq")
+BEHAVIOR: This creates a "Global Variable" (Bound to the script shell).
+SCOPE:    It is visible EVERYWHERE in the script.
+USE CASE: Rarely used in modern Nextflow DSL2.
+DANGER:   If you have a large script, you might accidentally overwrite 
+          a global variable in one workflow that was needed in another.
+
+--------------------------------------------------------------------------------
+3. The 'params' Comparison
+--------------------------------------------------------------------------------
+Think of 'def' as your private notepad, and 'params' as the public whiteboard.
+
+- def x:    Only you can see it in this room (workflow).
+- x = ...:  Everyone in the building can see it.
+- params.x: Everyone in the building can see it AND change it via the CLI.
+================================================================================
+
+================================================================================
+                         GROOVY: SET vs. LIST
+================================================================================
+
+FEATURE       | LIST (ArrayList)               | SET (HashSet/PathSet)
+--------------|--------------------------------|--------------------------------
+Duplicates    | ALLOWED.                       | FORBIDDEN.
+              | [A, B, A] stays [A, B, A]      | [A, B, A] becomes [A, B]
+--------------|--------------------------------|--------------------------------
+Order         | PRESERVED.                     | NOT GUARANTEED.
+              | Items stay in the order they   | Items may "scramble" unless 
+              | were added.                    | you specifically sort them.
+--------------|--------------------------------|--------------------------------
+Indexing      | YES.                           | NO.
+              | You can use: list[0]           | You cannot use: set[0]
+--------------|--------------------------------|--------------------------------
+Performance   | Slower for "Contains" checks.  | Extremely fast for finding if
+              | (Must look at every item).     | an item exists.
+--------------|--------------------------------|--------------------------------
+Nextflow use  | The standard way to move data  | Returned by 'files()' to ensure
+              | through channels.              | you don't process a file twice.
+================================================================================
+
+=========================================================================================
+					FILTERING LOGIC: .findAll { } vs .filter { }
+=========================================================================================
+ ⚠️ IMPORTANT DIFFERENCE:
+ - .findAll { }: Use this for GROOVY LISTS (what we have here).
+ - .filter  { }: Use this for NEXTFLOW CHANNELS (the pipes between processes).
+
+ The findAll() method iterates through the List and creates a NEW List containing
+ only the elements where the condition inside { } is 'true'.
+
+ SYNTAX OPTIONS:
+ 1. Explicit Variable: fastq_files.findAll { file -> file.name ==~ VALID_PATTERN }
+ 2. Implicit 'it'     : fastq_files.findAll { it.name ==~ VALID_PATTERN }
+
+ OPERATOR vs METHOD:
+ - ==~          : Groovy "Match" operator. Returns true if the string matches the Regex.
+ - .matches()   : Java method. Performs a strict match (the whole string must match).
+ - .name        : Nextflow Path property. Checks "sample_R1.fq.gz" instead of the 
+                  full path "/home/user/data/sample_R1.fq.gz".
+=========================================================================================
+
+
+/*
+// =========================================================================================
+// THE "COLLECT" DISTINCTION: Groovy List vs. Nextflow Channel
+	def list = [1,2,3]   
+	println list 
+	Output will be [1,2,3]
+
+	def ch = Channel.fromList([1,2,3])
+	println ch 
+	Output will be `DataflowQueue@123`
+	ch.view()
+	Output will be [1]
+				   [2]
+				   [3]
+//
+// 1. Groovy .collect() (on a List/Collection):
+//    - Returns: A standard Groovy List immediately.
+//    - Usage: Used to transform every item in a list and return the final list.
+//    - Example:
+//          def my_list = [1, 2, 3].collect { it * 2 }
+//          println my_list
+//          // Output: [2, 4, 6]
+//    - Context: Ideal for pre-run validation because you get the list instantly.
+//
+// 2. Nextflow .collect() (on a Channel):
+//    - Returns: A NEW Channel that emits **one single item (pulse)** containing all items in a list.
+//    - Behavior: It waits for all items flowing through the channel to arrive, then emits the full list.
+//    - Example:
+//          ch = Channel.from('file1', 'file2', 'file3')
+//          collected_ch = ch.collect()
+//          collected_ch.subscribe { files_list ->
+//              println files_list
+//          }
+//          // Output: [file1, file2, file3]
+//          // Notice: The channel emits **one single list** after all items have arrived,
+//          //         not each file individually.
+//
+// WHY THIS MATTERS FOR VALIDATION:
+// - If you want to check the number of files, validate names, or abort early,
+//   you need a **standard Groovy List**. Using Nextflow channel collect() here is "lazy"
+//   and will only emit the list **when the workflow actually runs**, which is too late
+//   for pre-run checks.
+//
+// =========================================================================================
+
+
+
+
+// =========================================================================================
+// NOTE: .each vs. .map
+// 
+// 1. .each (Groovy Method):
+//    - Used for SIDE EFFECTS: Printing to console, logging, or throwing errors.
+//    - It iterates over the collection but returns the ORIGINAL collection unchanged.
+//    - In this block, we use .each because we want to trigger a 'stop' signal (error) 
+//      if bad files exist, not transform the files into something else.
+//
+// 2. .map (Nextflow Operator):
+//    - Used for TRANSFORMATION: Changing one data type into another (e.g., File -> Tuple).
+//    - It creates a NEW Channel emitting the results of the transformation.
+//    - Use .map when you need to "prep" data for a downstream process (like STAR).
+//
+// 3. SYNTAX DIFFERENCE:
+//    - .each is usually used on a LIST (after .collect()).
+//    - .map is used on a CHANNEL (to stream items one-by-one).
+// =========================================================================================
+
+// =========================================================================================
+// SCOPING WITH 'def':
+// We use 'def' to declare variables as 'local' to this specific closure (the code block).
+// This is critical because:
+//   1. It prevents 'leaking' variables into the global pipeline scope.
+//   2. It ensures that parallel tasks don't accidentally overwrite each other's data.
+
+// FILE PATH LOGIC:
+// 1. r1.name     : Returns ONLY the filename (e.g., "sample_R1.fq.gz"). 
+//                  Use this for IDs or renaming.
+// 2. r1.toString(): Returns the ABSOLUTE PATH (e.g., "/work/data/sample_R1.fq.gz").
+//                  REQUIRED when locating the 'partner' R2 file in the same directory.
+
+// THE lastIndexOf() METHOD:
+// We use lastIndexOf instead of indexOf to ensure we find the suffix 
+// closest to the file extension. This prevents issues if the suffix 
+// (e.g., "R1") appears earlier in the sample name itself.
+
+// THE take(idx) METHOD:
+// This Groovy method slices the string from the beginning (index 0) up to the specified
+// index (idx). It effectively "chops off" the suffix and everything that follows it 
+// (like .fastq.gz), leaving only the prefix as the Sample ID.
+
+// THE file() HELPER:
+// This converts a raw string (the path we just built) into a formal Nextflow 'File Object'.
+// This is critical because:
+//   a) It allows Nextflow to create the symlink 'shortcuts' in the work directory.
+//   b) Using 'checkIfExists: true' ensures the pipeline crashes early if R2 is missing.
+// =========================================================================================
+
+/*
+=========================================================================================
+ NOTE: This script implicitly inherits all variables defined in the 'nextflow.config' 
+ file located in this directory. Parameters prefixed with 'params.' do not need 
+ to be declared locally here.
+
+ PIPELINE LOGIC RULES:
+ 1. CHANNEL CREATION: Channels are created HERE, using the strings defined in config.
+    (e.g., read_ch = Channel.fromPath(params.raw_fastq_pattern))
+ 2. IMPLICIT LOOPING: Nextflow will automatically 'loop' over the contents of a channel.
+    You do not need 'for' loops; calling a Process on a Channel triggers the 'Batch' logic.
+ 3. PARALLELISM: Every item in a Channel is processed as an independent HPC job.
+
+ CHANNEL CREATION LOGIC:
+ 1. Channel.fromPath(...) creates a Nextflow channel that emits each file individually.
+    Suitable for streaming into processes for parallel execution.
+ 2. .collect() converts the stream into a single Channel emitting a single List 
+    containing all files. This is used here for the validation block below.
+ 3. To feed processes later, we transform this data back into a structured channel.
+
+ CODE BLOCKS : script vs shell
+1) script: block with triple double quotes """  (DEFAULT)
+ - Nextflow interpolates variables using ${}.
+ - Bash variables MUST be escaped with \${} to prevent Nextflow from trying to evaluate them.
+This is ideal for Nextflow scripts.
+
+2) shell: block with triple single quotes '''  (COPY-PASTE FRIENDLY)
+- Nextflow interpolates variables using !{} instead of ${}.
+- Bash variables ${} work normally (no escaping needed).
+This is ideal for copy-pasting existing Bash scripts.
+
+script:
+"""
+echo "Sample ID is ${sample_id}"
+CURRENT_DIR=\$PWD
+echo "I am running in \$CURRENT_DIR"
+"""
+
+shell:
+'''
+echo "Sample ID is !{sample_id}"
+
+# Bash variable (standard Bash syntax)
+CURRENT_DIR=$PWD
+echo "I am running in $CURRENT_DIR"
+'''
+
+INPUT types:
+input:
+    path index                 // A single/multiple reference file or directory
+    val  mode                  // A simple scalar value (string, int, etc.)
+    tuple val(id), path(fq)    // A sample "package": sample ID + FASTQ file
+    env  TOOL_OPTS             // An environment variable injected into the task
+	
+1) Nextflow input example: val vs env.
+
+Say you have sub_script.sh as below
+#!/usr/bin/env bash
+echo "Mode is: $mode"
+
+This process will error because mode is defined as 'val' and not visibile for sub_script.sh	
+process EXAMPLE_VAL {
+    input:
+        val mode
+
+    shell:
+    '''
+    echo "Mode is !{mode}"
+    bash sub_script.sh
+    '''
+}
+
+This process will work because mode is defined as 'env' and visibile for sub_script.sh
+process EXAMPLE_ENV {
+    input:
+        env MODE
+
+    shell:
+    '''
+    echo "Mode is $MODE"
+    bash sub_script.sh
+    '''
+}
+
+2) Nextflow input example: val vs tuple
+
+Suppose we have a sample metadata item:  ['single-end', 'R1', 'fastq.gz']
+	
+Channel.from( tuple('single-end','R1','fastq.gz') ) \
+    .set { tuple_ch }    // Channel named tuple_ch emitting a tuple
+
+process EXAMPLE_TUPLE {
+
+    input:
+        tuple val(layout), val(read), val(ext) from tuple_ch
+
+    script:
+    """
+    echo "Using tuple inputs — separate values:"
+    echo "Layout: ${layout}"
+    echo "Read:   ${read}"
+    echo "Suffix: ${ext}"
+    """
+}
+Notes:
+  - Each value has a clear name
+  - Order is explicit
+  - Safer and more maintainable
+  - Recommended for structured metadata
+
+Channel.from( ['single-end', 'R1', 'fastq.gz'] ) \
+    .map { list -> list } \
+    .set { val_ch }      // Channel named val_ch emitting one list
+
+process EXAMPLE_VAL {
+
+    input:
+        val res from val_ch
+
+    script:
+    """
+    echo "Using val(res) — single list:"
+    echo "Layout: !{res[0]}"
+    echo "Read:   !{res[1]}"
+    echo "Suffix: !{res[2]}"
+    """
+}
+Notes:
+  - Works, but depends on list order
+  - Harder to read and maintain
+  - Good only for homogeneous or small groups
+  
+=========================================================================================
+*/
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

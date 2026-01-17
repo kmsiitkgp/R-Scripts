@@ -1,53 +1,51 @@
 ﻿process STAR_ALIGN {	
 	
+	def LOG = "${sample_id}.STAR_ALIGN.error.log"
+	
 	input:
 	tuple val(sample_id), path(fastq_files)
+	path(star_index_dir)
+	
+	output:
+    tuple val(sample_id),
+		path("${sample_id}.Aligned.sortedByCoord.out.bam"),
+		path("${sample_id}.Aligned.sortedByCoord.out.bam.bai"),
+		emit: bam_indexed 
+
+    path "${sample_id}.ReadsPerGene.out.tab",		emit: gene_counts
+    path "${sample_id}.SJ.out.tab",					emit: sj_tab    
+	path "${sample_id}.Log.final.out",				emit: star_log
+    path "${LOG}",							 		emit: star_error_log
 		
 	script:	
 
 	// Determine if paired-end or single-end (Groovy, outside bash)
 	def MATES_ARGS = fastq_files.size() == 2 ?
 		"--readFilesIn ${fastq_files[0]} ${fastq_files[1]}" :
-		"--readFilesIn ${fastq_files[0]}"
-		
+		"--readFilesIn ${fastq_files[0]}"	
+	
 	"""	
-	# 1. Align reads using STAR
-	STAR \\
-		--genomeDir "${params.star_index_dir}" \\
-		${MATES_ARGS} \\
-		${params.STAR_ARGS.join(' ')} \\
-		--outFileNamePrefix "${sample_id}." \\
-		--runThreadN "${task.cpus}" \\		
-		1>> "${sample_id}.STAR.error.log" 2>&1 \\
-		&& echo "✅ STAR alignment completed successfully." \\
-		|| { echo "❌ STAR alignment failed. Check ${sample_id}.STAR.error.log"; exit 1; }
 	
-	# 2. Generate index files
-	sambamba index "${sample_id}.Aligned.sortedByCoord.out.bam" \\
-		&& echo "✅ BAI index generation completed successfully." \\
-		|| { echo "❌ BAI index generation failed."; exit 1; }
+	# Align reads using STAR
+	STAR \
+		--genomeDir "${star_index_dir}" \
+		${MATES_ARGS} \
+		${params.STAR_ARGS.join(' ')} \
+		--outFileNamePrefix "${sample_id}." \
+		--runThreadN "${task.cpus}" \
+		1>> "${LOG}" 2>&1 \
+		|| { echo "❌ ERROR: STAR alignment failed for ${sample_id}" | tee -a "${LOG}" >&2; exit 1; }
 	
-	"""
+	echo "✅ SUCCESS: STAR alignment completed for ${sample_id}" >> "${LOG}"
 	
-	output:
-    // BAM and Index
-    tuple val(sample_id), \
-        path("${sample_id}.Aligned.sortedByCoord.out.bam"), \
-        path("${sample_id}.Aligned.sortedByCoord.out.bam.bai"), \
-        emit: bam_indexed 
-
-    // MultiQC Inputs
-    path "${sample_id}.Log.final.out", \
-        emit: star_log
-    path "${sample_id}.SJ.out.tab", \
-        emit: sj_tab
-    path "${sample_id}.ReadsPerGene.out.tab", \
-        emit: gene_counts
-    
-    // Troubleshooting
-    path "${sample_id}.STAR.error.log", \
-        emit: star_error_log
-    
+	# Generate index for BAM
+	sambamba index "${sample_id}.Aligned.sortedByCoord.out.bam" \
+		1>> "${LOG}" 2>&1 \
+		|| { echo "❌ ERROR: BAI index generation failed for ${sample_id}" | tee -a "${LOG}" >&2; exit 1; }
+	
+	echo "✅ SUCCESS: BAI index generation completed for ${sample_id}" >> "${LOG}"
+	
+	"""    
 }
 
 /*	

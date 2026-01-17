@@ -135,10 +135,10 @@ params {
 	cutadapt_dir		= "${fastq_dir}/4_cutadapt/"    	// Keep for flexibility
 
 	fastqc_dir			= "${proj_dir}/03.FastQC/"
-	raw_qc_dir			= "${fastqc_dir}/1_raw/"			// directory with FastQC results of raw reads
-	fastp_qc_dir		= "${fastqc_dir}/2_fastp/"			// directory with FastQC results of fastp trimmed reads
-	trimgalore_qc_dir	= "${fastqc_dir}/3_trimgalore/"
-	cutadapt_qc_dir		= "${fastqc_dir}/4_cutadapt/"
+	raw_qc_dir			= "${fastqc_dir}/raw/"				// directory with FastQC results of raw reads
+	fastp_qc_dir		= "${fastqc_dir}/fastp/"			// directory with FastQC results of fastp trimmed reads
+	trimgalore_qc_dir	= "${fastqc_dir}/trimgalore/"
+	cutadapt_qc_dir		= "${fastqc_dir}/cutadapt/"
 
 	star_dir			= "${proj_dir}/04.STAR/"
 	rseqc_dir			= "${proj_dir}/05.RSeQC/"
@@ -176,27 +176,35 @@ process {
         memory = { 2.GB * task.attempt }
     }
 	
+	// FASTQC settings
+	withName: 'FASTQC' {		
+		publishDir = [
+            [ path: { "${params.fastqc_dir}/${read_type}" },	mode: 'copy',	pattern: "*.html" ],
+			[ path: { "${params.fastqc_dir}/${read_type}" },	mode: 'copy',	pattern: "*.zip" ], 			
+			[ path: params.log_dir,								mode: 'copy',	pattern: "*.FASTQC.error.log" ]
+		]
+	}	
+	
 	// SALMON settings
 	withName: 'SALMON_QUANT' {		
 		publishDir = [
-            [ path: { "${params.salmon_dir}" },  			mode: 'copy' ], 
-			[ path: { "${params.log_dir}" },     			mode: 'copy', pattern: "*.SALMON.error.log" ],		
-			[ path: { "${params.salmon_dir}/quant_files" }, mode: 'copy', pattern: "**/*.sf",
-			  saveAs: { filename -> 
-			  // Add sample_id prefix
-			  def sample = filename.tokenize('/')[0]   // assumes folder name = sample_id
-			  return "${sample}.quant.sf" } ]
+            [ path: params.salmon_dir,  					mode: 'copy', 	pattern: "${sample_id}" ], 
+			[ path: params.log_dir,     					mode: 'copy', 	pattern: "*.SALMON.error.log" ],		
+			[ path: "${params.salmon_dir}/quant_files", 	mode: 'copy', 	pattern: "**/quant.sf",		saveAs: { filename -> "${sample_id}.quant.sf" } ]
+			// NOTE: We use a closure { } in saveAs to delay evaluation.
+            // This allows Nextflow to wait until the task is finished to grab the specific 'sample_id' for renaming.
 		]
 	}	
 
     // STAR settings
     withName: 'STAR_ALIGN' {        
 		publishDir = [
-            [ path: { "${params.star_dir}" },  	mode: 'copy', 	pattern: "*.bam" ],
-			[ path: { "${params.star_dir}" },  	mode: 'copy', 	pattern: "*.bai" ],
-			[ path: { "${params.star_dir}" },  	mode: 'copy', 	pattern: "*.ReadsPerGene.out.tab" ],
-			[ path: { "${params.star_dir}" },  	mode: 'copy', 	pattern: "*.Log.final.out" ],            
-            [ path: { "${params.log_dir}" },   	mode: 'copy', 	pattern: "*.STAR.error.log" ]
+            [ path: params.star_dir,  	mode: 'copy', 	pattern: "*.bam" ],
+			[ path: params.star_dir,  	mode: 'copy', 	pattern: "*.bai" ],
+			[ path: params.star_dir,  	mode: 'copy', 	pattern: "*.ReadsPerGene.out.tab" ],
+			[ path: params.star_dir,  	mode: 'copy', 	pattern: "*.SJ.out.tab" ],
+			[ path: params.star_dir,  	mode: 'copy', 	pattern: "*.Log.final.out" ],            
+            [ path: params.log_dir,   	mode: 'copy', 	pattern: "*.STAR.error.log" ]
 		]     
     }
 	
@@ -212,8 +220,8 @@ process {
 	// MULTIQC settings
 	withName: 'MULTIQC' {    
 		publishDir = [            
-            [ path: params.multiqc_dir,		mode: 'copy', 	pattern: "${params.multiqc_filename}.html" ],
-			[ path: params.multiqc_dir,		mode: 'copy', 	pattern: "${params.multiqc_filename}_data" ],
+            [ path: params.multiqc_dir,		mode: 'copy', 	pattern: "*.html" ],
+			[ path: params.multiqc_dir,		mode: 'copy', 	pattern: "*_data" ],
             [ path: params.log_dir,			mode: 'copy', 	pattern: "MULTIQC.error.log" ]
 		]     
     }

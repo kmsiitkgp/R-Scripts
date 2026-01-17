@@ -1,31 +1,33 @@
 ﻿process MULTIQC {
-
+	
+	def LOG = "MULTIQC.error.log"
+	
 	input:
 	path(all_reports)
-	
-	script:
-	
-	"""
-	
-	# 1. Consolidate all reports using MultoQC
-	multiqc \\
-		--force \\
-		--clean-up \\
-		--quiet \\
-		--title "${params.multiqc_titlename}" \\
-		--filename "${params.multiqc_filename}" \\
-		. \\
-		1>> "MULTIQC.error.log" 2>&1	 \\
-		&& echo "✅ MultiQC completed successfully." \\
-		|| { echo "❌ MultiQC failed. Check MULTIQC.error.log"; exit 1; }
-	
-	"""
-	
+
 	output:
 	path("${params.multiqc_filename}.html"), 	emit: multiqc_html
 	path("${params.multiqc_filename}_data"), 	emit: multiqc_dir	
-    path("MULTIQC.error.log"), 					emit: multiqc_log
+    path("${LOG}"), 							emit: multiqc_log
+	
+	script:	
 
+	"""
+	
+	# Consolidate all reports using MultiQC
+	multiqc \
+		--force \
+		--clean-up \
+		--quiet \
+		--title "${params.multiqc_titlename}" \
+		--filename "${params.multiqc_filename}" \
+		. \
+		1>> "${LOG}" 2>&1 \
+		|| { echo "❌ ERROR: MultiQC failed" | tee -a "${LOG}" >&2; exit 1; }
+	
+	echo "✅ SUCCESS: MultiQC completed" >> "${LOG}"		
+	
+	"""
 }
 	
 /*
