@@ -1,3 +1,3 @@
 # R-Scripts
-This repository contains all the R scripts I have written.
+This repository contains all the scripts (R, Groovy, Python, bash ) that I have written.
 
