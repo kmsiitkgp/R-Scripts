@@ -18,7 +18,7 @@ if (.Platform$OS.type == "windows") {
   parent_dir  <- "C:/Users/kailasamms/OneDrive - Cedars-Sinai Health System/Desktop/Collaboration projects data"
   gmt_dir     <- "C:/Users/kailasamms/OneDrive - Cedars-Sinai Health System/Documents/GSEA_genesets"
   scripts_dir <- NULL
-  script_file <- "C:/Users/kailasamms/OneDrive - Cedars-Sinai Health System/Documents/GitHub/R-Scripts/Custom_Functions.R"
+  script_file <- "C:/Users/kailasamms/OneDrive - Cedars-Sinai Health System/Documents/GitHub/Scripts/R/Custom_Functions.R"
 } else {  # Linux/macOS (e.g., HPC)
   parent_dir  <- "/hpc/home/kailasamms/scratch"
   gmt_dir     <- "/hpc/home/kailasamms/projects/GSEA_genesets"

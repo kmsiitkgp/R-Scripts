@@ -1862,7 +1862,9 @@ plot_heatmap <- function(expr_mat,
   # For plot to be pretty, ideal cell_width and cell_height = fontsize + 5 points
   # In 8.5 x 11 inch page, ideal plot area ~ 6 x 8 inch (excluding figure legend,
   # column/row annotations, plot margins). So, plot area ~ 6*72 points wide and 
-  # 8*72 points high.
+  # 8*72 points high. 
+  # NOTE: If you use col_gaps, then heatmap can get cutoff. In such cases, 
+  # increase page width of pdf from 8inch to 10inch in  ---- 💾 Save Plots 
   
   # Set font sizes
   fontsize <- 10
@@ -1960,7 +1962,7 @@ plot_heatmap <- function(expr_mat,
                            paste0("Heatmap_Plot_", filename, file_extension))
     
     # Open multi-page PDF
-    grDevices::cairo_pdf(filename = file_name, width = 8, height = 11.5, onefile = TRUE) 
+    grDevices::cairo_pdf(filename = file_name, width = 10, height = 11.5, onefile = TRUE) 
     
     # Page 1
     grid::grid.draw(x = ph$gtable)

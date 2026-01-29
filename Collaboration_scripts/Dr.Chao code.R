@@ -1,14 +1,3 @@
-# Run the Custom_Functions.R script
-path1 <- "C:/Users/kailasamms/OneDrive - Cedars-Sinai Health System/Documents/GitHub/R-Scripts/Custom_Functions.R"
-path2 <- "/hpc/home/kailasamms/projects/scRNASeq/Custom_Functions.R"
-if (file.exists(path1)) {
-  source(path1)
-} else if (file.exists(path2)) {
-  source(path2)
-}
-
-source("C:/Users/kailasamms/OneDrive - Cedars-Sinai Health System/Documents/GitHub/R-Scripts/RNASeq_DESeq2_Functions.R")
-
 # Define axis font etc to use in all plots
 my_theme <- ggplot2::theme(aspect.ratio = 1,
                            plot.title =   element_text(family="sans", face="bold",  colour="black", size=15, hjust = 0.5),
@@ -29,7 +18,7 @@ my_theme <- ggplot2::theme(aspect.ratio = 1,
 
 # Fig 1B, supplementary
 
-# Define variables for fucntions from survival script
+# Define variables for functions from survival script
 parent_path <- "C:/Users/KailasammS/OneDrive - Cedars-Sinai Health System/Desktop/Dr.Chao/"
 results_path <- parent_path
 gse <- "TCGA_BLCA"
@@ -1009,6 +998,8 @@ cl_1750 <- openxlsx::read.xlsx(
   dplyr::select(everything(), -GSM_temp) %>%
   dplyr::filter(Sample_ID %in% colnames(final_merged_df))
 
+
+
 # --- 6. Plot heatmap for each dataset ---
 
 heatmap_plot_list <- list()
@@ -1032,7 +1023,8 @@ for (gse_id in gse_list){
   df_scaffold <- data.frame(SYMBOL = scaffold_genes, Category = "Scaffold")
   df_cam <- data.frame(SYMBOL = cam_genes, Category = "CAM")
   df_ne <- data.frame(SYMBOL = ne_genes, Category = "Neuroendocrine")
-  metadata_row <- rbind(df_c3, df_scaffold, df_cam, df_ne)
+  metadata_row <- rbind(df_c3, df_scaffold, df_cam, df_ne) %>%
+    dplyr::distinct(SYMBOL, .keep_all = TRUE)
   
   metadata_col <- cl_1750 %>% dplyr::filter(GSE %in% gse_id) %>%
     dplyr::select(Sample_ID, Consensus_class, Gender, Age, Stage)
@@ -1092,6 +1084,85 @@ if (length(heatmap_plot_list) > 0) {
   }
   dev.off()
 }
+
+## bulk RNASeq
+salmon_dir <- "C:/Users/kailasamms/OneDrive - Cedars-Sinai Health System/Desktop/Collaboration projects data/Past/Xinyi/salmon"
+proj_dir <- "C:/Users/kailasamms/OneDrive - Cedars-Sinai Health System/Desktop/Collaboration projects data/Past/Xinyi"
+txi <- prep_txi(salmon_dir = salmon_dir, 
+                species    = "Homo sapiens", 
+                db_version = "113", 
+                filename   = NULL, 
+                output_dir = proj_dir)
+
+metadata <- openxlsx::read.xlsx(file.path(proj_dir, "Xinyi_Metadata.xlsx"))
+raw_counts_mat <- NULL
+
+design      <- "Batch"
+deseq2_data <- prepare_deseq2_input(expr_mat = raw_counts_mat,
+                                    txi      = txi, 
+                                    metadata = metadata,
+                                    design   = design)
+
+dds <- DESeqDataSetFromTximport(txi     = deseq2_data$txi,
+                                colData = deseq2_data$metadata,
+                                design  = ~ Batch)
+
+dds <- DESeq(dds)
+vsd <- vst(dds, blind = FALSE)
+vsd_mat <- assay(vsd)
+
+library(limma)
+vsd_batch_corrected <- removeBatchEffect(vsd_mat,
+                                         batch = deseq2_data$metadata$Batch)
+ann_list <- get_annotations()
+vsd_batch_corrected <- vsd_batch_corrected %>%
+  as.data.frame() %>%
+  tibble::rownames_to_column("ID") %>%
+  add_annotation(ann_list = ann_list) %>%
+  dplyr::group_by(SYMBOL) %>%
+  dplyr::summarize(across(.cols = where(is.numeric), .fns = mean, na.rm = TRUE), .groups = "drop") %>%
+  tibble::column_to_rownames("SYMBOL") %>%
+  as.matrix()
+
+cl <- getConsensusClass(x = vsd_batch_corrected, gene_id = c("hgnc_symbol"))
+metadata_col <- dplyr::left_join(x = metadata %>% dplyr::mutate(Sample_ID = make.names(Sample_ID)), 
+                                 y = cl %>% tibble::rownames_to_column("Sample_ID"),
+                                 by = c("Sample_ID" = "Sample_ID"))
+
+mat <- vsd_batch_corrected[rownames(vsd_batch_corrected) %in% c(c3_genes, scaffold_genes, cam_genes, ne_genes), ]
+
+ph <- plot_heatmap(expr_mat            = mat, 
+                   label_genes         =  metadata_row$SYMBOL,  
+                   filename            = "Xinyi",
+                   output_dir          = proj_dir,
+                   metadata_col        = metadata_col, 
+                   metadata_row        = metadata_row,
+                   col_annotations     = c("consensusClass"),
+                   row_annotations     = c("Category"),
+                   col_gap_by          = c("consensusClass"),
+                   row_gap_by          = c("Category"),
+                   col_cluster_by      = c("consensusClass"),
+                   row_cluster_by      = c("Category"),
+                   plot_title          = NULL,
+                   heatmap_palette     = "rdbu",
+                   annotation_palette  = "discrete",
+                   border_color        = NA,
+                   force_log           = FALSE,
+                   show_expr_legend    = TRUE,
+                   save_plot           = TRUE,
+                   save_matrix         = TRUE)
+
+# Save the results
+wb <- openxlsx::createWorkbook()
+openxlsx::addWorksheet(wb, sheetName = "Classification")
+openxlsx::writeData(wb, sheet = "Classification", x = metadata_col)
+openxlsx::saveWorkbook(wb, file = file.path(proj_dir,"Classification.xlsx"), overwrite = TRUE)
+
+wb <- openxlsx::createWorkbook()
+openxlsx::addWorksheet(wb, sheetName = "VST counts")
+openxlsx::writeData(wb, sheet = "VST counts", x = vsd_batch_corrected)
+openxlsx::saveWorkbook(wb, file = file.path(proj_dir,"Batch corrected VST counts.xlsx"), overwrite = TRUE)
+
 
 
 ## scRNAseq
