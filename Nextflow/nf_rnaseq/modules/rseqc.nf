@@ -44,10 +44,10 @@ process RSEQC {
     // OUTPUT
     // =================================================================================
     output:
-    path("${sample_id}*.{pdf,jpeg,png,tiff}"),      emit: rseqc_plots,     optional: true  	// Visualization plots
-    path("${sample_id}*.{txt,log,r,xls}"),          emit: rseqc_logs,      optional: true  	// Data files and logs
-    path("${sample_id}*.bed"),                      emit: rseqc_beds,      optional: true  	// Junction BED files
-    path("${sample_id}.RSEQC.error.log"),           emit: rseqc_error_log					// Process log
+    path("${sample_id}*.{pdf,jpeg,png,tiff}"),      emit: rseqc_plots,     optional: true      // Visualization plots
+    path("${sample_id}*.{txt,log,r,xls}"),          emit: rseqc_logs,      optional: true      // Data files and logs
+    path("${sample_id}*.bed"),                      emit: rseqc_beds,      optional: true      // Junction BED files
+    path("${sample_id}.RSEQC.error.log"),           emit: rseqc_error_log                    // Process log
     // Note: optional: true prevents errors when PE-only files don't exist for SE data
 
     // =================================================================================
@@ -143,7 +143,7 @@ process RSEQC {
     # Uses housekeeping genes for more uniform baseline
 
     geneBody_coverage.py \
-        --input-file "${bam_1M}" \
+        --input "${bam_1M}" \
         --refgene "${housekeeping_bed}" \
         --out-prefix "${sample_id}" \
         1>> "${LOG}" 2>&1 \
@@ -175,7 +175,7 @@ process RSEQC {
     # --read-align-length: From read length file calculated upstream
 
     deletion_profile.py \
-        --input-file "${bam}" \
+        --input "${bam}" \
         --out-prefix "${sample_id}" \
         --read-align-length \$(cat "${read_len_file}") \
         1>> "${LOG}" 2>&1 \
@@ -207,7 +207,7 @@ process RSEQC {
     # Analyzes mismatch patterns to detect systematic errors
 
     mismatch_profile.py \
-        --input-file "${bam}" \
+        --input "${bam}" \
         --out-prefix "${sample_id}" \
         --read-align-length \$(cat "${read_len_file}") \
         1>> "${LOG}" 2>&1 \

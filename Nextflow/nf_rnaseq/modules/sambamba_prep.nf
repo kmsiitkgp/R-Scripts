@@ -23,7 +23,7 @@
 process SAMBAMBA_PREP {
 
     tag "Indexing and subsampling ${raw_bam.name}"
-    label 'process_medium'  				// Moderate resources: 4-8GB RAM, 4 cores
+    label 'process_medium'                  // Moderate resources: 4-8GB RAM, 4 cores
 
     // =================================================================================
     // INPUT

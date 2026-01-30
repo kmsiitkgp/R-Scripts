@@ -29,15 +29,17 @@ process MULTIQC {
     // INPUT
     // =================================================================================
     input:
-    path(all_reports)  // All QC files from upstream processes
+    path(all_reports)          // All QC files from upstream processes
+    val(multiqc_title)      // Report title as a string
+    val(multiqc_filename)    // Report filename as a string
 
     // =================================================================================
     // OUTPUT
     // =================================================================================
     output:
-    path("${params.multiqc_filename()}.html"),  	emit: multiqc_html  // HTML report
-    path("${params.multiqc_filename()}_data"),  	emit: multiqc_dir   // Data directory
-    path("MULTIQC.error.log"),                    	emit: multiqc_log   // Process log
+    path("${multiqc_filename}.html"),      emit: multiqc_html  // HTML report
+    path("${multiqc_filename}_data"),      emit: multiqc_dir   // Data directory
+    path("MULTIQC.error.log"),             emit: multiqc_log   // Process log
 
     // =================================================================================
     // EXECUTION
@@ -68,8 +70,8 @@ process MULTIQC {
         --force \
         --clean-up \
         --quiet \
-        --title "${params.multiqc_titlename()}" \
-        --filename "${params.multiqc_filename()}" \
+        --title "${multiqc_title}" \
+        --filename "${multiqc_filename}" \
         . \
         1>> "${LOG}" 2>&1 \
         || { echo "❌ ERROR: MultiQC failed" | tee -a "${LOG}" >&2; exit 1; }

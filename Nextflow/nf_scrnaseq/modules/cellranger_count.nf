@@ -39,10 +39,4 @@ process CELLRANGER_COUNT {
 	"""
 }
 
-	// Define in config
-	CELLRANGER_ARGS = [
-        "--include-introns", "true",       				// Auto-detect library type (strand orientation)
-        "--chemistry", "auto",             				// Correct for GC content bias
-        "--check-library-compatibility", "true",        // Correct for sequence-specific bias (hexamer priming)
-        "--cell-annotation-model", "auto"            	// Correct for positional bias along transcripts
-    ]
+	

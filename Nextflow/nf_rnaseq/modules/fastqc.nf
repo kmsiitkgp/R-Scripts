@@ -33,9 +33,9 @@ process FASTQC {
     // OUTPUT
     // =================================================================================
     output:
-    path("*_fastqc.zip"),            	emit: fastqc_zip        // Data for MultiQC aggregation
-    path("*_fastqc.html"),            	emit: fastqc_html       // Individual HTML reports
-    path("*.FASTQC.error.log"),        	emit: fastqc_error_log  // Process execution log
+    path("*_fastqc.zip"),                emit: fastqc_zip        // Data for MultiQC aggregation
+    path("*_fastqc.html"),                emit: fastqc_html       // Individual HTML reports
+    path("*.FASTQC.error.log"),            emit: fastqc_error_log  // Process execution log
 
     // =================================================================================
     // EXECUTION
