@@ -94,7 +94,10 @@ workflow {
         .mix(RSEQC.out.rseqc_logs)                          // RSeQC outputs
         .collect()                                          // Wait for all samples
     
-    MULTIQC(multiqc_ch)
+    // CRITICAL: Convert closures to string and pass into process to  prevent cache invalidation
+    multiqc_title = params.multiqc_titlename()
+    multiqc_file  = params.multiqc_filename()	
+    MULTIQC(multiqc_ch, multiqc_title, multiqc_file)
 }
 
 // =========================================================================================
@@ -120,8 +123,7 @@ workflow {
 // │   ├── gene_counts/                   # ReadsPerGene.out.tab files
 // │   ├── splice_junction/               # SJ.out.tab files
 // │   ├── alignment_stats/               # Log.final.out files
-// │   ├── Sample1.bam                    # BAM files (root of 04.STAR/)
-// │   └── Sample1.bam.bai                # BAM indexes
+// │   └── bam			                  # BAM + BAI files
 // ├── 05.RSEQC/                          # Organized by analysis type
 // │   ├── 01_read_distribution/
 // │   ├── 02_inner_distance/

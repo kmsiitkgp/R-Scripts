@@ -1,0 +1,25 @@
+Bootstrap: docker
+From: ubuntu:22.04
+
+%files
+    cellranger-10.0.0.tar.gz /opt/cellranger-10.0.0.tar.gz
+
+%post
+    apt-get update && apt-get install -y --no-install-recommends \
+        ca-certificates locales unzip procps
+    
+    cd /opt
+    tar -xzvf cellranger-10.0.0.tar.gz
+    rm cellranger-10.0.0.tar.gz
+    
+    ln -s /opt/cellranger-10.0.0/cellranger /usr/local/bin/cellranger
+
+%environment
+    export PATH="/opt/cellranger-10.0.0:$PATH"
+    export LC_ALL=C.UTF-8
+    export LANG=C.UTF-8
+
+%test
+    export PATH="/opt/cellranger-10.0.0:$PATH"
+    echo "Testing Cell Ranger installation..."
+    cellranger --version
