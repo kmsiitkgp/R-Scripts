@@ -25,9 +25,14 @@
 # CONFIGURATION
 # -----------------------------------------------------------------------------------------
 
-# Pipeline directory (where main.nf, project_info.yaml, modules/ are located)
-NF_DIR="$HOME/projects/nf_rnaseq"
-YAML="${NF_DIR}/project_info.yaml"
+#project="Xinyi"                  # Project name (used in output directory naming)
+project="BBN_C57BL6" 
+
+# Nextflow directory (where main.nf, nextflow.config, modules/, workflows/, projects/ are located)
+NF_DIR="$HOME/projects/nextflow"
+
+# YAML file with project specific settings in projects folder
+YAML="${NF_DIR}/projects/${project}_project_info.yaml"
 
 # -----------------------------------------------------------------------------------------
 # YAML PREPROCESSING
@@ -119,16 +124,35 @@ echo "--------------------------------------------------------------------------
 # -----------------------------------------------------------------------------------------
 # Remove problematic characters that cause parsing errors
 
-# Remove UTF-8 BOM (Byte Order Mark) from all Nextflow files
-# BOM appears as: 0xEF 0xBB 0xBF at file start (from some text editors)
-# Causes error: "Invalid character at start of file"
-sed -i '1s/^\xEF\xBB\xBF//' ${NF_DIR}/*.nf ${NF_DIR}/*.config
-sed -i '1s/^\xEF\xBB\xBF//' ${NF_DIR}/modules/*.nf
+# Enable nullglob so empty directories don't cause errors
+shopt -s nullglob
 
-# Clean up whitespace and tabs in module files
-# - Strip trailing whitespace (prevents unnecessary git diffs)
-# - Convert tabs to 4 spaces (consistent indentation)
-sed -i 's/[[:space:]]*$//; s/\t/    /g' ${NF_DIR}/modules/*.nf
+# Define file list once to keep it DRY
+NF_FILES=(
+  "${NF_DIR}"/*.nf
+  "${NF_DIR}"/modules/*.nf
+  "${NF_DIR}"/workflows/*.nf
+  "${NF_DIR}"/*.config
+)
+
+# 1. Remove UTF-8 BOM
+# 2. Strip trailing whitespace
+# 3. Convert tabs to 4 standard spaces
+# Using a loop handles the file list more reliably across different OS versions
+for file in "${NF_FILES[@]}"; do
+    # Remove UTF-8 BOM (Byte Order Mark)
+	# BOM appears as: 0xEF 0xBB 0xBF at file start (from some text editors)
+	# Causes error: "Invalid character at start of file"
+    sed -i '1s/^\xEF\xBB\xBF//' "$file"
+    # Clean up whitespace and tabs in module files
+	# - Strip trailing whitespace (prevents unnecessary git diffs)
+	# - Convert tabs to 4 spaces (consistent indentation)
+    sed -i 's/[[:space:]]*$//' "$file"
+    sed -i 's/\t/    /g' "$file"
+done
+
+# Disable nullglob
+shopt -u nullglob
 
 # -----------------------------------------------------------------------------------------
 # LOAD REQUIRED MODULES

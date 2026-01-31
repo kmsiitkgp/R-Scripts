@@ -10,7 +10,7 @@
 ##		sudo apt update
 ##		sudo apt install -y apptainer
 ## 4) Move to directory containing cellranger.tar.gz file and cellranger.def file 
-## cd "/mnt/c/Users/kailasamms/OneDrive - Cedars-Sinai Health System/Desktop/nf_scrnaseq"
+## cd "/mnt/c/Users/kailasamms/OneDrive - Cedars-Sinai Health System/Desktop/build"
 ## 5) Verify if you can see the files
 ## ls
 ## 6) Build Image
@@ -56,7 +56,7 @@ singularity build --fakeroot "${IMG_NAME}" "${IMG_SCRIPT}"
 # 6. VALIDATION GATE: The "Before Cleaning" Check
 echo "------------------------------------------------"
 echo "VERIFYING IMAGE INTEGRITY..."
-if singularity exec "${IMG_NAME}" cellranger count --version; then
+if singularity exec "${IMG_NAME}" cellranger --version; then
     echo "CHECK PASSED: Cell Ranger is alive and well."
     echo "------------------------------------------------"
     

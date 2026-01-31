@@ -626,6 +626,16 @@ prep_txi <- function(salmon_dir, species, output_dir,
   file_name <- paste("txi", filename, sep = "_")
   file_extension <- ".rds"
   saveRDS(txi, file = file.path(output_dir, paste0(file_name, file_extension)))
+  
+  # 1. Export Raw-ish Estimated Counts
+  write.csv(as.data.frame(txi$counts), 
+            file.path(output_dir, "Processed_Data_Counts.csv"), 
+            row.names = TRUE)
+  
+  # 2. Export TPMs
+  write.csv(as.data.frame(txi$abundance), 
+            file.path(output_dir, "Processed_Data_TPM.csv"), 
+            row.names = TRUE)
 
   return(txi)
 }

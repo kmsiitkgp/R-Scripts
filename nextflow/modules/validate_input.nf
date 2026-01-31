@@ -46,7 +46,17 @@ workflow VALIDATE_INPUT {
     // Define validation regex pattern
     // Expected: *_R1.fq.gz, *_R2.fq.gz (or _r1/_r2)
     // Optional: _Tumor or _Normal designation
-    def VALID_PATTERN = ~/.*((_Tumor|_Normal))?.*((_R|_r)[12]).*\.f(q|astq)\.gz/
+    def VALID_PATTERN
+
+    if (params.expt == "RNASeq") {
+        //VALID_PATTERN = ~/.*((_Tumor|_Normal))?.*((_R|_r)[12]).*\.f(q|astq)\.gz/
+        VALID_PATTERN = ~/.*(_Tumor|_Normal)?.*(_[Rr][12]).*\.f(q|astq)\.gz/
+    }
+    else if (params.expt == "scRNASeq") {
+        VALID_PATTERN = ~/^([A-Za-z0-9-]+)_S\d+_L\d{3}_(R[12]|I[12])_001\.fastq\.gz$/
+    } else {
+        error "❌ Unknown experiment type: ${params.expt}. Options: 'RNASeq', 'scRNASeq'"
+    }
 
     // Separate valid from invalid files
     valid_files   = fastq_files.findAll { it.name ==~ VALID_PATTERN }
@@ -219,7 +229,7 @@ workflow VALIDATE_INPUT {
     }
 
     // =================================================================================
-    // 7. CREATE SAMPLE CHANNELS
+    // 7. CREATE SAMPLE +FASTQ CHANNELS
     // =================================================================================
 
     all_r1_files = (r1_files + R1_files).sort()
@@ -227,9 +237,17 @@ workflow VALIDATE_INPUT {
 
     grouped_samples_ch = R1_FASTQS_ch.map { r1 ->
 
-        // Extract sample ID by removing Read1_TAG
-        def idx = r1.name.lastIndexOf(Read1_TAG)
-        def sample_id = (idx != -1) ? r1.name.take(idx) : r1.simpleName
+        def sample_id = ""
+
+        if (params.expt == "scRNASeq") {
+            // Use the regex capture group to get exactly what's in the first parentheses
+            def matcher = (r1.name =~ VALID_PATTERN)
+            sample_id = matcher ? matcher[0][1] : r1.simpleName
+        } else {
+            // Extract sample ID by removing Read1_TAG
+            def idx = r1.name.lastIndexOf(Read1_TAG)
+            sample_id = (idx != -1) ? r1.name.take(idx) : r1.simpleName
+        }
 
         if (MODE == "PAIRED_END") {
             // Find R2 mate using reverse-replace trick
@@ -265,7 +283,14 @@ workflow VALIDATE_INPUT {
     }
 
     // =================================================================================
-    // 8. PRINT SUMMARY
+    // 8. CREATE SAMPLE CHANNELS
+    // =================================================================================
+
+    // .unique() ensures if a sample has multiple lanes, you only get the name once
+    sample_names_ch = grouped_samples_ch.map { id, fastqs -> id }.unique()
+
+    // =================================================================================
+    // 9. PRINT SUMMARY
     // =================================================================================
 
     println "\n" + "=" * 60
@@ -312,7 +337,11 @@ workflow VALIDATE_INPUT {
         normal_ch  = Channel.fromList(normal_files)
 
         // Grouped sample tuples: [sample_id, [R1] or [R1, R2]]
-        samples = grouped_samples_ch
+        grouped_samples_ch = grouped_samples_ch
+
+        // The channel with just [sample_id]
+        sample_names_ch    = sample_names_ch
+
 }
 
 // =========================================================================================

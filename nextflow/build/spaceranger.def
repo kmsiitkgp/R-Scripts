@@ -1,0 +1,25 @@
+Bootstrap: docker
+From: ubuntu:22.04
+
+%files
+    spaceranger-4.0.1.tar.gz /opt/spaceranger-4.0.1.tar.gz
+
+%post
+    apt-get update && apt-get install -y --no-install-recommends \
+        ca-certificates locales unzip procps
+    
+    cd /opt
+    tar -xzvf spaceranger-4.0.1.tar.gz
+    rm spaceranger-4.0.1.tar.gz
+    
+    ln -s /opt/spaceranger-4.0.1/spaceranger /usr/local/bin/spaceranger
+
+%environment
+    export PATH="/opt/spaceranger-4.0.1:$PATH"
+    export LC_ALL=C.UTF-8
+    export LANG=C.UTF-8
+
+%test
+    export PATH="/opt/spaceranger-4.0.1:$PATH"
+    echo "Testing Space Ranger installation..."
+    spaceranger --version

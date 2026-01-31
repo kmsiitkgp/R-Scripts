@@ -1,7 +1,7 @@
 # =========================================================================================
 # PROJECT CONFIGURATION FILE
 # =========================================================================================
-# This YAML file configures the scRNA-seq pipeline. The pipeline reads this file to:
+# This YAML file configures the RNA-seq pipeline. The pipeline reads this file to:
 #   1. Locate input FASTQ files (read_dir)
 #   2. Find reference genome files (reference section)
 #   3. Set output locations (base_dir, work_dir)
@@ -22,7 +22,7 @@
 # -----------------------------------------------------------------------------------------
 
 project: "Xinyi"                  # Project name (used in output directory naming)
-expt: "scRNASeq"                  # Experiment type (determines output structure)
+expt: "RNASeq"                    # Experiment type (determines output structure)
 assay: "RNA"                      # Assay type (metadata only)
 
 # -----------------------------------------------------------------------------------------
@@ -61,7 +61,7 @@ reference:
 # Input: Directory containing raw FASTQ files
 # Expected naming: *_R1.fq.gz, *_R2.fq.gz (or _r1, _r2, .fastq.gz)
 # See docs/validate_input.md for file naming requirements
-read_dir: "/hpc/home/kailasamms/scratch/scRNASeq/Xinyi/01.FastQ/raw"
+read_dir: "/hpc/home/kailasamms/scratch/RNASeq/Xinyi/01.FastQ/raw"
 
 # Output: Base directory for all pipeline results
 # Final structure: ${base_dir}/${expt}/${project}/01.FastQC/, 02.STAR/, etc.
@@ -71,14 +71,14 @@ base_dir: "/hpc/home/kailasamms/scratch"
 work_dir: "/hpc/home/kailasamms/scratch/work"
 
 # Cache: Container image storage (can be shared across projects)
-cache_dir: "/hpc/home/kailasamms/scratch/singularity_cache"
+cache_dir: "/hpc/home/kailasamms/NGSTools/singularity_cache"
 
 # Cloud storage examples:
 # base_dir: "s3://my-nextflow-bucket"
 # work_dir: "s3://my-nextflow-bucket/work"
 
 # =========================================================================================
-# CELLRANGER PARAMETERS
+# ALIGNMENT PARAMETERS
 # =========================================================================================
 # These are passed to STAR alignment. Defaults work well for standard RNA-seq.
 # For parameter details, see: docs/star_align.md
@@ -87,9 +87,33 @@ cache_dir: "/hpc/home/kailasamms/scratch/singularity_cache"
 # Standard users: Leave defaults unchanged
 # =========================================================================================
 
-cellranger_count:
-  include_introns: "true"
-  chemistry: "auto"                         # Novel junction discovery (2-5% better mapping)
-  check_library_compatibility: "true"       # Generate gene counts for DESeq2/edgeR
-  cell_annotation_model: "auto"             # ReadLength - 1 (100 works for 75-150bp reads)
- 
+star_align:
+  runMode: "alignReads"
+  twopassMode: "Basic"                        # Novel junction discovery (2-5% better mapping)
+  quantMode: "GeneCounts"                     # Generate gene counts for DESeq2/edgeR
+  sjdbOverhang: 100                           # ReadLength - 1 (100 works for 75-150bp reads)
+  readFilesCommand: "zcat"                    # For .gz files
+  outFilterMultimapNmax: 10                   # Allow reads mapping to ≤10 loci
+  outFilterMismatchNmax: 999                  # Use percentage filter (below)
+  outFilterMismatchNoverReadLmax: 0.04        # Max 4% mismatches per read
+  outFilterType: "BySJout"                    # Filter low-confidence junctions
+  alignEndsType: "Local"                      # Allow soft-clipping at ends
+  alignIntronMin: 20                          # Min intron size (gaps <20bp = deletions)
+  alignIntronMax: 1000000                     # Max intron size (1 Mb)
+  alignMatesGapMax: 1000000                   # Max distance between PE mates
+  outSAMattributes: "NH HI AS nM MD"          # MD tag needed for RSeQC
+  outSAMunmapped: "Within"                    # Include unmapped reads in BAM
+  outSAMtype: ["BAM", "SortedByCoordinate"]   # Sorted BAM output
+
+# =========================================================================================
+# QUANTIFICATION PARAMETERS
+# =========================================================================================
+# These are passed to Salmon quantification. Defaults enable bias corrections.
+# For parameter details, see: docs/salmon_quant.md
+# =========================================================================================
+
+salmon_quant:
+  libType: "A"      # Auto-detect library type (strand orientation)
+  gcBias: true      # Correct GC content bias (~5% improvement)
+  seqBias: true     # Correct hexamer priming bias (~3% improvement)
+  posBias: true     # Correct positional bias (~2% improvement)
